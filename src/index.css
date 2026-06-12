@@ -1,0 +1,125 @@
+  /* src/index.css */
+  @import "tailwindcss";
+
+  /* ─────────────────────────────────────────────────────────────────────────────
+    ERP THEME — All brand colors live here.
+    To rebrand: change only these variables. No component changes needed.
+  ───────────────────────────────────────────────────────────────────────────── */
+  :root {
+    /* Brand Primary */
+    --color-primary:        #2563EB;  /* Blue 600 */
+    --color-primary-light:  #3B82F6;  /* Blue 500 */
+    --color-primary-dark:   #1D4ED8;  /* Blue 700 */
+    --color-primary-50:     #EFF6FF;
+    --color-primary-100:    #DBEAFE;
+
+    /* Brand Accent */
+    --color-accent:         #0EA5E9;  /* Sky 500 */
+    --color-accent-light:   #38BDF8;
+
+    /* Semantic Colors */
+    --color-success:        #10B981;
+    --color-success-light:  #D1FAE5;
+    --color-warning:        #F59E0B;
+    --color-warning-light:  #FEF3C7;
+    --color-danger:         #EF4444;
+    --color-danger-light:   #FEE2E2;
+    --color-info:           #3B82F6;
+    --color-info-light:     #DBEAFE;
+
+    /* Neutrals */
+    --color-bg:             #F8FAFC;
+    --color-surface:        #FFFFFF;
+    --color-surface-2:      #F1F5F9;
+    --color-border:         #E2E8F0;
+    --color-border-strong:  #CBD5E1;
+
+    /* Text */
+    --color-text:           #0F172A;
+    --color-text-muted:     #64748B;
+    --color-text-subtle:    #94A3B8;
+    --color-text-inverse:   #FFFFFF;
+
+    /* Sidebar */
+    --color-sidebar-bg:     #0F172A;
+    --color-sidebar-text:   #CBD5E1;
+    --color-sidebar-active: #2563EB;
+    --color-sidebar-hover:  #1E293B;
+
+    /* Shadows */
+    --shadow-sm:  0 1px 2px 0 rgb(0 0 0 / 0.05);
+    --shadow-md:  0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+    --shadow-lg:  0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+
+    /* Layout */
+    --sidebar-width:         256px;
+    --sidebar-width-collapsed: 72px;
+    --header-height:         64px;
+
+    /* Border Radius */
+    --radius-sm:  4px;
+    --radius-md:  8px;
+    --radius-lg:  12px;
+    --radius-xl:  16px;
+  }
+
+  /* ── Base Resets ─────────────────────────────────────────────────────────── */
+  *, *::before, *::after { box-sizing: border-box; }
+  body {
+    background-color: var(--color-bg);
+    color: var(--color-text);
+    font-family: system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════════════
+    SIDEBAR HELPER CLASSES
+    Hover states for sidebar elements — must live in CSS so vars work correctly.
+  ═══════════════════════════════════════════════════════════════════════════ */
+  
+  /* ── Sidebar nav link ───────────────────────────────────────────────────── */
+  .sidebar-link {
+    color: var(--color-sidebar-text);
+    transition: background 150ms ease, color 150ms ease;
+  }
+  .sidebar-link:hover {
+    background: var(--color-sidebar-hover);
+    color: var(--color-text-inverse);
+  }
+  .sidebar-link.active {
+    background: var(--color-sidebar-active);
+    color: var(--color-text-inverse);
+  }
+  
+  /* ── Sidebar collapse / close icon button ───────────────────────────────── */
+  .sidebar-icon-btn {
+    color: var(--color-sidebar-text);
+    transition: background 150ms ease, color 150ms ease;
+  }
+  .sidebar-icon-btn:hover {
+    background: rgba(255 255 255 / 0.10);
+    color: var(--color-text-inverse);
+  }
+  
+  /* ── Logout button ──────────────────────────────────────────────────────── */
+  .sidebar-logout {
+    color: var(--color-sidebar-text);
+    transition: background 150ms ease, color 150ms ease;
+  }
+  .sidebar-logout:hover {
+    background: var(--color-danger-light);
+    color: var(--color-danger);
+  }
+  
+  /* ── Header hamburger button  */
+  .header-icon-btn {
+    color: var(--color-text-muted);
+    transition: background 150ms ease, color 150ms ease;
+  }
+  .header-icon-btn:hover {
+    background: var(--color-surface-2);
+    color: var(--color-text);
+  }
+
+
+    
