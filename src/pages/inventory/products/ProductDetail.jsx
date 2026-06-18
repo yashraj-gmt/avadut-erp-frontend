@@ -1,12 +1,12 @@
-import React, { useState, useEffect, useCallback } from 'react'
+// src/pages/inventory/products/ProductDetail.jsx
+import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import { useNavigate, useParams }                  from 'react-router-dom'
 import { productService }                          from '@/services/inventoryService'
 import { useToast }                                from '@/components/shared/toast/ToastProvider'
 import ConfirmModal                                from '@/components/shared/modal/ConfirmModal'
 import { SpinnerInline }                           from '@/components/shared'
 import defaultImg                                  from '@/assets/images/default.png'
-import { getImageUrl } from '@/utils/imageUrl'
-
+import { getImageUrl }                             from '@/utils/imageUrl'
 
 /* ── Icons ─────────────────────────────────────────────────────────────── */
 const Icon = {
@@ -17,20 +17,11 @@ const Icon = {
   ChevL:     () => <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>,
   ChevR:     () => <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>,
   Warning:   () => <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2"   viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>,
-  Tag:       () => <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2"   viewBox="0 0 24 24"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>,
   X:         () => <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>,
 }
 
-const fmt = (n) => n != null ? '₹' + Number(n).toLocaleString('en-IN') : '—'
+const fmt = (n) => n != null ? '₹' + Number(n).toLocaleString('en-IN', { maximumFractionDigits: 2 }) : '—'
 const imgSrc = (url) => getImageUrl(url) || defaultImg
-
-
-const stockStatus = (inv) => {
-  const qty = inv.stockQuantity ?? 0
-  if (qty === 0)           return { label: 'Out of Stock', color: 'var(--color-danger)',  bg: 'var(--color-danger-light)' }
-  if (inv.isLowStock)      return { label: 'Low Stock',    color: 'var(--color-warning)', bg: 'var(--color-warning-light)' }
-  return                          { label: 'In Stock',     color: 'var(--color-success)', bg: 'var(--color-success-light)' }
-}
 
 export default function ProductDetail() {
   const navigate  = useNavigate()
@@ -47,19 +38,19 @@ export default function ProductDetail() {
 
   /* ── Fetch product */
   const fetchProduct = useCallback(async () => {
-  setLoading(true)
-  try {
-    const res = await productService.getById(id)
-    const p   = res.data
-    setProduct(p)
-    setActiveImg(p?.images?.find(i => i.isPrimary) ?? p?.images?.[0] ?? null)
-  } catch (err) {
-    toast({ type: 'error', title: 'Failed to load product', message: err?.response?.data?.message ?? 'Please try again.' })
-    navigate('/inventory/products')
-  } finally {
-    setLoading(false)
-  }
-}, [id, toast, navigate])
+    setLoading(true)
+    try {
+      const res = await productService.getById(id)
+      const p   = res.data?.data ?? res.data
+      setProduct(p)
+      setActiveImg(p?.images?.find(i => i.isPrimary) ?? p?.images?.[0] ?? null)
+    } catch (err) {
+      toast({ type: 'error', title: 'Failed to load product', message: err?.response?.data?.message ?? 'Please try again.' })
+      navigate('/inventory/products')
+    } finally {
+      setLoading(false)
+    }
+  }, [id, toast, navigate])
 
   useEffect(() => { fetchProduct() }, [fetchProduct])
 
@@ -99,17 +90,9 @@ export default function ProductDetail() {
   if (!product) return null
 
   /* ── Derived values ───────────────────────────────────────────── */
-  const inventories  = product.inventories ?? []
-  const totalStock   = inventories.reduce((a, i) => a + (i.stockQuantity ?? 0), 0)
-  const totalAlert   = inventories.reduce((a, i) => a + (i.stockAlert   ?? 0), 0)
-  const isLowStockP  = totalStock <= (product.minimumStock ?? 0) && totalStock !== 0
-  const isOutOfStock = totalStock === 0
-
-  const sellingPrice  = product.sellingPrice
-  const purchasePrice = product.purchasePrice
-  const marginPct     = sellingPrice && purchasePrice && sellingPrice > 0
-    ? (((sellingPrice - purchasePrice) / sellingPrice) * 100).toFixed(1)
-    : null
+  const stock = product.currentStock ?? 0
+  const isOutOfStock = stock === 0
+  const isLowStock = stock <= 5 && stock > 0
 
   return (
     <>
@@ -123,7 +106,6 @@ export default function ProductDetail() {
         .pd-pricing     { display: flex; gap: 20px; padding: 16px; background: var(--color-surface-2); border-radius: var(--radius-lg); border: 1px solid var(--color-border); flex-wrap: wrap; }
         .pd-pricing-item{ min-width: 120px; flex: 1; }
         .pd-meta        { display: flex; gap: 16px; flex-wrap: wrap; font-size: 13px; color: var(--color-text-muted); margin-bottom: 16px; }
-        .pd-table-wrap  { overflow-x: auto; -webkit-overflow-scrolling: touch; }
         .pd-divider     { width: 1px; background: var(--color-border); flex-shrink: 0; }
         .thumb:hover    { border-color: var(--color-primary) !important; transform: scale(1.04); }
         .thumb          { transition: all 0.15s; cursor: pointer; }
@@ -159,7 +141,7 @@ export default function ProductDetail() {
           <div className="pd-header-left">
             <button
               onClick={() => navigate('/inventory/products')}
-              style={{ width: 38, height: 38, borderRadius: 'var(--radius-md)', border: '1.5px solid var(--color-border)', background: 'var(--color-surface)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-text-muted)', flexShrink: 0 }}
+              style={{ width: 38, height: 38, borderRadius: 'var(--radius-md)', border: '1.5px solid var(--color-border)', background: 'var(--color-surface)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifycontent: 'center', color: 'var(--color-text-muted)', flexShrink: 0 }}
             >
               <Icon.ArrowLeft />
             </button>
@@ -200,7 +182,7 @@ export default function ProductDetail() {
               {images.length > 0 && (
                 <>
                   <button className="zoom-btn"
-                    style={{ position: 'absolute', top: 14, right: 14, width: 38, height: 38, borderRadius: 'var(--radius-md)', background: 'rgba(255,255,255,0.9)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-text-muted)', opacity: 0, transition: 'opacity 0.2s', boxShadow: 'var(--shadow-md)' }}>
+                    style={{ position: 'absolute', top: 14, right: 14, width: 38, height: 38, borderRadius: 'var(--radius-md)', background: 'rgba(255,255,255,0.9)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifycontent: 'center', color: 'var(--color-text-muted)', opacity: 0, transition: 'opacity 0.2s', boxShadow: 'var(--shadow-md)' }}>
                     <Icon.ZoomIn />
                   </button>
                   <div style={{ position: 'absolute', bottom: 12, right: 14, background: 'rgba(0,0,0,0.5)', color: '#fff', fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 20 }}>
@@ -227,52 +209,40 @@ export default function ProductDetail() {
             )}
           </div>
 
-          {/* RIGHT: Product Info + Inventory */}
+          {/* RIGHT: Product Info */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
             {/* Product Info Card */}
             <div style={{ background: 'var(--color-surface)', borderRadius: 'var(--radius-lg)', padding: 24, boxShadow: 'var(--shadow-sm)' }}>
               {/* Badges */}
               <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
-                {product.categoryName && (
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 10px', borderRadius: 20, fontSize: 12, fontWeight: 600, background: 'var(--color-primary-100)', color: 'var(--color-primary)' }}>
-                    <Icon.Tag /> {product.categoryName}
-                  </span>
-                )}
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 10px', borderRadius: 20, fontSize: 12, fontWeight: 600, background: product.isActive ? 'var(--color-success-light)' : 'var(--color-danger-light)', color: product.isActive ? 'var(--color-success)' : 'var(--color-danger)' }}>
                   <span style={{ width: 6, height: 6, borderRadius: '50%', background: product.isActive ? 'var(--color-success)' : 'var(--color-danger)' }} />
                   {product.isActive ? 'Active' : 'Inactive'}
                 </span>
-                {(isLowStockP || isOutOfStock) && (
+                {(isLowStock || isOutOfStock) && (
                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 10px', borderRadius: 20, fontSize: 12, fontWeight: 600, background: 'var(--color-warning-light)', color: 'var(--color-warning)' }}>
                     <Icon.Warning /> {isOutOfStock ? 'Out of Stock' : 'Low Stock'}
                   </span>
                 )}
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 10px', borderRadius: 20, fontSize: 12, fontWeight: 600, background: product.status === 'PUBLISHED' ? 'var(--color-success-light)' : 'var(--color-surface-2)', color: product.status === 'PUBLISHED' ? 'var(--color-success)' : 'var(--color-text-muted)' }}>
-                  {product.status}
-                </span>
               </div>
 
               <h2 style={{ fontSize: 24, fontWeight: 800, color: 'var(--color-text)', margin: '0 0 6px', letterSpacing: '-0.4px' }}>{product.name}</h2>
 
               <div className="pd-meta">
                 <span>SKU: <strong style={{ fontFamily: 'monospace', color: 'var(--color-text-muted)' }}>{product.productCode}</strong></span>
-                {product.unit   && <span>Unit: <strong style={{ color: 'var(--color-text-muted)' }}>{product.unit}</strong></span>}
-                {product.weight && <span>Weight: <strong style={{ color: 'var(--color-text-muted)' }}>{product.weight} kg</strong></span>}
-                {product.hsnCode && <span>HSN: <strong style={{ color: 'var(--color-text-muted)' }}>{product.hsnCode}</strong></span>}
+                {product.productBy && <span>Product By: <strong style={{ color: 'var(--color-text-muted)' }}>{product.productBy}</strong></span>}
               </div>
 
               {product.description && (
                 <p style={{ fontSize: 14, color: 'var(--color-text-muted)', lineHeight: 1.7, margin: '0 0 20px' }}>{product.description}</p>
               )}
 
-              {/* Pricing */}
+              {/* Pricing & Stock */}
               <div className="pd-pricing">
                 {[
-                  { label: 'Selling Price', value: fmt(sellingPrice),  color: 'var(--color-text)' },
-                  { label: 'Cost Price',    value: fmt(purchasePrice), color: 'var(--color-text-muted)' },
-                  { label: 'Margin',        value: marginPct != null ? `${marginPct}%` : '—', color: 'var(--color-success)' },
-                  { label: 'Total Stock',   value: totalStock, color: isOutOfStock ? 'var(--color-danger)' : isLowStockP ? 'var(--color-warning)' : 'var(--color-text)' },
+                  { label: 'Purchase Price', value: fmt(product.purchasePrice), color: 'var(--color-text)' },
+                  { label: 'Stock Quantity', value: String(stock), color: isOutOfStock ? 'var(--color-danger)' : isLowStock ? 'var(--color-warning)' : 'var(--color-text)' },
                 ].map((item, i, arr) => (
                   <React.Fragment key={item.label}>
                     <div className="pd-pricing-item">
@@ -291,108 +261,23 @@ export default function ProductDetail() {
               </div>
             </div>
 
-            {/* Inventory Card */}
-            {inventories.length > 0 && (
-              <div style={{ background: 'var(--color-surface)', borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-sm)', overflow: 'hidden' }}>
-                <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--color-surface-2)' }}>
-                  <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: 'var(--color-text)' }}>Inventory by Warehouse</h3>
-                  <p style={{ margin: '3px 0 0', fontSize: 13, color: 'var(--color-text-muted)' }}>
-                    {inventories.length} warehouse{inventories.length !== 1 ? 's' : ''} · {totalStock} units total
-                  </p>
-                </div>
-
-                <div className="pd-table-wrap">
-                  <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 580 }}>
-                    <thead style={{ background: 'var(--color-surface-2)' }}>
-                      <tr>
-                        {['Warehouse', 'Stock Qty', 'Alert Threshold', 'Capacity', 'Utilisation', 'Status'].map(h => (
-                          <th key={h} style={{ padding: '11px 16px', textAlign: h === 'Warehouse' ? 'left' : 'center', fontSize: 11.5, fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', whiteSpace: 'nowrap' }}>
-                            {h}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {inventories.map((inv, i) => {
-                        const ss  = stockStatus(inv)
-                        const cp  = inv.capacityUtilisationPercentage
-                        const ap  = inv.stockAlertPercentage
-                        return (
-                          <tr key={inv.id} style={{ borderBottom: '1px solid var(--color-surface-2)', background: i % 2 === 0 ? 'var(--color-surface)' : '#fafbfd' }}>
-                            <td style={{ padding: '14px 16px' }}>
-                              <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--color-text)', whiteSpace: 'nowrap' }}>
-                                {inv.warehouseName}
-                                {inv.warehouseCode && <span style={{ fontSize: 11, color: 'var(--color-text-subtle)', marginLeft: 6 }}>({inv.warehouseCode})</span>}
-                              </div>
-                            </td>
-                            <td style={{ padding: '14px 16px', textAlign: 'center' }}>
-                              <span style={{ fontWeight: 800, fontSize: 18, color: inv.stockQuantity === 0 ? 'var(--color-danger)' : inv.isLowStock ? 'var(--color-warning)' : 'var(--color-text)' }}>
-                                {inv.stockQuantity ?? 0}
-                              </span>
-                            </td>
-                            <td style={{ padding: '14px 16px', textAlign: 'center' }}>
-                              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-                                <span style={{ fontWeight: 600, fontSize: 14, color: 'var(--color-text-muted)' }}>{inv.stockAlert ?? '—'}</span>
-                                {ap != null && (
-                                  <span style={{ fontSize: 11, color: ap < 100 ? 'var(--color-warning)' : 'var(--color-success)', fontWeight: 600 }}>{ap.toFixed(0)}% of alert</span>
-                                )}
-                              </div>
-                            </td>
-                            <td style={{ padding: '14px 16px', textAlign: 'center' }}>
-                              <span style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>{inv.warehouseCapacity ?? '—'}</span>
-                            </td>
-                            <td style={{ padding: '14px 16px', minWidth: 120 }}>
-                              {cp != null ? (
-                                <div>
-                                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
-                                    <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>Utilisation</span>
-                                    <span style={{ fontSize: 11, fontWeight: 700, color: cp > 90 ? 'var(--color-danger)' : cp > 70 ? 'var(--color-warning)' : 'var(--color-success)' }}>{cp.toFixed(1)}%</span>
-                                  </div>
-                                  <div style={{ background: 'var(--color-surface-2)', borderRadius: 4, height: 6, overflow: 'hidden' }}>
-                                    <div style={{ width: `${Math.min(100, cp)}%`, height: '100%', borderRadius: 4, background: cp > 90 ? 'var(--color-danger)' : cp > 70 ? 'var(--color-warning)' : 'var(--color-success)', transition: 'width 0.5s' }} />
-                                  </div>
-                                </div>
-                              ) : <span style={{ fontSize: 13, color: 'var(--color-border-strong)' }}>—</span>}
-                            </td>
-                            <td style={{ padding: '14px 16px', textAlign: 'center' }}>
-                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 10px', borderRadius: 20, fontSize: 12, fontWeight: 600, background: ss.bg, color: ss.color, whiteSpace: 'nowrap' }}>
-                                <span style={{ width: 6, height: 6, borderRadius: '50%', background: ss.color }} />
-                                {ss.label}
-                              </span>
-                            </td>
-                          </tr>
-                        )
-                      })}
-                    </tbody>
-                    <tfoot style={{ background: 'var(--color-surface-2)', borderTop: '1.5px solid var(--color-border)' }}>
-                      <tr>
-                        <td style={{ padding: '12px 16px', fontWeight: 700, fontSize: 13, color: 'var(--color-text-muted)' }}>Total</td>
-                        <td style={{ padding: '12px 16px', textAlign: 'center', fontWeight: 800, fontSize: 16, color: 'var(--color-text)' }}>{totalStock}</td>
-                        <td style={{ padding: '12px 16px', textAlign: 'center', fontWeight: 700, fontSize: 13, color: 'var(--color-text-muted)' }}>{totalAlert}</td>
-                        <td colSpan={3} />
-                      </tr>
-                    </tfoot>
-                  </table>
-                </div>
-              </div>
-            )}
           </div>
         </div>
       </div>
 
       {/* ── Lightbox ──────────────────────────────────────────────── */}
       {lightbox && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.9)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000, padding: 16 }}
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.9)', display: 'flex', alignItems: 'center', justifycontent: 'center', zIndex: 2000, padding: 16 }}
           onClick={e => e.target === e.currentTarget && setLightbox(null)}>
-          <button onClick={() => setLightbox(null)} style={{ position: 'absolute', top: 20, right: 20, background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: 'var(--radius-md)', width: 44, height: 44, cursor: 'pointer', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <button onClick={() => setLightbox(null)} style={{ position: 'absolute', top: 20, right: 20, background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: 'var(--radius-md)', width: 44, height: 44, cursor: 'pointer', color: '#fff', display: 'flex', alignItems: 'center', justifycontent: 'center' }}>
             <Icon.X />
           </button>
           {images.length > 1 && (
             <>
-              <button onClick={lbPrev} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: 'var(--radius-md)', width: 48, height: 48, cursor: 'pointer', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <button onClick={lbPrev} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: 'var(--radius-md)', width: 48, height: 48, cursor: 'pointer', color: '#fff', display: 'flex', alignItems: 'center', justifycontent: 'center' }}>
                 <Icon.ChevL />
               </button>
-              <button onClick={lbNext} style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: 'var(--radius-md)', width: 48, height: 48, cursor: 'pointer', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <button onClick={lbNext} style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: 'var(--radius-md)', width: 48, height: 48, cursor: 'pointer', color: '#fff', display: 'flex', alignItems: 'center', justifycontent: 'center' }}>
                 <Icon.ChevR />
               </button>
             </>
@@ -425,7 +310,7 @@ export default function ProductDetail() {
         onClose={() => !deleting && setShowDelete(false)}
         onConfirm={handleDelete}
         title={`Delete "${product.name}"?`}
-        message="This action is permanent. All inventory records linked to this product will also be removed."
+        message="This action is permanent. The product and all its records will be completely removed."
         confirmLabel="Delete Product"
         variant="danger"
         loading={deleting}

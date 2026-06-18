@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { useNavigate }                              from 'react-router-dom'
 import { productService }                          from '@/services/inventoryService'
-import { useCategories }                           from '@/hooks/useCategories'
 import { useToast }                                from '@/components/shared/toast/ToastProvider'
 import ConfirmModal                                from '@/components/shared/modal/ConfirmModal'
 import defaultImg                                  from '@/assets/images/default.png'
@@ -25,10 +24,9 @@ const fmt = (n) => n != null ? '₹' + Number(n).toLocaleString('en-IN') : '—'
 
 const stockStatus = (product) => {
   const stock = product.currentStock ?? 0
-  const min   = product.minimumStock ?? 0
-  if (stock === 0)  return { label: 'Out of Stock', bg: '#fce7f3', color: '#9d174d' }
-  if (stock <= min) return { label: 'Low Stock',    bg: '#fef3c7', color: '#92400e' }
-  return                   { label: 'In Stock',     bg: '#dcfce7', color: '#166534' }
+  if (stock === 0) return { label: 'Out of Stock', bg: '#fce7f3', color: '#9d174d' }
+  if (stock <= 5)  return { label: 'Low Stock',    bg: '#fef3c7', color: '#92400e' }
+  return                  { label: 'In Stock',     bg: '#dcfce7', color: '#166534' }
 }
 
 function SkeletonRow({ cols }) {
@@ -52,15 +50,11 @@ export default function ProductList() {
   const [deleting,     setDeleting]     = useState(false)
   const [deleteId,     setDeleteId]     = useState(null)
   const [search,       setSearch]       = useState('')
-  const [catFilter,    setCatFilter]    = useState('All Categories')
   const [statusFilter, setStatusFilter] = useState('all')
   const [page,         setPage]         = useState(1)
   const [pageSize,     setPageSize]     = useState(8)
   const [sortBy,       setSortBy]       = useState('id')
   const [sortDir,      setSortDir]      = useState('asc')
-
-  // Use the same hook as ProductForm so we get consistent data + loading state
-  const { categories } = useCategories()
 
   /* ── Fetch products ──────────────────────────────────────────── */
   const fetchProducts = useCallback(async () => {
@@ -89,13 +83,12 @@ export default function ProductList() {
   const filtered = products
     .filter(p => {
       const q           = search.toLowerCase()
-      const matchSearch = p.name?.toLowerCase().includes(q) || p.productCode?.toLowerCase().includes(q)
-      const matchCat    = catFilter === 'All Categories' || p.categoryName === catFilter
+      const matchSearch = p.name?.toLowerCase().includes(q) || p.productCode?.toLowerCase().includes(q) || (p.productBy ?? '').toLowerCase().includes(q)
       const matchStatus = statusFilter === 'all' ? true : statusFilter === 'active' ? p.isActive : !p.isActive
-      return matchSearch && matchCat && matchStatus
+      return matchSearch && matchStatus
     })
     .sort((a, b) => {
-      const fieldMap = { id: 'id', sku: 'productCode', category: 'categoryName', price: 'sellingPrice', stock: 'currentStock' }
+      const fieldMap = { id: 'id', sku: 'productCode', price: 'purchasePrice', stock: 'currentStock' }
       const key      = fieldMap[sortBy] ?? sortBy
       let va = a[key], vb = b[key]
       if (va == null) return 1; if (vb == null) return -1
@@ -125,19 +118,17 @@ export default function ProductList() {
 
   /* ── Stats ───────────────────────────────────────────────────── */
   const stats = [
-    { label: 'Total Products',     value: products.length,                                                            color: 'var(--color-primary)' },
-    { label: 'Active',             value: products.filter(p => p.isActive).length,                                    color: 'var(--color-success)' },
-    { label: 'Low / Out of Stock', value: products.filter(p => (p.currentStock ?? 0) <= (p.minimumStock ?? 0)).length, color: 'var(--color-warning)' },
-    { label: 'Total SKUs',         value: products.length,                                                            color: 'var(--color-info)'    },
+    { label: 'Total Products', value: products.length,                               color: 'var(--color-primary)' },
+    { label: 'Active',         value: products.filter(p => p.isActive).length,        color: 'var(--color-success)' },
+    { label: 'Out of Stock',   value: products.filter(p => (p.currentStock ?? 0) === 0).length, color: 'var(--color-warning)' },
+    { label: 'Total SKUs',     value: products.length,                               color: 'var(--color-info)'    },
   ]
 
   const SortIcon = ({ col }) => (
-    <span style={{ color: sortBy === col ? '#2563eb' : '#cbd5e1', marginLeft: 4, fontSize: 10 }}>
+    <span style={{ color: sortBy === col ? '#ef4444' : '#cbd5e1', marginLeft: 4, fontSize: 10 }}>
       {sortBy === col ? (sortDir === 'asc' ? '▲' : '▼') : '⇅'}
     </span>
   )
-
-  const categoryOptions = ['All Categories', ...categories.map(c => c.name)]
 
   return (
     <>
@@ -152,12 +143,12 @@ export default function ProductList() {
         .pl-table-wrap{ overflow-x: auto; -webkit-overflow-scrolling: touch; }
         .pl-pagination{ display: flex; align-items: center; justify-content: space-between; padding: 14px 20px; border-top: 1px solid var(--color-border); background: #fafbfd; flex-wrap: wrap; gap: 10px; }
         .pl-btn:hover { transform: translateY(-1px); }
-        .pl-row:hover td { background: #f5f7ff !important; }
+        .pl-row:hover td { background: #fff5f5 !important; }
         .pl-act:hover { transform: scale(1.08); }
-        .pl-input:focus { border-color: var(--color-primary) !important; box-shadow: 0 0 0 3px rgba(37,99,235,0.12) !important; }
+        .pl-input:focus { border-color: #ef4444 !important; box-shadow: 0 0 0 3px rgba(239,68,68,0.12) !important; }
         .pl-pgbtn:hover:not(:disabled) { background: var(--color-surface-2) !important; }
         .sort-th { cursor: pointer; user-select: none; }
-        .sort-th:hover { color: var(--color-primary) !important; }
+        .sort-th:hover { color: #ef4444 !important; }
         .pl-select { min-width: 140px; }
         @media (max-width: 1024px) { .pl-stats { grid-template-columns: repeat(2,1fr) !important; } }
         @media (max-width: 768px) {
@@ -187,7 +178,7 @@ export default function ProductList() {
           <div>
             <h1 style={{ fontSize: 22, fontWeight: 800, color: 'var(--color-text)', margin: 0, letterSpacing: '-0.4px' }}>Products</h1>
             <p style={{ fontSize: 13, color: 'var(--color-text-subtle)', margin: '3px 0 0' }}>
-              <a href="#" style={{ color: 'var(--color-primary)', textDecoration: 'none' }}>Inventory</a> › Products
+              <a href="#" style={{ color: '#ef4444', textDecoration: 'none' }}>Inventory</a> › Products
             </p>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
@@ -196,7 +187,7 @@ export default function ProductList() {
               <Icon.Refresh /> Refresh
             </button>
             <button className="pl-btn pl-add-btn" onClick={() => navigate('/inventory/products/add')}
-              style={{ display: 'flex', alignItems: 'center', gap: 7, background: 'linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-dark) 100%)', color: '#fff', border: 'none', borderRadius: 'var(--radius-md)', padding: '10px 18px', fontSize: 14, fontWeight: 600, cursor: 'pointer', boxShadow: '0 4px 14px rgba(37,99,235,0.35)', transition: 'all 0.2s', whiteSpace: 'nowrap' }}>
+              style={{ display: 'flex', alignItems: 'center', gap: 7, background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)', color: '#fff', border: 'none', borderRadius: 'var(--radius-md)', padding: '10px 18px', fontSize: 14, fontWeight: 600, cursor: 'pointer', boxShadow: '0 4px 14px rgba(239,68,68,0.35)', transition: 'all 0.2s', whiteSpace: 'nowrap' }}>
               <Icon.Plus /> Add Product
             </button>
           </div>
@@ -220,15 +211,9 @@ export default function ProductList() {
             <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-subtle)', pointerEvents: 'none' }}><Icon.Search /></span>
             <input className="pl-input"
               style={{ width: '100%', padding: '10px 14px 10px 36px', border: '1.5px solid var(--color-border)', borderRadius: 'var(--radius-md)', fontSize: 14, color: 'var(--color-text)', background: 'var(--color-surface)', outline: 'none' }}
-              placeholder="Search by name or SKU…" value={search}
+              placeholder="Search by name, SKU or brand…" value={search}
               onChange={e => { setSearch(e.target.value); setPage(1) }} />
           </div>
-
-          <select className="pl-input pl-select"
-            style={{ padding: '10px 14px', border: '1.5px solid var(--color-border)', borderRadius: 'var(--radius-md)', fontSize: 14, color: 'var(--color-text)', background: 'var(--color-surface)', cursor: 'pointer', outline: 'none' }}
-            value={catFilter} onChange={e => { setCatFilter(e.target.value); setPage(1) }}>
-            {categoryOptions.map(c => <option key={c}>{c}</option>)}
-          </select>
 
           <select className="pl-input pl-select"
             style={{ padding: '10px 14px', border: '1.5px solid var(--color-border)', borderRadius: 'var(--radius-md)', fontSize: 14, color: 'var(--color-text)', background: 'var(--color-surface)', cursor: 'pointer', outline: 'none' }}
@@ -259,14 +244,14 @@ export default function ProductList() {
               <thead style={{ background: 'var(--color-surface-2)', borderBottom: '1.5px solid var(--color-border)' }}>
                 <tr>
                   {[
-                    { label: '#',        align: 'left',   col: null       },
-                    { label: 'Product',  align: 'left',   col: null       },
-                    { label: 'SKU',      align: 'left',   col: 'sku'      },
-                    { label: 'Category', align: 'left',   col: 'category' },
-                    { label: 'Price',    align: 'right',  col: 'price'    },
-                    { label: 'Stock',    align: 'center', col: 'stock'    },
-                    { label: 'Status',   align: 'center', col: null       },
-                    { label: 'Actions',  align: 'center', col: null       },
+                    { label: '#',           align: 'left',   col: null   },
+                    { label: 'Product',     align: 'left',   col: null   },
+                    { label: 'SKU',         align: 'left',   col: 'sku'  },
+                    { label: 'Product By',  align: 'left',   col: null   },
+                    { label: 'Purchase ₹',  align: 'right',  col: 'price'},
+                    { label: 'Stock',       align: 'center', col: 'stock'},
+                    { label: 'Status',      align: 'center', col: null   },
+                    { label: 'Actions',     align: 'center', col: null   },
                   ].map(({ label, align, col }) => (
                     <th key={label} className={col ? 'sort-th' : ''} onClick={col ? () => handleSort(col) : undefined}
                       style={{ padding: '12px 16px', textAlign: align, fontSize: 11.5, fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', whiteSpace: 'nowrap' }}>
@@ -277,11 +262,11 @@ export default function ProductList() {
               </thead>
               <tbody>
                 {loading
-                  ? Array.from({ length: 5 }).map((_, i) => <SkeletonRow key={i} cols={8} />)
+                  ? Array.from({ length: 5 }).map((_, i) => <SkeletonRow key={i} cols={7} />)
                   : paged.length === 0
                   ? (
                     <tr>
-                      <td colSpan={8} style={{ textAlign: 'center', padding: '64px 20px', color: 'var(--color-text-subtle)' }}>
+                      <td colSpan={7} style={{ textAlign: 'center', padding: '64px 20px', color: 'var(--color-text-subtle)' }}>
                         <div style={{ fontSize: 44, marginBottom: 10 }}>📦</div>
                         <div style={{ fontWeight: 600, fontSize: 15 }}>No products found</div>
                         <div style={{ fontSize: 13, marginTop: 4 }}>Try adjusting your search or filters</div>
@@ -295,33 +280,22 @@ export default function ProductList() {
                         <td style={{ padding: '12px 16px', color: 'var(--color-text-subtle)', fontSize: 13 }}>{(page - 1) * pageSize + i + 1}</td>
                         <td style={{ padding: '12px 16px' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
-                            <img src={getImageUrl(p.primaryImageUrl) || defaultImg} alt={p.name}
-                              onError={e => { e.target.onerror = null; e.target.src = defaultImg }}
-                              style={{ width: 44, height: 44, borderRadius: 'var(--radius-md)', objectFit: 'cover', border: '1.5px solid var(--color-border)', flexShrink: 0 }} />
-                            <div>
-                              <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--color-text)', lineHeight: 1.3 }}>{p.name}</div>
-                              <div style={{ fontSize: 12, color: 'var(--color-text-subtle)', marginTop: 2 }}>{p.categoryName ?? '—'}</div>
-                            </div>
+                            <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--color-text)', lineHeight: 1.3 }}>{p.name}</div>
                           </div>
                         </td>
                         <td style={{ padding: '12px 16px' }}>
                           <span style={{ fontFamily: 'monospace', fontSize: 13, background: 'var(--color-surface-2)', color: 'var(--color-text-muted)', padding: '3px 8px', borderRadius: 'var(--radius-sm)', fontWeight: 600 }}>{p.productCode ?? '—'}</span>
                         </td>
                         <td style={{ padding: '12px 16px' }}>
-                          <span style={{ fontSize: 13, color: 'var(--color-text-muted)', fontWeight: 500 }}>{p.categoryName ?? '—'}</span>
+                          <span style={{ fontSize: 13, color: 'var(--color-text-muted)', fontWeight: 500 }}>{p.productBy ?? '—'}</span>
                         </td>
                         <td style={{ padding: '12px 16px', textAlign: 'right' }}>
-                          <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--color-text)' }}>{fmt(p.sellingPrice)}</div>
+                          <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--color-text)' }}>{fmt(p.purchasePrice)}</div>
                         </td>
                         <td style={{ padding: '12px 16px', textAlign: 'center' }}>
-                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
-                            <span style={{ fontWeight: 700, fontSize: 15, color: (p.currentStock ?? 0) === 0 ? 'var(--color-danger)' : (p.currentStock ?? 0) <= (p.minimumStock ?? 0) ? 'var(--color-warning)' : 'var(--color-text)' }}>
-                              {p.currentStock ?? 0}
-                            </span>
-                            {(p.currentStock ?? 0) > 0 && (p.currentStock ?? 0) <= (p.minimumStock ?? 0) && (
-                              <span style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 11, color: 'var(--color-warning)' }}><Icon.Warning /> Low</span>
-                            )}
-                          </div>
+                          <span style={{ fontWeight: 700, fontSize: 15, color: (p.currentStock ?? 0) === 0 ? 'var(--color-danger)' : 'var(--color-text)' }}>
+                            {p.currentStock ?? 0}
+                          </span>
                         </td>
                         <td style={{ padding: '12px 16px', textAlign: 'center' }}>
                           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 10px', borderRadius: 20, fontSize: 12, fontWeight: 600, background: ss.bg, color: ss.color, whiteSpace: 'nowrap' }}>
@@ -364,7 +338,7 @@ export default function ProductList() {
                   if (n < 1 || n > totalPages) return null
                   return (
                     <button key={n} className="pl-pgbtn" onClick={() => setPage(n)}
-                      style={{ width: 34, height: 34, borderRadius: 'var(--radius-sm)', border: n === page ? 'none' : '1.5px solid var(--color-border)', background: n === page ? 'var(--color-primary)' : 'var(--color-surface)', color: n === page ? '#fff' : 'var(--color-text)', fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      style={{ width: 34, height: 34, borderRadius: 'var(--radius-sm)', border: n === page ? 'none' : '1.5px solid var(--color-border)', background: n === page ? '#ef4444' : 'var(--color-surface)', color: n === page ? '#fff' : 'var(--color-text)', fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       {n}
                     </button>
                   )

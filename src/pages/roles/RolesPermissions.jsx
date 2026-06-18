@@ -1,5 +1,5 @@
 // src/pages/roles/RolesPermissions.jsx
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
 import {
   Shield, Users, UserPlus, Edit2, Trash2,
   CheckCircle, XCircle, X,
@@ -14,17 +14,19 @@ import {
 } from '@/components/shared'
 import ConfirmModal from '@/components/shared/modal/ConfirmModal'
 import { useToast } from '@/components/shared/toast/ToastProvider'
+import { userService } from '@/services/userService'
+import { useAuthStore } from '@/store/authStore'
 
-// ── Route labels for permissions matrix ──────────────────────────────────────
 const ROUTE_LABELS = {
   [ROUTES.DASHBOARD]:      'Dashboard',
   [ROUTES.PRODUCTS]:       'Products',
   [ROUTES.PRODUCT_ADD]:    'Add Product',
   [ROUTES.PRODUCT_EDIT]:   'Edit Product',
   [ROUTES.PRODUCT_DETAIL]: 'Product Detail',
-  [ROUTES.CATEGORIES]:     'Categories',
-  [ROUTES.CATEGORY_ADD]:   'Add Category',
-  [ROUTES.CATEGORY_EDIT]:  'Edit Category',
+  [ROUTES.GENERATORS]:     'Generators',
+  [ROUTES.GENERATOR_ADD]:  'Add Generator',
+  [ROUTES.GENERATOR_EDIT]: 'Edit Generator',
+  [ROUTES.GENERATOR_DETAIL]: 'Generator Detail',
   [ROUTES.ROLES]:          'Roles & Permissions',
   [ROUTES.PROFILE]:        'Profile',
 }
@@ -47,16 +49,6 @@ const ROLE_CONFIG = {
 
 // Only ADMIN and SUPER_ADMIN are assignable in the user form / role-change modal
 const ASSIGNABLE_ROLES = ['ADMIN', 'SUPER_ADMIN']
-
-// ── Demo users (matches com.erp.system.entity.User) ──────────────────────────
-const DEMO_USERS = [
-  { id:1, name:'Arjun Mehta',  email:'arjun.mehta@erp.local',  role:'SUPER_ADMIN', mobile:'+91 98765 43210', isActive:true,  lastLogin:'2025-05-28T09:15:00', createdAt:'2024-01-10T08:00:00', isDeleted:false },
-  { id:2, name:'Priya Shah',   email:'priya.shah@erp.local',   role:'ADMIN',       mobile:'+91 91234 56789', isActive:true,  lastLogin:'2025-05-27T14:32:00', createdAt:'2024-02-15T09:30:00', isDeleted:false },
-  { id:3, name:'Rohit Verma',  email:'rohit.verma@erp.local',  role:'ADMIN',       mobile:'+91 99887 76655', isActive:true,  lastLogin:'2025-05-26T11:00:00', createdAt:'2024-03-01T10:00:00', isDeleted:false },
-  { id:4, name:'Sneha Patel',  email:'sneha.patel@erp.local',  role:'ADMIN',       mobile:'+91 88776 65544', isActive:false, lastLogin:'2025-04-10T16:45:00', createdAt:'2024-03-20T11:00:00', isDeleted:false },
-  { id:5, name:'Karan Joshi',  email:'karan.joshi@erp.local',  role:'ADMIN',       mobile:'+91 77665 54433', isActive:true,  lastLogin:'2025-05-28T08:00:00', createdAt:'2024-04-05T12:00:00', isDeleted:false },
-  { id:6, name:'Divya Nair',   email:'divya.nair@erp.local',   role:'SUPER_ADMIN', mobile:'+91 66554 43322', isActive:true,  lastLogin:'2025-05-27T18:20:00', createdAt:'2024-05-12T13:00:00', isDeleted:false },
-]
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const formatDate = (iso) => {
@@ -89,12 +81,20 @@ function Avatar({ name, id }) {
   )
 }
 
-const EMPTY_FORM = { name:'', email:'', mobile:'', role:'ADMIN', isActive:true }
+const EMPTY_FORM = { name:'', email:'', mobile:'', password:'', role:'ADMIN', isActive:true }
 
 // ── User Add/Edit Modal ───────────────────────────────────────────────────────
 function UserModal({ isOpen, onClose, onSubmit, editUser, loading }) {
   const [form, setForm]     = useState(editUser ?? EMPTY_FORM)
   const [errors, setErrors] = useState({})
+
+  // Reset form when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      setForm(editUser ?? EMPTY_FORM)
+      setErrors({})
+    }
+  }, [isOpen, editUser])
 
   if (!isOpen) return null
 
@@ -103,11 +103,13 @@ function UserModal({ isOpen, onClose, onSubmit, editUser, loading }) {
     setErrors((prev) => ({ ...prev, [key]: '' }))
   }
 
-  const validate = () => {
+    const validate = () => {
     const e = {}
     if (!form.name.trim())  e.name  = 'Name is required'
-    if (!form.email.trim()) e.email = 'Email is required'
-    else if (!/\S+@\S+\.\S+/.test(form.email)) e.email = 'Enter a valid email'
+    if (form.email.trim() && !/\S+@\S+\.\S+/.test(form.email)) e.email = 'Enter a valid email'
+    if (!editUser && !form.password.trim()) e.password = 'Password is required'
+    else if (!editUser && form.password.length < 6) e.password = 'Minimum 6 characters'
+    if (!form.mobile.trim()) e.mobile = 'Mobile is required'
     return e
   }
 
@@ -158,13 +160,19 @@ function UserModal({ isOpen, onClose, onSubmit, editUser, loading }) {
             value={form.name} error={errors.name}
             onChange={(e) => set('name', e.target.value)} />
 
-                      <Input label="Mobile" placeholder="+91 98765 43210"
-            value={form.mobile} required
+          <Input label="Mobile" placeholder="+91 98765 43210" required
+            value={form.mobile} error={errors.mobile}
             onChange={(e) => set('mobile', e.target.value)} />
 
-          <Input label="Email Address" type="email" placeholder="user@company.com" 
+          <Input label="Email Address (Optional)" type="email" placeholder="user@company.com"
             value={form.email} error={errors.email}
             onChange={(e) => set('email', e.target.value)} />
+
+          {!editUser && (
+            <Input label="Password" type="password" placeholder="Min. 6 characters" required
+              value={form.password} error={errors.password}
+              onChange={(e) => set('password', e.target.value)} />
+          )}
 
           {/* Role picker */}
           <div className="flex flex-col gap-1.5">
@@ -230,6 +238,10 @@ function UserModal({ isOpen, onClose, onSubmit, editUser, loading }) {
 // ── Role Change Modal ─────────────────────────────────────────────────────────
 function RoleChangeModal({ isOpen, user, onClose, onConfirm, loading }) {
   const [selectedRole, setSelectedRole] = useState(user?.role ?? 'ADMIN')
+
+  useEffect(() => {
+    if (isOpen && user) setSelectedRole(user.role)
+  }, [isOpen, user])
 
   if (!isOpen || !user) return null
 
@@ -322,7 +334,6 @@ function RoleChangeModal({ isOpen, user, onClose, onConfirm, loading }) {
 
 // ── Permissions Matrix ────────────────────────────────────────────────────────
 function PermissionsMatrix() {
-  // Use all roles from ROLES constant — safe because ROLE_CONFIG now covers all values
   const roleList  = Object.values(ROLES)
   const routeList = Object.keys(ROUTE_PERMISSIONS)
 
@@ -352,7 +363,6 @@ function PermissionsMatrix() {
                 Route / Module
               </th>
               {roleList.map((role) => {
-                // Safe fallback — never crashes even if new roles are added to the enum
                 const cfg = ROLE_CONFIG[role] ?? { label: role, icon: <Shield size={12} /> }
                 return (
                   <th key={role}
@@ -402,9 +412,12 @@ function PermissionsMatrix() {
 
 // ── User Management ───────────────────────────────────────────────────────────
 function UserManagement() {
-  const toast = useToast()
+  const toast    = useToast()
+  const authUser = useAuthStore((s) => s.user)
+  const isSuperAdmin = authUser?.role === 'SUPER_ADMIN'
 
-  const [users,        setUsers]        = useState(DEMO_USERS)
+  const [users,        setUsers]        = useState([])
+  const [loading,      setLoading]      = useState(true)
   const [search,       setSearch]       = useState('')
   const [filterRole,   setFilterRole]   = useState('ALL')
   const [modalOpen,    setModalOpen]    = useState(false)
@@ -414,6 +427,26 @@ function UserManagement() {
   const [saving,       setSaving]       = useState(false)
   const [deleting,     setDeleting]     = useState(false)
 
+  // ── Fetch all users ───────────────────────────────────────────────────
+  const fetchUsers = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true)
+    try {
+      const data = await userService.getAll()
+      setUsers(data ?? [])
+    } catch (err) {
+      toast({
+        type: 'error',
+        title: 'Failed to load users',
+        message: err?.message || 'Could not connect to the server.',
+      })
+    } finally {
+      if (!silent) setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => { fetchUsers() }, [fetchUsers])
+
+  // ── Stats ─────────────────────────────────────────────────────────────
   const total       = users.length
   const superAdmins = users.filter((u) => u.role === 'SUPER_ADMIN').length
   const admins      = users.filter((u) => u.role === 'ADMIN').length
@@ -434,58 +467,97 @@ function UserManagement() {
   const openAdd  = ()  => { setEditUser(null); setModalOpen(true) }
   const openEdit = (u) => { setEditUser(u);    setModalOpen(true) }
 
+  // ── Create / Update ───────────────────────────────────────────────────
   const handleSubmit = async (form) => {
     setSaving(true)
-    await new Promise((r) => setTimeout(r, 700))
-    if (editUser) {
-      setUsers((prev) => prev.map((u) => u.id === editUser.id ? { ...u, ...form } : u))
-      toast({ type:'success', title:'User updated', message:`${form.name} has been updated successfully.` })
-    } else {
-      const newUser = {
-        ...form,
-        id: Math.max(...users.map((u) => u.id)) + 1,
-        lastLogin: null,
-        createdAt: new Date().toISOString(),
-        isDeleted: false,
+    try {
+      if (editUser) {
+        const updated = await userService.update(editUser.id, {
+          name:     form.name,
+          email:    form.email,
+          mobile:   form.mobile,
+          role:     form.role,
+          isActive: form.isActive,
+        })
+        setUsers((prev) => prev.map((u) => u.id === editUser.id ? updated : u))
+        toast({ type:'success', title:'User updated', message:`${form.name} has been updated.` })
+      } else {
+        const created = await userService.create(form)
+        setUsers((prev) => [created, ...prev])
+        toast({ type:'success', title:'User created', message:`${form.name} has been added.` })
       }
-      setUsers((prev) => [...prev, newUser])
-      toast({ type:'success', title:'User created', message:`${form.name} has been added to the system.` })
+      setModalOpen(false)
+    } catch (err) {
+      toast({
+        type:    'error',
+        title:   editUser ? 'Update failed' : 'Create failed',
+        message: err?.message || 'An error occurred. Please try again.',
+      })
+    } finally {
+      setSaving(false)
     }
-    setSaving(false)
-    setModalOpen(false)
   }
 
+  // ── Delete ────────────────────────────────────────────────────────────
   const handleDelete = async () => {
+    if (!deleteTarget) return
     setDeleting(true)
-    await new Promise((r) => setTimeout(r, 600))
-    setUsers((prev) => prev.filter((u) => u.id !== deleteTarget.id))
-    toast({ type:'success', title:'User deleted', message:`${deleteTarget.name} has been removed.` })
-    setDeleting(false)
-    setDeleteTarget(null)
+    try {
+      await userService.delete(deleteTarget.id)
+      setUsers((prev) => prev.filter((u) => u.id !== deleteTarget.id))
+      toast({ type:'success', title:'User deleted', message:`${deleteTarget.name} has been removed.` })
+      setDeleteTarget(null)
+    } catch (err) {
+      toast({
+        type:    'error',
+        title:   'Delete failed',
+        message: err?.message || 'Could not delete this user.',
+      })
+      setDeleteTarget(null)
+    } finally {
+      setDeleting(false)
+    }
   }
 
+  // ── Toggle Active ─────────────────────────────────────────────────────
   const handleToggleActive = async (user) => {
-    await new Promise((r) => setTimeout(r, 300))
+    // Optimistic update
     setUsers((prev) => prev.map((u) => u.id === user.id ? { ...u, isActive: !u.isActive } : u))
-    toast({
-      type:    user.isActive ? 'warning' : 'success',
-      title:   user.isActive ? 'User deactivated' : 'User activated',
-      message: `${user.name} is now ${user.isActive ? 'inactive' : 'active'}.`,
-    })
+    try {
+      const updated = await userService.toggleActive(user.id)
+      setUsers((prev) => prev.map((u) => u.id === user.id ? updated : u))
+      toast({
+        type:    updated.isActive ? 'success' : 'warning',
+        title:   updated.isActive ? 'User activated' : 'User deactivated',
+        message: `${updated.name} is now ${updated.isActive ? 'active' : 'inactive'}.`,
+      })
+    } catch (err) {
+      // Revert on failure
+      setUsers((prev) => prev.map((u) => u.id === user.id ? { ...u, isActive: user.isActive } : u))
+      toast({ type:'error', title:'Update failed', message: err?.message || 'Could not update status.' })
+    }
   }
 
+  // ── Change Role ───────────────────────────────────────────────────────
   const handleRoleChange = async (newRole) => {
+    if (!roleTarget) return
     setSaving(true)
-    await new Promise((r) => setTimeout(r, 600))
-    setUsers((prev) => prev.map((u) => u.id === roleTarget.id ? { ...u, role: newRole } : u))
-    toast({
-      type:'success', title:'Role updated',
-      message:`${roleTarget.name} is now ${ROLE_CONFIG[newRole]?.label ?? newRole}.`,
-    })
-    setSaving(false)
-    setRoleTarget(null)
+    try {
+      const updated = await userService.changeRole(roleTarget.id, newRole)
+      setUsers((prev) => prev.map((u) => u.id === roleTarget.id ? updated : u))
+      toast({
+        type:'success', title:'Role updated',
+        message:`${roleTarget.name} is now ${ROLE_CONFIG[newRole]?.label ?? newRole}.`,
+      })
+      setRoleTarget(null)
+    } catch (err) {
+      toast({ type:'error', title:'Role change failed', message: err?.message || 'Could not change role.' })
+    } finally {
+      setSaving(false)
+    }
   }
 
+  // ── Table columns ─────────────────────────────────────────────────────
   const columns = [
     {
       key: 'name', header: 'User', sortable: true,
@@ -509,18 +581,19 @@ function UserManagement() {
         const isSA = val === 'SUPER_ADMIN'
         return (
           <button
-            onClick={() => setRoleTarget(row)}
-            title="Click to change role"
-            className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full transition-all hover:opacity-80 cursor-pointer"
+            onClick={() => isSuperAdmin ? setRoleTarget(row) : undefined}
+            title={isSuperAdmin ? "Click to change role" : "Only Super Admin can change roles"}
+            className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full transition-all hover:opacity-80"
             style={{
               background: isSA ? 'var(--color-danger-light)'  : 'var(--color-primary-100)',
               color:      isSA ? 'var(--color-danger)'         : 'var(--color-primary-dark)',
               border: 'none',
+              cursor: isSuperAdmin ? 'pointer' : 'default',
             }}
           >
             {isSA ? <Crown size={11} /> : <ShieldCheck size={11} />}
             {ROLE_CONFIG[val]?.label ?? val}
-            <Edit2 size={10} className="ml-0.5 opacity-60" />
+            {isSuperAdmin && <Edit2 size={10} className="ml-0.5 opacity-60" />}
           </button>
         )
       },
@@ -541,22 +614,32 @@ function UserManagement() {
     },
     {
       key: 'id', header: 'Actions', align: 'center',
-      render: (_, row) => (
-        <div className="flex items-center justify-center gap-1">
-          <IconButton title={row.isActive ? 'Deactivate user' : 'Activate user'}
-            onClick={() => handleToggleActive(row)}>
-            {row.isActive
-              ? <XCircle     size={16} style={{ color:'var(--color-warning)' }} />
-              : <CheckCircle size={16} style={{ color:'var(--color-success)' }} />}
-          </IconButton>
-          <IconButton title="Edit user" onClick={() => openEdit(row)}>
-            <Edit2 size={15} style={{ color:'var(--color-primary)' }} />
-          </IconButton>
-          <IconButton title="Delete user" onClick={() => setDeleteTarget(row)}>
-            <Trash2 size={15} style={{ color:'var(--color-danger)' }} />
-          </IconButton>
-        </div>
-      ),
+      render: (_, row) => {
+        const isSelf = authUser?.id === row.id
+        return (
+          <div className="flex items-center justify-center gap-1">
+            {isSuperAdmin && (
+              <>
+                <IconButton
+                  title={isSelf ? 'Cannot change your own account status' : (row.isActive ? 'Deactivate user' : 'Activate user')}
+                  onClick={isSelf ? undefined : () => handleToggleActive(row)}
+                  style={isSelf ? { opacity: 0.35, cursor: 'not-allowed', pointerEvents: 'none' } : undefined}
+                >
+                  {row.isActive
+                    ? <XCircle     size={16} style={{ color: isSelf ? 'var(--color-text-subtle)' : 'var(--color-warning)' }} />
+                    : <CheckCircle size={16} style={{ color: isSelf ? 'var(--color-text-subtle)' : 'var(--color-success)' }} />}
+                </IconButton>
+                <IconButton title="Edit user" onClick={() => openEdit(row)}>
+                  <Edit2 size={15} style={{ color:'var(--color-primary)' }} />
+                </IconButton>
+                <IconButton title="Delete user" onClick={() => setDeleteTarget(row)}>
+                  <Trash2 size={15} style={{ color:'var(--color-danger)' }} />
+                </IconButton>
+              </>
+            )}
+          </div>
+        )
+      },
     },
   ]
 
@@ -564,10 +647,10 @@ function UserManagement() {
     <div className="flex flex-col gap-6">
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <StatCard value={total}       label="Total Users"  accent="primary" icon={<Users size={20} />} />
-        <StatCard value={superAdmins} label="Super Admins" accent="danger"  icon={<Crown size={20} />} />
-        <StatCard value={admins}      label="Admins"       accent="info"    icon={<ShieldCheck size={20} />} />
-        <StatCard value={active}      label="Active Users" accent="success" icon={<CheckCircle size={20} />} />
+        <StatCard value={loading ? '—' : total}       label="Total Users"  accent="primary" icon={<Users size={20} />} />
+        <StatCard value={loading ? '—' : superAdmins} label="Super Admins" accent="danger"  icon={<Crown size={20} />} />
+        <StatCard value={loading ? '—' : admins}      label="Admins"       accent="info"    icon={<ShieldCheck size={20} />} />
+        <StatCard value={loading ? '—' : active}      label="Active Users" accent="success" icon={<CheckCircle size={20} />} />
       </div>
 
       {/* Toolbar */}
@@ -598,7 +681,9 @@ function UserManagement() {
             ))}
           </div>
         </div>
-        <Button icon={<UserPlus size={16} />} onClick={openAdd}>Add User</Button>
+        {isSuperAdmin && (
+          <Button icon={<UserPlus size={16} />} onClick={openAdd}>Add User</Button>
+        )}
       </div>
 
       {/* Table */}
@@ -609,6 +694,7 @@ function UserManagement() {
         pageSize={5}
         pageSizeOptions={[5, 10, 20]}
         striped
+        loading={loading}
         emptyState={
           <div className="flex flex-col items-center gap-2 py-10">
             <Users size={36} style={{ color:'var(--color-text-subtle)' }} />

@@ -52,31 +52,6 @@ const Icon = {
   ),
 };
 
-/* ─── Status & fuel helpers ──────────────────────────────────── */
-const STATUS_LABELS    = { AVAILABLE: "Available", RENTED: "Rented", MAINTENANCE: "Maintenance", DECOMMISSIONED: "Decommissioned" };
-const FUEL_LABELS      = { DIESEL: "Diesel", PETROL: "Petrol", GAS: "Gas", DUAL_FUEL: "Dual Fuel" };
-const CONDITION_LABELS = { NEW: "New", GOOD: "Good", FAIR: "Fair", NEEDS_REPAIR: "Needs Repair" };
-
-const statusColor = (s) => {
-  switch (s) {
-    case "AVAILABLE":      return { bg: "var(--color-success-light, #d1fae5)", color: "var(--color-success, #059669)" };
-    case "RENTED":         return { bg: "#dbeafe", color: "#2563eb" };
-    case "MAINTENANCE":    return { bg: "#fef3c7", color: "#d97706" };
-    case "DECOMMISSIONED": return { bg: "var(--color-danger-light, #fee2e2)", color: "var(--color-danger, #dc2626)" };
-    default:               return { bg: "#f1f5f9", color: "#64748b" };
-  }
-};
-
-const conditionColor = (c) => {
-  switch (c) {
-    case "NEW":          return { bg: "#d1fae5", color: "#059669" };
-    case "GOOD":         return { bg: "#dbeafe", color: "#2563eb" };
-    case "FAIR":         return { bg: "#fef3c7", color: "#d97706" };
-    case "NEEDS_REPAIR": return { bg: "#fee2e2", color: "#dc2626" };
-    default:             return { bg: "#f1f5f9", color: "#64748b" };
-  }
-};
-
 /* ─── Style helpers ──────────────────────────────────────────── */
 const thStyle = {
   padding: "12px 16px",
@@ -100,11 +75,11 @@ const genIconStyle = {
   width: 32,
   height: 32,
   borderRadius: 8,
-  background: "#fee2e2",
+  background: "var(--color-primary-100)",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
-  color: "#dc2626",
+  color: "var(--color-primary)",
   flexShrink: 0,
 };
 
@@ -128,7 +103,7 @@ const pageBtnStyle = (active) => ({
   height: 34,
   borderRadius: 8,
   border: active ? "none" : "1.5px solid var(--color-border)",
-  background: active ? "#ef4444" : "var(--color-surface)",
+  background: active ? "var(--color-primary)" : "var(--color-surface)",
   color: active ? "#fff" : "var(--color-text)",
   fontSize: 13,
   fontWeight: 600,
@@ -183,6 +158,32 @@ function SkeletonRow({ cols }) {
   );
 }
 
+/* ─── Fuel & Status labels ───────────────────────────────────── */
+const FUEL_LABELS = {
+  DIESEL:   "Diesel",
+  PETROL:   "Petrol",
+  GAS:      "Gas",
+  NATURAL_GAS: "Natural Gas",
+  DUAL_FUEL: "Dual Fuel",
+};
+
+const STATUS_LABELS = {
+  AVAILABLE:    "Available",
+  IN_USE:       "In Use",
+  UNDER_MAINTENANCE: "Maintenance",
+  RETIRED:      "Retired",
+};
+
+const statusColor = (status) => {
+  switch (status) {
+    case "AVAILABLE":          return { bg: "#dcfce7", color: "#166534" };
+    case "IN_USE":             return { bg: "#dbeafe", color: "#1e40af" };
+    case "UNDER_MAINTENANCE":  return { bg: "#fef9c3", color: "#854d0e" };
+    case "RETIRED":            return { bg: "#f1f5f9", color: "#475569" };
+    default:                   return { bg: "#f1f5f9", color: "#64748b" };
+  }
+};
+
 /* ─── Format currency ────────────────────────────────────────── */
 const fmtCurrency = (val) => {
   if (val == null) return "—";
@@ -201,8 +202,7 @@ export default function GeneratorList() {
 
   // ── UI state ──────────────────────────────────────────────────
   const [search, setSearch]       = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [fuelFilter, setFuelFilter]     = useState("all");
+  const [activeFilter, setActiveFilter] = useState("all");
   const [page, setPage]           = useState(1);
   const [deleteId, setDeleteId]   = useState(null);
 
@@ -236,13 +236,12 @@ export default function GeneratorList() {
     const matchSearch =
       g.name.toLowerCase().includes(q) ||
       g.generatorCode.toLowerCase().includes(q) ||
-      (g.brand || "").toLowerCase().includes(q) ||
-      (g.serialNumber || "").toLowerCase().includes(q);
-    const matchStatus =
-      statusFilter === "all" ? true : g.currentStatus === statusFilter;
-    const matchFuel =
-      fuelFilter === "all" ? true : g.fuelType === fuelFilter;
-    return matchSearch && matchStatus && matchFuel;
+      (g.productBy || "").toLowerCase().includes(q);
+    const matchActive =
+      activeFilter === "all" ? true
+      : activeFilter === "active" ? g.isActive
+      : !g.isActive;
+    return matchSearch && matchActive;
   });
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
@@ -312,13 +311,13 @@ export default function GeneratorList() {
 
   /* ── Derived stats ─────────────────────────────────────────── */
   const totals = {
-    all:         generators.length,
-    available:   generators.filter((g) => g.currentStatus === "AVAILABLE").length,
-    rented:      generators.filter((g) => g.currentStatus === "RENTED").length,
-    maintenance: generators.filter((g) => g.currentStatus === "MAINTENANCE").length,
+    all:      generators.length,
+    active:   generators.filter((g) => g.isActive).length,
+    inactive: generators.filter((g) => !g.isActive).length,
+    noStock:  generators.filter((g) => (g.stockQuantity ?? 0) === 0).length,
   };
 
-  const SKELETON_COLS = 9;
+  const SKELETON_COLS = 7;
 
   return (
     <>
@@ -360,13 +359,13 @@ export default function GeneratorList() {
           color: var(--color-text-subtle);
           margin: 3px 0 0;
         }
-        .gl-breadcrumb a { color: #ef4444; text-decoration: none; }
+        .gl-breadcrumb a { color: var(--color-primary); text-decoration: none; }
 
         .gl-add-btn {
           display: flex;
           align-items: center;
           gap: 7px;
-          background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+          background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-dark) 100%);
           color: #fff;
           border: none;
           border-radius: var(--radius-md);
@@ -381,7 +380,7 @@ export default function GeneratorList() {
         }
         .gl-add-btn:hover {
           transform: translateY(-1px);
-          box-shadow: 0 8px 24px rgba(239,68,68,0.35);
+          box-shadow: 0 8px 24px rgba(37,99,235,0.35);
         }
 
         .gl-stats-row {
@@ -446,8 +445,8 @@ export default function GeneratorList() {
           font-family: inherit;
         }
         .gl-search-input:focus {
-          border-color: #ef4444;
-          box-shadow: 0 0 0 3px rgba(239,68,68,0.15);
+          border-color: var(--color-primary);
+          box-shadow: 0 0 0 3px rgba(37,99,235,0.15);
         }
         .gl-filter-select {
           padding: 10px 14px;
@@ -462,7 +461,7 @@ export default function GeneratorList() {
           font-family: inherit;
           transition: border-color 0.2s;
         }
-        .gl-filter-select:focus { border-color: #ef4444; }
+        .gl-filter-select:focus { border-color: var(--color-primary); }
         .gl-result-count {
           font-size: 13px;
           color: var(--color-text-muted);
@@ -481,7 +480,7 @@ export default function GeneratorList() {
         .gl-table { width: 100%; border-collapse: collapse; }
         .gl-thead { background: var(--color-surface-2); border-bottom: 1.5px solid var(--color-border); }
         .gl-row { border-bottom: 1px solid var(--color-surface-2); transition: background 0.15s; }
-        .gl-row:hover td { background: rgba(239,68,68,0.04) !important; }
+        .gl-row:hover td { background: rgba(37,99,235,0.04) !important; }
         .gl-row:last-child { border-bottom: none; }
 
         .gl-action-btn { transition: transform 0.15s; }
@@ -501,7 +500,7 @@ export default function GeneratorList() {
           background: var(--color-border-strong);
           transition: background 0.2s;
         }
-        .gl-toggle-track.on { background: #ef4444; }
+        .gl-toggle-track.on { background: var(--color-primary); }
         .gl-toggle-thumb {
           position: absolute;
           top: 3px;
@@ -622,10 +621,10 @@ export default function GeneratorList() {
         {/* Stats */}
         <div className="gl-stats-row">
           {[
-            { color: "#ef4444", value: loading ? "—" : totals.all,         label: "Total Generators" },
-            { color: "#059669", value: loading ? "—" : totals.available,   label: "Available" },
-            { color: "#2563eb", value: loading ? "—" : totals.rented,      label: "Rented" },
-            { color: "#d97706", value: loading ? "—" : totals.maintenance, label: "Maintenance" },
+            { color: "var(--color-primary)", value: loading ? "—" : totals.all,      label: "Total Generators" },
+            { color: "#059669", value: loading ? "—" : totals.active,   label: "Active" },
+            { color: "#64748b", value: loading ? "—" : totals.inactive,  label: "Inactive" },
+            { color: "#d97706", value: loading ? "—" : totals.noStock,   label: "Zero Stock" },
           ].map(({ color, value, label }) => (
             <div key={label} className="gl-stat-card" style={{ borderLeft: `4px solid ${color}` }}>
               <div className="gl-stat-value" style={{ color: loading ? "var(--color-border-strong)" : undefined }}>
@@ -642,7 +641,7 @@ export default function GeneratorList() {
             <span className="gl-search-icon"><Icon.Search /></span>
             <input
               className="gl-search-input"
-              placeholder="Search by name, code, brand, serial…"
+              placeholder="Search by name, code, product by…"
               value={search}
               onChange={(e) => { setSearch(e.target.value); setPage(1); }}
               disabled={loading}
@@ -650,27 +649,13 @@ export default function GeneratorList() {
           </div>
           <select
             className="gl-filter-select"
-            value={statusFilter}
-            onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
+            value={activeFilter}
+            onChange={(e) => { setActiveFilter(e.target.value); setPage(1); }}
             disabled={loading}
           >
             <option value="all">All Status</option>
-            <option value="AVAILABLE">Available</option>
-            <option value="RENTED">Rented</option>
-            <option value="MAINTENANCE">Maintenance</option>
-            <option value="DECOMMISSIONED">Decommissioned</option>
-          </select>
-          <select
-            className="gl-filter-select"
-            value={fuelFilter}
-            onChange={(e) => { setFuelFilter(e.target.value); setPage(1); }}
-            disabled={loading}
-          >
-            <option value="all">All Fuel</option>
-            <option value="DIESEL">Diesel</option>
-            <option value="PETROL">Petrol</option>
-            <option value="GAS">Gas</option>
-            <option value="DUAL_FUEL">Dual Fuel</option>
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
           </select>
           <span className="gl-result-count">
             {loading ? "Loading…" : `${filtered.length} result${filtered.length !== 1 ? "s" : ""}`}
@@ -687,11 +672,10 @@ export default function GeneratorList() {
                 <tr>
                   <th style={{ ...thStyle, width: 48 }}>#</th>
                   <th style={thStyle}>Generator</th>
-                  <th style={thStyle}>Code</th>
-                  <th className="gl-col-brand" style={thStyle}>Brand / Model</th>
-                  <th className="gl-col-power" style={{ ...thStyle, textAlign: "center" }}>Power (KVA)</th>
-                  <th style={{ ...thStyle, textAlign: "center" }}>Status</th>
-                  <th className="gl-col-rent" style={{ ...thStyle, textAlign: "right" }}>Rent/Day</th>
+                  <th style={thStyle}>Code (SKU)</th>
+                  <th style={thStyle}>Product By</th>
+                  <th style={{ ...thStyle, textAlign: "right" }}>Purchase ₹</th>
+                  <th style={{ ...thStyle, textAlign: "center" }}>Stock</th>
                   <th style={{ ...thStyle, textAlign: "center" }}>Active</th>
                   <th style={{ ...thStyle, textAlign: "center" }}>Actions</th>
                 </tr>
@@ -703,13 +687,13 @@ export default function GeneratorList() {
                   ))
                 ) : paged.length === 0 ? (
                   <tr>
-                    <td colSpan={9} style={{ textAlign: "center", padding: "60px 20px" }}>
+                    <td colSpan={8} style={{ textAlign: "center", padding: "60px 20px" }}>
                       <div style={{ fontSize: 40, marginBottom: 8 }}>⚡</div>
                       <div style={{ fontWeight: 600, color: "var(--color-text-muted)" }}>
-                        {search || statusFilter !== "all" || fuelFilter !== "all" ? "No generators match your filters" : "No generators yet"}
+                        {search || activeFilter !== "all" ? "No generators match your filters" : "No generators yet"}
                       </div>
                       <div style={{ fontSize: 13, marginTop: 4, color: "var(--color-text-subtle)" }}>
-                        {search || statusFilter !== "all" || fuelFilter !== "all"
+                        {search || activeFilter !== "all"
                           ? "Try adjusting your search or filters"
                           : 'Click "Add Generator" to register your first generator'}
                       </div>
@@ -728,7 +712,6 @@ export default function GeneratorList() {
                       </td>
                       <td style={tdStyle}>
                         <div style={{ fontWeight: 600, color: "var(--color-text)", display: "flex", alignItems: "center", gap: 8 }}>
-                          <div style={genIconStyle}><Icon.Zap /></div>
                           <div>
                             <div>{gen.name}</div>
                             {gen.fuelType && (
@@ -742,8 +725,8 @@ export default function GeneratorList() {
                       <td style={tdStyle}>
                         <span style={{
                           display: "inline-block",
-                          background: "#fee2e2",
-                          color: "#991b1b",
+                          background: "var(--color-primary-100)",
+                          color: "var(--color-primary-dark)",
                           fontWeight: 600,
                           fontSize: 12,
                           padding: "2px 10px",
@@ -753,35 +736,18 @@ export default function GeneratorList() {
                           {gen.generatorCode}
                         </span>
                       </td>
-                      <td className="gl-col-brand" style={tdStyle}>
-                        <div style={{ fontSize: 13 }}>
-                          {gen.brand || "—"}
-                          {gen.model && <span style={{ color: "var(--color-text-muted)" }}> / {gen.model}</span>}
-                        </div>
-                      </td>
-                      <td className="gl-col-power" style={{ ...tdStyle, textAlign: "center" }}>
-                        <span style={{ fontWeight: 700, fontSize: 13 }}>
-                          {gen.ratedPowerKva != null ? `${gen.ratedPowerKva}` : "—"}
+                      <td style={tdStyle}>
+                        <span style={{ fontSize: 13, color: "var(--color-text-muted)", fontWeight: 500 }}>
+                          {gen.productBy || "—"}
                         </span>
                       </td>
-                      <td style={{ ...tdStyle, textAlign: "center" }}>
-                        <span style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: 5,
-                          padding: "4px 12px",
-                          borderRadius: 20,
-                          fontSize: 12,
-                          fontWeight: 600,
-                          background: sc.bg,
-                          color: sc.color,
-                        }}>
-                          <span style={{ width: 6, height: 6, borderRadius: "50%", background: sc.color }} />
-                          {STATUS_LABELS[gen.currentStatus] || gen.currentStatus}
-                        </span>
+                      <td style={{ ...tdStyle, textAlign: "right", fontWeight: 700, fontSize: 13 }}>
+                        {fmtCurrency(gen.purchasePrice)}
                       </td>
-                      <td className="gl-col-rent" style={{ ...tdStyle, textAlign: "right", fontWeight: 600, fontSize: 13 }}>
-                        {fmtCurrency(gen.rentPricePerDay)}
+                      <td style={{ ...tdStyle, textAlign: "center", fontWeight: 700 }}>
+                        <span style={{ color: (gen.stockQuantity ?? 0) === 0 ? "var(--color-danger)" : "var(--color-text)" }}>
+                          {gen.stockQuantity ?? 0}
+                        </span>
                       </td>
                       <td style={{ ...tdStyle, textAlign: "center" }}>
                         <Toggle
@@ -837,7 +803,6 @@ export default function GeneratorList() {
                 <div key={gen.id} className="gl-mobile-card">
                   <div className="gl-mc-header">
                     <div className="gl-mc-name">
-                      <div style={genIconStyle}><Icon.Zap /></div>
                       <div>
                         <div>{gen.name}</div>
                         <div style={{ fontSize: 11, color: "var(--color-text-muted)", fontWeight: 400, fontFamily: "monospace" }}>
@@ -864,7 +829,7 @@ export default function GeneratorList() {
                       </span>
                     )}
                     {gen.ratedPowerKva && (
-                      <span style={{ padding: "3px 10px", borderRadius: 16, fontSize: 11, fontWeight: 600, background: "#fee2e2", color: "#991b1b" }}>
+                      <span style={{ padding: "3px 10px", borderRadius: 16, fontSize: 11, fontWeight: 600, background: "var(--color-primary-100)", color: "var(--color-primary-dark)" }}>
                         {gen.ratedPowerKva} KVA
                       </span>
                     )}

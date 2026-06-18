@@ -1,10 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate, useParams }                          from 'react-router-dom'
 import { productService }         from '@/services/inventoryService'
-import { useCategories }          from '@/hooks/useCategories'
-import { useWarehouses }          from '@/hooks/useWarehouses'
 import { useToast }               from '@/components/shared/toast/ToastProvider'
-import SearchableSelect           from '@/components/shared/SearchableSelect'
 import { SpinnerInline }          from '@/components/shared'
 import defaultImg                 from '@/assets/images/default.png'
 import { getImageUrl }            from '@/utils/imageUrl'
@@ -75,7 +72,7 @@ function ErrMsg({ message }) {
 function CardHeader({ icon: IconComponent, children }) {
   return (
     <div className="pf-card-header">
-      {IconComponent && <span style={{ color: 'var(--color-primary)', display: 'flex', alignItems: 'center' }}><IconComponent /></span>}
+      {IconComponent && <span style={{ color: '#dc2626', display: 'flex', alignItems: 'center' }}><IconComponent /></span>}
       <h3 className="pf-card-title">{children}</h3>
     </div>
   )
@@ -91,10 +88,8 @@ export default function ProductForm() {
 
   /* ── Form state ───────────────────────────────────────────────── */
   const initialFormState = {
-    name: '', sku: '', categoryId: null, productBy: '', description: '',
-    price: '', costPrice: '', weight: '', unit: 'piece',
-    hsnCode: '', gstPercent: '', isActive: true,
-    warehouseId: null, stockAlert: '',
+    name: '', sku: '', productBy: '', description: '',
+    purchasePrice: '', stockQuantity: '0', isActive: true,
   }
 
   const [form, setForm] = useState(initialFormState)
@@ -103,23 +98,11 @@ export default function ProductForm() {
   const [removeImageIds,  setRemoveImageIds]  = useState([])
   const [newImageFiles,   setNewImageFiles]   = useState([])
 
-  const { categories, loading: catLoading, error: catError } = useCategories()
-  const { warehouses, loading: whLoading,  error: whError  } = useWarehouses()
-
   const [errors,        setErrors]        = useState({})
   const [saving,        setSaving]        = useState(false)
   const [saveAction,    setSaveAction]    = useState(null) // 'save' | 'saveNew'
   const [loadingPage,   setLoadingPage]   = useState(isEdit)
   const [dragging,      setDragging]      = useState(false)
-
-  /* ── Surface hook errors via toast ───────────────────────────── */
-  useEffect(() => {
-    if (catError) toast({ type: 'warning', title: 'Could not load categories', message: catError })
-  }, [catError, toast])
-
-  useEffect(() => {
-    if (whError) toast({ type: 'warning', title: 'Could not load warehouses', message: whError })
-  }, [whError, toast])
 
   /* ── Load product (edit mode) ─────────────────────────────────── */
   const fetchProduct = useCallback(async () => {
@@ -130,20 +113,13 @@ export default function ProductForm() {
       const p   = res.data?.data ?? res.data
       if (!p) throw new Error('Not found')
       setForm({
-        name:              p.name              ?? '',
-        sku:               p.productCode       ?? '',
-        categoryId:        p.categoryId        ?? null,
-        productBy:         p.productBy         ?? '',
-        description:       p.description       ?? '',
-        price:             p.sellingPrice      != null ? String(p.sellingPrice)  : '',
-        costPrice:         p.purchasePrice     != null ? String(p.purchasePrice) : '',
-        weight:            p.weight            != null ? String(p.weight)        : '',
-        unit:              p.unit              ?? 'piece',
-        hsnCode:           p.hsnCode           ?? '',
-        gstPercent:        p.gstPercent        != null ? String(p.gstPercent)    : '',
-        isActive:          p.isActive          ?? true,
-        warehouseId:       p.inventories?.[0]?.warehouseId       ?? null,
-        stockAlert:        p.inventories?.[0]?.stockAlert        != null ? String(p.inventories[0].stockAlert) : '',
+        name:          p.name          ?? '',
+        sku:           p.productCode   ?? '',
+        productBy:     p.productBy     ?? '',
+        description:   p.description   ?? '',
+        purchasePrice: p.purchasePrice != null ? String(p.purchasePrice) : '',
+        stockQuantity: p.currentStock  != null ? String(p.currentStock)  : '0',
+        isActive:      p.isActive      ?? true,
       })
       setExistingImages(p.images ?? [])
     } catch (err) {
@@ -220,12 +196,13 @@ export default function ProductForm() {
   /* ── Validation ───────────────────────────────────────────────── */
   const validate = () => {
     const e = {}
-    if (!form.name.trim())                                  e.name       = 'Product name is required.'
-    if (!form.sku.trim())                                   e.sku        = 'SKU / product code is required.'
-    if (!form.categoryId)                                   e.categoryId = 'Select a category.'
-    if (!form.price)                                        e.price      = 'Selling price is required.'
-    else if (isNaN(form.price) || Number(form.price) < 0)  e.price      = 'Enter a valid price.'
-    if (!isEdit && totalImgCount === 0)                     e.images     = 'At least one product image is required.'
+    if (!form.name.trim())                                          e.name          = 'Product name is required.'
+    if (!form.sku.trim())                                           e.sku           = 'SKU / product code is required.'
+    if (form.purchasePrice && (isNaN(form.purchasePrice) || Number(form.purchasePrice) < 0))
+                                                                    e.purchasePrice = 'Enter a valid price.'
+    if (form.stockQuantity && (isNaN(form.stockQuantity) || Number(form.stockQuantity) < 0))
+                                                                    e.stockQuantity = 'Enter a valid quantity.'
+    if (!isEdit && totalImgCount === 0)                             e.images        = 'At least one product image is required.'
     return e
   }
 
@@ -245,7 +222,6 @@ export default function ProductForm() {
     const errs = validate()
     if (Object.keys(errs).length) {
       setErrors(errs)
-      // Scroll to first error
       const firstErrorKey = Object.keys(errs)[0]
       const el = document.querySelector(`[name="${firstErrorKey}"]`)
       if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
@@ -255,22 +231,13 @@ export default function ProductForm() {
     setSaveAction(action)
     try {
       const requestData = {
-        name:              form.name.trim(),
-        productCode:       form.sku.trim().toUpperCase(),
-        categoryId:        form.categoryId        ? Number(form.categoryId)        : null,
-        productBy:         form.productBy         || null,
-        unit:              form.unit              || null,
-        purchasePrice:     form.costPrice         ? Number(form.costPrice)         : null,
-        sellingPrice:      form.price             ? Number(form.price)             : null,
-        weight:            form.weight            ? Number(form.weight)            : null,
-        hsnCode:           form.hsnCode           || null,
-        gstPercent:        form.gstPercent        ? Number(form.gstPercent)        : null,
-        description:       form.description       || null,
-        isActive:          form.isActive,
-        status:            form.isActive ? 'PUBLISHED' : 'DRAFT',
-        warehouseId:       form.warehouseId       ? Number(form.warehouseId)       : null,
-        stockAlert:        form.stockAlert        ? Number(form.stockAlert)        : null,
-        minimumStock:      form.stockAlert        ? Number(form.stockAlert)        : 0,
+        name:          form.name.trim(),
+        productCode:   form.sku.trim().toUpperCase(),
+        productBy:     form.productBy     || null,
+        purchasePrice: form.purchasePrice ? Number(form.purchasePrice) : null,
+        stockQuantity: form.stockQuantity ? Number(form.stockQuantity) : 0,
+        description:   form.description   || null,
+        isActive:      form.isActive,
         ...(isEdit && { removeImageIds }),
       }
       const imageFiles = newImageFiles.map(i => i.file)
@@ -296,10 +263,6 @@ export default function ProductForm() {
     }
   }
 
-  /* ── Derived ──────────────────────────────────────────────────── */
-  const categoryOptions  = categories.map(c => ({ value: c.id, label: c.name }))
-  const warehouseOptions = warehouses.map(w => ({ value: w.id, label: w.name + (w.code ? ` (${w.code})` : '') }))
-
   /* ── Loading skeleton ─────────────────────────────────────────── */
   if (loadingPage) {
     return (
@@ -321,8 +284,8 @@ export default function ProductForm() {
         .pf-main-content{ display: flex; flex-direction: column; gap: 24px; }
         .pf-sidebar     { display: flex; flex-direction: column; gap: 24px; position: sticky; top: 24px; }
         
-        .pf-card        { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); padding: 24px; box-shadow: var(--shadow-sm); transition: box-shadow 0.2s, border-color 0.2s; }
-        .pf-card:hover  { box-shadow: var(--shadow-md); border-color: var(--color-border-strong); }
+        .pf-card        { background: transparent; border: none; border-radius: 0; padding: 12px 0 24px 0; box-shadow: none; }
+        .pf-card:hover  { box-shadow: none; border-color: transparent; }
         
         .pf-card-header { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; padding-bottom: 12px; border-bottom: 1px solid var(--color-border); }
         .pf-card-title  { font-size: 16px; font-weight: 700; color: var(--color-text); margin: 0; }
@@ -332,12 +295,12 @@ export default function ProductForm() {
         
         .pf-input        { border: 1.5px solid var(--color-border); border-radius: var(--radius-md); font-size: 14px; color: var(--color-text); background: var(--color-surface); outline: none; transition: all 0.2s ease; }
         .pf-input:hover:not(:focus):not(.has-error) { border-color: var(--color-border-strong); }
-        .pf-input:focus  { border-color: var(--color-primary) !important; box-shadow: 0 0 0 3.5px rgba(37,99,235,0.12) !important; }
+        .pf-input:focus  { border-color: #ef4444 !important; box-shadow: 0 0 0 3.5px rgba(239,68,68,0.12) !important; }
         .pf-input.has-error { border-color: var(--color-danger) !important; }
         .pf-input.has-error:focus { border-color: var(--color-danger) !important; box-shadow: 0 0 0 3.5px rgba(239,68,68,0.12) !important; }
         
         .pf-drop         { transition: all 0.2s; }
-        .pf-drop:hover   { border-color: var(--color-primary) !important; background: var(--color-primary-50) !important; }
+        .pf-drop:hover   { border-color: #ef4444 !important; background: #fff5f5 !important; }
         
         .img-card        { transition: transform 0.15s; }
         .img-card:hover .img-overlay { opacity: 1 !important; }
@@ -347,11 +310,11 @@ export default function ProductForm() {
         .pf-btn:hover:not(:disabled) { transform: translateY(-1px); }
         .pf-btn:disabled { opacity: 0.6; cursor: not-allowed; }
         
-        .pf-btn-primary  { background: var(--color-primary); color: #fff; box-shadow: 0 4px 12px rgba(37,99,235,0.2); }
-        .pf-btn-primary:hover:not(:disabled) { background: var(--color-primary-dark); box-shadow: 0 6px 16px rgba(37,99,235,0.3); }
+        .pf-btn-primary  { background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); color: #fff; box-shadow: 0 4px 12px rgba(239,68,68,0.2); }
+        .pf-btn-primary:hover:not(:disabled) { background: #dc2626; box-shadow: 0 6px 16px rgba(239,68,68,0.3); }
         
-        .pf-btn-secondary { background: var(--color-primary-50); color: var(--color-primary); border: 1.5px solid var(--color-primary-100); }
-        .pf-btn-secondary:hover:not(:disabled) { background: var(--color-primary-100); }
+        .pf-btn-secondary { background: #fee2e2; color: #991b1b; border: 1.5px solid #fecaca; }
+        .pf-btn-secondary:hover:not(:disabled) { background: #fecaca; }
         
         .pf-btn-outline  { background: transparent; color: var(--color-text-muted); border: 1.5px solid var(--color-border); }
         .pf-btn-outline:hover:not(:disabled) { background: var(--color-surface-2); color: var(--color-text); border-color: var(--color-border-strong); }
@@ -383,8 +346,8 @@ export default function ProductForm() {
               {isEdit ? 'Edit Product' : 'Add New Product'}
             </h1>
             <p style={{ fontSize: 13, color: 'var(--color-text-subtle)', margin: '3px 0 0' }}>
-              <a href="#" onClick={e => { e.preventDefault(); navigate('/inventory/products') }} style={{ color: 'var(--color-primary)', textDecoration: 'none' }}>Inventory</a> ›{' '}
-              <a href="#" onClick={e => { e.preventDefault(); navigate('/inventory/products') }} style={{ color: 'var(--color-primary)', textDecoration: 'none' }}>Products</a> › {isEdit ? 'Edit' : 'Add'}
+              <a href="#" onClick={e => { e.preventDefault(); navigate('/inventory/products') }} style={{ color: '#ef4444', textDecoration: 'none' }}>Inventory</a> ›{' '}
+              <a href="#" onClick={e => { e.preventDefault(); navigate('/inventory/products') }} style={{ color: '#ef4444', textDecoration: 'none' }}>Products</a> › {isEdit ? 'Edit' : 'Add'}
             </p>
           </div>
         </div>
@@ -410,47 +373,15 @@ export default function ProductForm() {
                 
                 {/* SKU */}
                 <div>
-                  <Label req>Sku / Product code</Label>
+                  <Label req>SKU / Product Code</Label>
                   <TextField name="sku" value={form.sku} onChange={e => field('sku', e.target.value)} hasError={!!errors.sku} placeholder="HK-8565852352" />
                   <ErrMsg message={errors.sku} />
                 </div>
 
-                {/* Category */}
-                <div>
-                  <Label req>Category</Label>
-                  <SearchableSelect
-                    options={categoryOptions}
-                    value={form.categoryId}
-                    onChange={val => field('categoryId', val)}
-                    placeholder="Select Category"
-                    loading={catLoading}
-                    error={errors.categoryId}
-                  />
-                </div>
-
                 {/* Product By */}
                 <div>
-                  <Label>Product by</Label>
+                  <Label>Product By</Label>
                   <TextField name="productBy" value={form.productBy} onChange={e => field('productBy', e.target.value)} hasError={false} placeholder="Manufacturer / Brand" />
-                </div>
-
-                {/* Weight */}
-                <div>
-                  <Label hint="(kg) Optional">Weight</Label>
-                  <TextField name="weight" value={form.weight} onChange={e => field('weight', e.target.value)} hasError={false} placeholder="e.g. 0.5" type="number" min="0" step="0.001" />
-                </div>
-
-                {/* Unit */}
-                <div>
-                  <Label>Unit</Label>
-                  <select value={form.unit} onChange={e => field('unit', e.target.value)} className="pf-input" style={{ width: '100%', padding: '11px 14px' }}>
-                    <option value="piece">Peice</option>
-                    <option value="kg">Kilogram (kg)</option>
-                    <option value="litre">Litre</option>
-                    <option value="box">Box</option>
-                    <option value="set">Set</option>
-                    <option value="meter">Meter</option>
-                  </select>
                 </div>
 
                 {/* Description (full-width) */}
@@ -473,63 +404,25 @@ export default function ProductForm() {
               </div>
             </div>
 
-            {/* Card 2: Pricing & Taxation */}
+            {/* Card 2: Pricing & Stock */}
             <div className="pf-card">
-              <CardHeader icon={Icon.Dollar}>Pricing &amp; Taxation</CardHeader>
+              <CardHeader icon={Icon.Dollar}>Pricing &amp; Stock</CardHeader>
               <div className="pf-grid-2">
-                {/* Selling Price */}
-                <div>
-                  <Label req>Selling Price</Label>
-                  <div style={{ position: 'relative' }}>
-                    <span style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-muted)', fontSize: 14, fontWeight: 600 }}>₹</span>
-                    <TextField name="price" value={form.price} onChange={e => field('price', e.target.value)} hasError={!!errors.price} placeholder="0.00" type="number" min="0" step="0.01" style={{ paddingLeft: 28 }} />
-                  </div>
-                  <ErrMsg message={errors.price} />
-                </div>
-
                 {/* Purchase Price */}
                 <div>
                   <Label>Purchase Price</Label>
                   <div style={{ position: 'relative' }}>
                     <span style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-muted)', fontSize: 14, fontWeight: 600 }}>₹</span>
-                    <TextField name="costPrice" value={form.costPrice} onChange={e => field('costPrice', e.target.value)} hasError={false} placeholder="0.00" type="number" min="0" step="0.01" style={{ paddingLeft: 28 }} />
+                    <TextField name="purchasePrice" value={form.purchasePrice} onChange={e => field('purchasePrice', e.target.value)} hasError={!!errors.purchasePrice} placeholder="0.00" type="number" min="0" step="0.01" style={{ paddingLeft: 28 }} />
                   </div>
+                  <ErrMsg message={errors.purchasePrice} />
                 </div>
 
-                {/* GST */}
+                {/* Stock Quantity */}
                 <div>
-                  <Label hint="Optional">GST (%)</Label>
-                  <TextField name="gstPercent" value={form.gstPercent} onChange={e => field('gstPercent', e.target.value)} hasError={false} placeholder="e.g. 18" type="number" min="0" max="100" step="0.01" />
-                </div>
-
-                {/* HNS Code */}
-                <div>
-                  <Label hint="Optional">HNS Code</Label>
-                  <TextField name="hsnCode" value={form.hsnCode} onChange={e => field('hsnCode', e.target.value)} hasError={false} placeholder="e.g. 8471" />
-                </div>
-              </div>
-            </div>
-
-            {/* Card 3: Inventory Logistics */}
-            <div className="pf-card">
-              <CardHeader icon={Icon.Box}>Inventory Logistics</CardHeader>
-              <div className="pf-grid-2">
-                {/* Warehouse */}
-                <div>
-                  <Label>Select Warehouse</Label>
-                  <SearchableSelect
-                    options={warehouseOptions}
-                    value={form.warehouseId}
-                    onChange={val => field('warehouseId', val)}
-                    placeholder="Select Warehouse"
-                    loading={whLoading}
-                  />
-                </div>
-
-                {/* Minimum Stock Alert */}
-                <div>
-                  <Label>Minimum Stock Alert</Label>
-                  <TextField name="stockAlert" value={form.stockAlert} onChange={e => field('stockAlert', e.target.value)} hasError={false} placeholder="e.g. 10" type="number" min="0" />
+                  <Label>Stock Quantity (Unit)</Label>
+                  <TextField name="stockQuantity" value={form.stockQuantity} onChange={e => field('stockQuantity', e.target.value)} hasError={!!errors.stockQuantity} placeholder="0" type="number" min="0" />
+                  <ErrMsg message={errors.stockQuantity} />
                 </div>
               </div>
             </div>
@@ -539,7 +432,7 @@ export default function ProductForm() {
           {/* Right Column: Sidebar (Status & Media) */}
           <div className="pf-sidebar">
 
-            {/* Card 4: Status & Actions */}
+            {/* Card 3: Status & Actions */}
             <div className="pf-card">
               <CardHeader icon={Icon.Settings}>Status &amp; Visibility</CardHeader>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -548,7 +441,7 @@ export default function ProductForm() {
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', background: 'var(--color-surface-2)', borderRadius: 'var(--radius-md)' }}>
                   <div>
                     <span style={{ display: 'block', fontSize: 13, fontWeight: 700, color: 'var(--color-text)' }}>Product Status</span>
-                    <span style={{ fontSize: 11, color: 'var(--color-text-subtle)' }}>Visibility in catalogs</span>
+                    <span style={{ fontSize: 11, color: 'var(--color-text-subtle)' }}>Active / Inactive</span>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span style={{ fontSize: 13, fontWeight: 600, color: form.isActive ? 'var(--color-success)' : 'var(--color-text-muted)' }}>
@@ -558,7 +451,7 @@ export default function ProductForm() {
                       <input type="checkbox" checked={form.isActive} onChange={e => field('isActive', e.target.checked)} style={{ opacity: 0, width: 0, height: 0 }} />
                       <span style={{
                         position: 'absolute', inset: 0, borderRadius: 12,
-                        background: form.isActive ? 'var(--color-success)' : 'var(--color-border-strong)',
+                        background: form.isActive ? '#ef4444' : 'var(--color-border-strong)',
                         transition: 'background 0.2s',
                       }} />
                       <span style={{
@@ -594,7 +487,7 @@ export default function ProductForm() {
                       onClick={() => handleSubmit('saveNew')}
                     >
                       {saving && saveAction === 'saveNew'
-                        ? <><span style={{ width: 14, height: 14, border: '2px solid rgba(37,99,235,0.4)', borderTopColor: 'var(--color-primary)', borderRadius: '50%', animation: 'spin 0.7s linear infinite', display: 'inline-block' }} />Saving…</>
+                        ? <><span style={{ width: 14, height: 14, border: '2px solid rgba(239,68,68,0.4)', borderTopColor: '#dc2626', borderRadius: '50%', animation: 'spin 0.7s linear infinite', display: 'inline-block' }} />Saving…</>
                         : 'Save & Create New'
                       }
                     </button>
@@ -613,7 +506,7 @@ export default function ProductForm() {
               </div>
             </div>
 
-            {/* Card 5: Product Media */}
+            {/* Card 4: Product Images */}
             <div className="pf-card">
               <CardHeader icon={Icon.Image}>Product Images</CardHeader>
               

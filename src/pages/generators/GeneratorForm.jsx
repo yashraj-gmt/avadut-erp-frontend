@@ -1,17 +1,13 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate, useParams }                          from 'react-router-dom'
 import { generatorService }        from '@/services/generatorService'
 import { useToast }                from '@/components/shared/toast/ToastProvider'
 import { SpinnerInline }           from '@/components/shared'
 
 /* ── Constants ─────────────────────────────────────────────────────────── */
-const FUEL_TYPES    = ["DIESEL", "PETROL", "GAS", "DUAL_FUEL"];
-const STATUS_OPTS   = ["AVAILABLE", "RENTED", "MAINTENANCE", "DECOMMISSIONED"];
-const CONDITION_OPTS = ["NEW", "GOOD", "FAIR", "NEEDS_REPAIR"];
-
-const FUEL_LABELS      = { DIESEL: "Diesel", PETROL: "Petrol", GAS: "Gas", DUAL_FUEL: "Dual Fuel" };
-const STATUS_LABELS    = { AVAILABLE: "Available", RENTED: "Rented", MAINTENANCE: "Maintenance", DECOMMISSIONED: "Decommissioned" };
-const CONDITION_LABELS = { NEW: "New", GOOD: "Good", FAIR: "Fair", NEEDS_REPAIR: "Needs Repair" };
+const MAX_FILE_SIZE_MB = 10
+const MAX_FILE_SIZE_B  = MAX_FILE_SIZE_MB * 1024 * 1024
+const ALLOWED_TYPES    = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif']
 
 /* ── Icons ─────────────────────────────────────────────────────────────── */
 const Icon = {
@@ -21,8 +17,9 @@ const Icon = {
   Info:        () => <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="9" y1="9" x2="15" y2="9"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg>,
   Dollar:      () => <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>,
   Zap:         () => <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>,
-  Location:    () => <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>,
-  Wrench:      () => <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>,
+  Image:       () => <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>,
+  Upload:      () => <svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>,
+  X:           () => <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>,
   Settings:    () => <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>,
 }
 
@@ -66,7 +63,7 @@ function ErrMsg({ message }) {
 function CardHeader({ icon: IconComponent, children }) {
   return (
     <div className="pf-card-header">
-      {IconComponent && <span style={{ color: '#dc2626', display: 'flex', alignItems: 'center' }}><IconComponent /></span>}
+      {IconComponent && <span style={{ color: 'var(--color-primary)', display: 'flex', alignItems: 'center' }}><IconComponent /></span>}
       <h3 className="pf-card-title">{children}</h3>
     </div>
   )
@@ -78,37 +75,29 @@ export default function GeneratorForm() {
   const { id }   = useParams()
   const isEdit   = !!id
   const toast    = useToast()
+  const fileRef  = useRef(null)
 
-  /* ── Form State ────────────────────────────────────────────────── */
+  /* ── Form State ────────────────────────────────── */
   const initialFormState = {
-    name: "",
-    generatorCode: "",
-    brand: "",
-    model: "",
-    serialNumber: "",
-    fuelType: "",
-    ratedPowerKva: "",
-    ratedPowerKw: "",
-    voltage: "",
-    frequency: "",
-    purchaseDate: "",
-    purchasePrice: "",
-    rentPricePerDay: "",
-    currentStatus: "AVAILABLE",
-    condition: "",
-    location: "",
-    hoursRun: "",
-    lastServiceDate: "",
-    nextServiceDue: "",
-    description: "",
+    name: '',
+    generatorCode: '',
+    purchasePrice: '',
+    stockQuantity: '0',
+    productBy: '',
+    description: '',
     isActive: true,
   }
 
-  const [form, setForm] = useState(initialFormState)
-  const [errors, setErrors] = useState({})
-  const [saving, setSaving] = useState(false)
-  const [saveAction, setSaveAction] = useState(null) // 'save' | 'saveNew'
+  const [form, setForm]           = useState(initialFormState)
+  const [errors, setErrors]       = useState({})
+  const [saving, setSaving]       = useState(false)
+  const [saveAction, setSaveAction] = useState(null)
   const [loadingPage, setLoadingPage] = useState(isEdit)
+
+  // Image preview state (for new uploads that aren't saved yet)
+  const [imagePreview, setImagePreview] = useState(null)
+  const [imageFile, setImageFile]       = useState(null)
+  const [dragging, setDragging]         = useState(false)
 
   /* ── Load Generator (Edit Mode) ────────────────────────────────── */
   const fetchGenerator = useCallback(async () => {
@@ -119,28 +108,18 @@ export default function GeneratorForm() {
       const g   = res.data?.data ?? res.data
       if (!g) throw new Error('Not found')
       setForm({
-        name:            g.name            ?? "",
-        generatorCode:   g.generatorCode   ?? "",
-        brand:           g.brand           ?? "",
-        model:           g.model           ?? "",
-        serialNumber:    g.serialNumber    ?? "",
-        fuelType:        g.fuelType        ?? "",
-        ratedPowerKva:   g.ratedPowerKva   != null ? String(g.ratedPowerKva)   : "",
-        ratedPowerKw:    g.ratedPowerKw    != null ? String(g.ratedPowerKw)    : "",
-        voltage:         g.voltage         != null ? String(g.voltage)         : "",
-        frequency:       g.frequency       != null ? String(g.frequency)       : "",
-        purchaseDate:    g.purchaseDate    ?? "",
-        purchasePrice:   g.purchasePrice   != null ? String(g.purchasePrice)   : "",
-        rentPricePerDay: g.rentPricePerDay != null ? String(g.rentPricePerDay) : "",
-        currentStatus:   g.currentStatus   ?? "AVAILABLE",
-        condition:       g.condition       ?? "",
-        location:        g.location        ?? "",
-        hoursRun:        g.hoursRun        != null ? String(g.hoursRun)        : "",
-        lastServiceDate: g.lastServiceDate ?? "",
-        nextServiceDue:  g.nextServiceDue  ?? "",
-        description:     g.description     ?? "",
-        isActive:        g.isActive        ?? true,
+        name:          g.name          ?? '',
+        generatorCode: g.generatorCode ?? '',
+        purchasePrice: g.purchasePrice != null ? String(g.purchasePrice) : '',
+        stockQuantity: g.stockQuantity != null ? String(g.stockQuantity) : '0',
+        productBy:     g.productBy     ?? '',
+        description:   g.description   ?? '',
+        isActive:      g.isActive      ?? true,
       })
+      // Show existing image for edit mode (server returns public URL)
+      if (g.imageUrl) {
+        setImagePreview(g.imageUrl)
+      }
     } catch (err) {
       toast({ type: 'error', title: 'Failed to load generator', message: err?.response?.data?.message ?? 'Please try again.' })
       navigate('/generators')
@@ -157,19 +136,41 @@ export default function GeneratorForm() {
     setErrors(e => ({ ...e, [k]: '' }))
   }, [])
 
+  /* ── Image Handling ─────────────────────────────────────────────── */
+  const handleImageSelect = (files) => {
+    const file = files[0]
+    if (!file) return
+    if (!ALLOWED_TYPES.includes(file.type?.toLowerCase())) {
+      toast({ type: 'error', title: 'Unsupported format', message: 'Please upload a PNG or JPG image.' })
+      return
+    }
+    if (file.size > MAX_FILE_SIZE_B) {
+      toast({ type: 'error', title: 'File too large', message: `Max size is ${MAX_FILE_SIZE_MB}MB.` })
+      return
+    }
+    // Revoke old preview blob URL only (not server URLs)
+    if (imagePreview && imagePreview.startsWith('blob:')) URL.revokeObjectURL(imagePreview)
+    setImageFile(file)
+    setImagePreview(URL.createObjectURL(file))
+  }
+
+  const removeImage = () => {
+    if (imagePreview && imagePreview.startsWith('blob:')) URL.revokeObjectURL(imagePreview)
+    setImageFile(null)
+    setImagePreview(null)
+    if (fileRef.current) fileRef.current.value = ''
+  }
+
   /* ── Validation ────────────────────────────────────────────────── */
   const validate = () => {
     const e = {}
-    if (!form.name.trim())                                e.name = 'Generator name is required.'
-    else if (form.name.trim().length < 2)                 e.name = 'Name must be at least 2 characters.'
-    if (!form.generatorCode.trim())                       e.generatorCode = 'Generator code is required.'
-    if (form.ratedPowerKva && (isNaN(form.ratedPowerKva) || Number(form.ratedPowerKva) < 0)) e.ratedPowerKva = 'Enter a valid power.'
-    if (form.ratedPowerKw && (isNaN(form.ratedPowerKw) || Number(form.ratedPowerKw) < 0))   e.ratedPowerKw = 'Enter a valid power.'
-    if (form.voltage && (isNaN(form.voltage) || Number(form.voltage) < 0))                 e.voltage = 'Enter a valid voltage.'
-    if (form.frequency && (isNaN(form.frequency) || Number(form.frequency) < 0))             e.frequency = 'Enter a valid frequency.'
-    if (form.purchasePrice && (isNaN(form.purchasePrice) || Number(form.purchasePrice) < 0)) e.purchasePrice = 'Enter a valid price.'
-    if (form.rentPricePerDay && (isNaN(form.rentPricePerDay) || Number(form.rentPricePerDay) < 0)) e.rentPricePerDay = 'Enter a valid rent price.'
-    if (form.hoursRun && (isNaN(form.hoursRun) || Number(form.hoursRun) < 0))               e.hoursRun = 'Enter valid hours.'
+    if (!form.name.trim())                                      e.name          = 'Generator name is required.'
+    else if (form.name.trim().length < 2)                       e.name          = 'Name must be at least 2 characters.'
+    if (!form.generatorCode.trim())                             e.generatorCode = 'Generator code is required.'
+    if (form.purchasePrice && (isNaN(form.purchasePrice) || Number(form.purchasePrice) < 0))
+                                                                e.purchasePrice = 'Enter a valid price.'
+    if (form.stockQuantity && (isNaN(form.stockQuantity) || Number(form.stockQuantity) < 0))
+                                                                e.stockQuantity = 'Enter a valid quantity.'
     return e
   }
 
@@ -177,6 +178,10 @@ export default function GeneratorForm() {
   const resetForm = () => {
     setForm(initialFormState)
     setErrors({})
+    if (imagePreview && !imagePreview.startsWith('http')) URL.revokeObjectURL(imagePreview)
+    setImageFile(null)
+    setImagePreview(null)
+    if (fileRef.current) fileRef.current.value = ''
   }
 
   /* ── Submit ────────────────────────────────────────────────────── */
@@ -193,34 +198,20 @@ export default function GeneratorForm() {
     setSaveAction(action)
     try {
       const payload = {
-        name:            form.name.trim(),
-        generatorCode:   form.generatorCode.trim().toUpperCase(),
-        brand:           form.brand.trim() || null,
-        model:           form.model.trim() || null,
-        serialNumber:    form.serialNumber.trim() || null,
-        fuelType:        form.fuelType || null,
-        ratedPowerKva:   form.ratedPowerKva ? Number(form.ratedPowerKva) : null,
-        ratedPowerKw:    form.ratedPowerKw  ? Number(form.ratedPowerKw)  : null,
-        voltage:         form.voltage       ? Number(form.voltage)       : null,
-        frequency:       form.frequency     ? Number(form.frequency)     : null,
-        purchaseDate:    form.purchaseDate  || null,
-        purchasePrice:   form.purchasePrice ? Number(form.purchasePrice) : null,
-        rentPricePerDay: form.rentPricePerDay ? Number(form.rentPricePerDay) : null,
-        currentStatus:   form.currentStatus || "AVAILABLE",
-        condition:       form.condition || null,
-        location:        form.location.trim() || null,
-        hoursRun:        form.hoursRun ? Number(form.hoursRun) : null,
-        lastServiceDate: form.lastServiceDate || null,
-        nextServiceDue:  form.nextServiceDue  || null,
-        description:     form.description.trim() || null,
-        isActive:        form.isActive,
+        name:          form.name.trim(),
+        generatorCode: form.generatorCode.trim().toUpperCase(),
+        purchasePrice: form.purchasePrice ? Number(form.purchasePrice) : null,
+        stockQuantity: form.stockQuantity ? Number(form.stockQuantity) : 0,
+        productBy:     form.productBy.trim() || null,
+        description:   form.description.trim() || null,
+        isActive:      form.isActive,
       }
 
       if (isEdit) {
-        await generatorService.update(id, payload)
+        await generatorService.update(id, payload, imageFile ?? undefined)
         toast({ type: 'success', title: 'Generator updated', message: `"${form.name}" has been saved successfully.` })
       } else {
-        await generatorService.create(payload)
+        await generatorService.create(payload, imageFile ?? undefined)
         toast({ type: 'success', title: 'Generator created', message: `"${form.name}" has been added.` })
       }
 
@@ -246,6 +237,9 @@ export default function GeneratorForm() {
     )
   }
 
+  // displayImage: show new file blob preview, or existing image URL from edit mode
+  const displayImage = imagePreview || null
+
   return (
     <>
       <style>{`
@@ -257,8 +251,8 @@ export default function GeneratorForm() {
         .pf-main-content{ display: flex; flex-direction: column; gap: 24px; }
         .pf-sidebar     { display: flex; flex-direction: column; gap: 24px; position: sticky; top: 24px; }
         
-        .pf-card        { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); padding: 24px; box-shadow: var(--shadow-sm); transition: box-shadow 0.2s, border-color 0.2s; }
-        .pf-card:hover  { box-shadow: var(--shadow-md); border-color: var(--color-border-strong); }
+        .pf-card        { background: transparent; border: none; border-radius: 0; padding: 12px 0 24px 0; box-shadow: none; }
+        .pf-card:hover  { box-shadow: none; border-color: transparent; }
         
         .pf-card-header { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; padding-bottom: 12px; border-bottom: 1px solid var(--color-border); }
         .pf-card-title  { font-size: 16px; font-weight: 700; color: var(--color-text); margin: 0; }
@@ -268,21 +262,22 @@ export default function GeneratorForm() {
         
         .pf-input        { border: 1.5px solid var(--color-border); border-radius: var(--radius-md); font-size: 14px; color: var(--color-text); background: var(--color-surface); outline: none; transition: all 0.2s ease; }
         .pf-input:hover:not(:focus):not(.has-error) { border-color: var(--color-border-strong); }
-        .pf-input:focus  { border-color: #ef4444 !important; box-shadow: 0 0 0 3.5px rgba(239,68,68,0.15) !important; }
-        .pf-input.has-error { border-color: var(--color-danger) !important; }
-        .pf-input.has-error:focus { border-color: var(--color-danger) !important; box-shadow: 0 0 0 3.5px rgba(239,68,68,0.12) !important; }
+        .pf-input:focus  { border-color: var(--color-primary) !important; box-shadow: 0 0 0 3.5px rgba(37,99,235,0.15) !important; }
+        .pf-input.has-error { border-color: var(--color-primary) !important; }
+        .pf-input.has-error:focus { border-color: var(--color-primary) !important; box-shadow: 0 0 0 3.5px rgba(37,99,235,0.12) !important; }
         
-        .pf-select { appearance: none; -webkit-appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M2 4l4 4 4-4' fill='none' stroke='%2394a3b8' stroke-width='1.5'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 14px center; padding-right: 32px; }
+        .pf-drop { transition: all 0.2s; }
+        .pf-drop:hover { border-color: var(--color-primary) !important; background: var(--color-primary-50) !important; }
 
         .pf-btn          { padding: 11px 24px; border-radius: var(--radius-md); font-weight: 700; font-size: 14px; cursor: pointer; transition: all 0.2s; display: inline-flex; align-items: center; justify-content: center; gap: 8px; border: none; }
         .pf-btn:hover:not(:disabled) { transform: translateY(-1px); }
         .pf-btn:disabled { opacity: 0.6; cursor: not-allowed; }
         
-        .pf-btn-primary  { background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); color: #fff; box-shadow: 0 4px 12px rgba(239,68,68,0.2); }
-        .pf-btn-primary:hover:not(:disabled) { background: #dc2626; box-shadow: 0 6px 16px rgba(239,68,68,0.3); }
+        .pf-btn-primary  { background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-dark) 100%); color: #fff; box-shadow: 0 4px 12px rgba(37,99,235,0.2); }
+        .pf-btn-primary:hover:not(:disabled) { background: var(--color-primary-dark); box-shadow: 0 6px 16px rgba(37,99,235,0.3); }
         
-        .pf-btn-secondary { background: #fee2e2; color: #991b1b; border: 1.5px solid #fecaca; }
-        .pf-btn-secondary:hover:not(:disabled) { background: #fecaca; }
+        .pf-btn-secondary { background: var(--color-primary-50); color: var(--color-primary-dark); border: 1.5px solid var(--color-primary-100); }
+        .pf-btn-secondary:hover:not(:disabled) { background: var(--color-primary-100); }
         
         .pf-btn-outline  { background: transparent; color: var(--color-text-muted); border: 1.5px solid var(--color-border); }
         .pf-btn-outline:hover:not(:disabled) { background: var(--color-surface-2); color: var(--color-text); border-color: var(--color-border-strong); }
@@ -313,7 +308,7 @@ export default function GeneratorForm() {
               {isEdit ? 'Edit Generator' : 'Add New Generator'}
             </h1>
             <p style={{ fontSize: 13, color: 'var(--color-text-subtle)', margin: '3px 0 0' }}>
-              <a href="#" onClick={e => { e.preventDefault(); navigate('/generators') }} style={{ color: '#ef4444', textDecoration: 'none' }}>Generators</a> › {isEdit ? 'Edit' : 'Add'}
+              <a href="#" onClick={e => { e.preventDefault(); navigate('/generators') }} style={{ color: 'var(--color-primary)', textDecoration: 'none' }}>Generators</a> › {isEdit ? 'Edit' : 'Add'}
             </p>
           </div>
         </div>
@@ -333,28 +328,20 @@ export default function GeneratorForm() {
                   <ErrMsg message={errors.name} />
                 </div>
                 <div>
-                  <Label req>Generator Code</Label>
+                  <Label req>Generator Code (SKU)</Label>
                   <TextField name="generatorCode" value={form.generatorCode} onChange={e => field('generatorCode', e.target.value)} hasError={!!errors.generatorCode} placeholder="e.g. GEN-001" disabled={isEdit} />
                   <ErrMsg message={errors.generatorCode} />
                 </div>
                 <div>
-                  <Label>Brand</Label>
-                  <TextField name="brand" value={form.brand} onChange={e => field('brand', e.target.value)} placeholder="e.g. Caterpillar" />
-                </div>
-                <div>
-                  <Label>Model</Label>
-                  <TextField name="model" value={form.model} onChange={e => field('model', e.target.value)} placeholder="e.g. C15 ACERT" />
-                </div>
-                <div className="pf-full">
-                  <Label>Serial Number</Label>
-                  <TextField name="serialNumber" value={form.serialNumber} onChange={e => field('serialNumber', e.target.value)} placeholder="e.g. SN-987654321" />
+                  <Label>Product By</Label>
+                  <TextField name="productBy" value={form.productBy} onChange={e => field('productBy', e.target.value)} placeholder="Manufacturer / Brand" />
                 </div>
                 <div className="pf-full">
                   <Label>Description</Label>
                   <textarea
                     value={form.description}
                     onChange={e => field('description', e.target.value)}
-                    placeholder="Describe the generator specs, usage parameters, history..."
+                    placeholder="Describe the generator details, specs, usage..."
                     style={{
                       width: '100%', padding: '11px 14px',
                       border: '1.5px solid var(--color-border)',
@@ -368,93 +355,10 @@ export default function GeneratorForm() {
               </div>
             </div>
 
-            {/* Card 2: Technical Specifications */}
+            {/* Card 2: Pricing & Stock */}
             <div className="pf-card">
-              <CardHeader icon={Icon.Zap}>Technical Specifications</CardHeader>
+              <CardHeader icon={Icon.Dollar}>Pricing &amp; Stock</CardHeader>
               <div className="pf-grid-2">
-                <div>
-                  <Label>Fuel Type</Label>
-                  <select
-                    value={form.fuelType}
-                    onChange={e => field('fuelType', e.target.value)}
-                    className="pf-input pf-select"
-                    style={{ width: '100%', padding: '11px 14px' }}
-                  >
-                    <option value="">Select Fuel Type</option>
-                    {FUEL_TYPES.map(f => (
-                      <option key={f} value={f}>{FUEL_LABELS[f]}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <Label hint="(KVA) Optional">Rated Power (KVA)</Label>
-                  <TextField name="ratedPowerKva" value={form.ratedPowerKva} onChange={e => field('ratedPowerKva', e.target.value)} hasError={!!errors.ratedPowerKva} placeholder="e.g. 500" type="number" min="0" step="0.01" />
-                  <ErrMsg message={errors.ratedPowerKva} />
-                </div>
-                <div>
-                  <Label hint="(KW) Optional">Rated Power (KW)</Label>
-                  <TextField name="ratedPowerKw" value={form.ratedPowerKw} onChange={e => field('ratedPowerKw', e.target.value)} hasError={!!errors.ratedPowerKw} placeholder="e.g. 400" type="number" min="0" step="0.01" />
-                  <ErrMsg message={errors.ratedPowerKw} />
-                </div>
-                <div>
-                  <Label hint="(V) Optional">Voltage</Label>
-                  <TextField name="voltage" value={form.voltage} onChange={e => field('voltage', e.target.value)} hasError={!!errors.voltage} placeholder="e.g. 415" type="number" min="0" step="0.01" />
-                  <ErrMsg message={errors.voltage} />
-                </div>
-                <div className="pf-full">
-                  <Label hint="(Hz) Optional">Frequency</Label>
-                  <TextField name="frequency" value={form.frequency} onChange={e => field('frequency', e.target.value)} hasError={!!errors.frequency} placeholder="e.g. 50" type="number" min="0" step="0.01" />
-                  <ErrMsg message={errors.frequency} />
-                </div>
-              </div>
-            </div>
-
-            {/* Card 3: Status & Location */}
-            <div className="pf-card">
-              <CardHeader icon={Icon.Location}>Status &amp; Location</CardHeader>
-              <div className="pf-grid-2">
-                <div>
-                  <Label>Current Status</Label>
-                  <select
-                    value={form.currentStatus}
-                    onChange={e => field('currentStatus', e.target.value)}
-                    className="pf-input pf-select"
-                    style={{ width: '100%', padding: '11px 14px' }}
-                  >
-                    {STATUS_OPTS.map(s => (
-                      <option key={s} value={s}>{STATUS_LABELS[s]}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <Label>Condition</Label>
-                  <select
-                    value={form.condition}
-                    onChange={e => field('condition', e.target.value)}
-                    className="pf-input pf-select"
-                    style={{ width: '100%', padding: '11px 14px' }}
-                  >
-                    <option value="">Select Condition</option>
-                    {CONDITION_OPTS.map(c => (
-                      <option key={c} value={c}>{CONDITION_LABELS[c]}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="pf-full">
-                  <Label>Current Location</Label>
-                  <TextField name="location" value={form.location} onChange={e => field('location', e.target.value)} placeholder="e.g. Site B, Yard 3" />
-                </div>
-              </div>
-            </div>
-
-            {/* Card 4: Financial Information */}
-            <div className="pf-card">
-              <CardHeader icon={Icon.Dollar}>Financial Information</CardHeader>
-              <div className="pf-grid-2">
-                <div>
-                  <Label>Purchase Date</Label>
-                  <TextField name="purchaseDate" value={form.purchaseDate} onChange={e => field('purchaseDate', e.target.value)} type="date" />
-                </div>
                 <div>
                   <Label>Purchase Price</Label>
                   <div style={{ position: 'relative' }}>
@@ -463,41 +367,20 @@ export default function GeneratorForm() {
                   </div>
                   <ErrMsg message={errors.purchasePrice} />
                 </div>
-                <div className="pf-full">
-                  <Label>Rent Price / Day</Label>
-                  <div style={{ position: 'relative' }}>
-                    <span style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-muted)', fontSize: 14, fontWeight: 600 }}>₹</span>
-                    <TextField name="rentPricePerDay" value={form.rentPricePerDay} onChange={e => field('rentPricePerDay', e.target.value)} hasError={!!errors.rentPricePerDay} placeholder="0.00" type="number" min="0" step="0.01" style={{ paddingLeft: 28 }} />
-                  </div>
-                  <ErrMsg message={errors.rentPricePerDay} />
-                </div>
-              </div>
-            </div>
-
-            {/* Card 5: Maintenance Records */}
-            <div className="pf-card">
-              <CardHeader icon={Icon.Wrench}>Maintenance Records</CardHeader>
-              <div className="pf-grid-2">
                 <div>
-                  <Label>Hours Run</Label>
-                  <TextField name="hoursRun" value={form.hoursRun} onChange={e => field('hoursRun', e.target.value)} hasError={!!errors.hoursRun} placeholder="e.g. 1250" type="number" min="0" />
-                  <ErrMsg message={errors.hoursRun} />
-                </div>
-                <div>
-                  <Label>Last Service Date</Label>
-                  <TextField name="lastServiceDate" value={form.lastServiceDate} onChange={e => field('lastServiceDate', e.target.value)} type="date" />
-                </div>
-                <div className="pf-full">
-                  <Label>Next Service Due</Label>
-                  <TextField name="nextServiceDue" value={form.nextServiceDue} onChange={e => field('nextServiceDue', e.target.value)} type="date" />
+                  <Label>Stock Quantity (Unit)</Label>
+                  <TextField name="stockQuantity" value={form.stockQuantity} onChange={e => field('stockQuantity', e.target.value)} hasError={!!errors.stockQuantity} placeholder="0" type="number" min="0" />
+                  <ErrMsg message={errors.stockQuantity} />
                 </div>
               </div>
             </div>
 
           </div>
 
-          {/* Right Column: Sidebar (Status & Actions) */}
+          {/* Right Column: Sidebar (Status & Image) */}
           <div className="pf-sidebar">
+
+            {/* Status Card */}
             <div className="pf-card">
               <CardHeader icon={Icon.Settings}>Status &amp; Visibility</CardHeader>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -506,7 +389,7 @@ export default function GeneratorForm() {
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', background: 'var(--color-surface-2)', borderRadius: 'var(--radius-md)' }}>
                   <div>
                     <span style={{ display: 'block', fontSize: 13, fontWeight: 700, color: 'var(--color-text)' }}>Generator Status</span>
-                    <span style={{ fontSize: 11, color: 'var(--color-text-subtle)' }}>Visibility in operations</span>
+                    <span style={{ fontSize: 11, color: 'var(--color-text-subtle)' }}>Active / Inactive</span>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span style={{ fontSize: 13, fontWeight: 600, color: form.isActive ? 'var(--color-success)' : 'var(--color-text-muted)' }}>
@@ -516,7 +399,7 @@ export default function GeneratorForm() {
                       <input type="checkbox" checked={form.isActive} onChange={e => field('isActive', e.target.checked)} style={{ opacity: 0, width: 0, height: 0 }} />
                       <span style={{
                         position: 'absolute', inset: 0, borderRadius: 12,
-                        background: form.isActive ? '#ef4444' : 'var(--color-border-strong)',
+                        background: form.isActive ? 'var(--color-primary)' : 'var(--color-border-strong)',
                         transition: 'background 0.2s',
                       }} />
                       <span style={{
@@ -571,6 +454,67 @@ export default function GeneratorForm() {
 
               </div>
             </div>
+
+            {/* Generator Image Card */}
+            <div className="pf-card">
+              <CardHeader icon={Icon.Image}>Generator Image</CardHeader>
+
+              {/* Image preview */}
+              {displayImage ? (
+                <div style={{ position: 'relative', borderRadius: 'var(--radius-md)', overflow: 'hidden', aspectRatio: '16/9', marginBottom: 12 }}>
+                  <img
+                    src={displayImage}
+                    alt="Generator"
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    onError={e => { e.target.style.display = 'none' }}
+                  />
+                  <button
+                    type="button"
+                    onClick={removeImage}
+                    style={{
+                      position: 'absolute', top: 8, right: 8,
+                      width: 24, height: 24, borderRadius: '50%',
+                      background: 'var(--color-danger)', border: 'none',
+                      color: '#fff', cursor: 'pointer',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}
+                  >
+                    <Icon.X />
+                  </button>
+                </div>
+              ) : (
+                <div
+                  className="pf-drop"
+                  style={{
+                    border: `2px dashed ${dragging ? 'var(--color-primary)' : 'var(--color-border-strong)'}`,
+                    borderRadius: 'var(--radius-md)',
+                    padding: '24px 16px',
+                    background: dragging ? 'var(--color-primary-50)' : 'var(--color-surface)',
+                    textAlign: 'center', cursor: 'pointer',
+                    transition: 'all 0.2s',
+                  }}
+                  onClick={() => fileRef.current?.click()}
+                  onDragOver={e => { e.preventDefault(); setDragging(true) }}
+                  onDragLeave={() => setDragging(false)}
+                  onDrop={e => { e.preventDefault(); setDragging(false); handleImageSelect(e.dataTransfer.files) }}
+                >
+                  <div style={{ color: 'var(--color-text-muted)', marginBottom: 8, display: 'flex', justifyContent: 'center' }}>
+                    <Icon.Upload />
+                  </div>
+                  <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--color-text)' }}>Upload Image</div>
+                  <div style={{ fontSize: 11, color: 'var(--color-text-subtle)', marginTop: 2 }}>PNG or JPG (Max {MAX_FILE_SIZE_MB}MB)</div>
+                </div>
+              )}
+
+              <input
+                ref={fileRef}
+                type="file"
+                accept={ALLOWED_TYPES.join(',')}
+                style={{ display: 'none' }}
+                onChange={e => { handleImageSelect(e.target.files); e.target.value = '' }}
+              />
+            </div>
+
           </div>
 
         </div>

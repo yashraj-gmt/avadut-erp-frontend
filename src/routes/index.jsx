@@ -17,16 +17,10 @@ const DashboardRouter = lazy(() => import('@/pages/dashboard/DashboardRouter'))
 const ProductList   = lazy(() => import('@/pages/inventory/products/ProductList'))
 const ProductForm   = lazy(() => import('@/pages/inventory/products/ProductForm'))
 const ProductDetail = lazy(() => import('@/pages/inventory/products/ProductDetail'))
-const CategoryList  = lazy(() => import('@/pages/inventory/categories/CategoryList'))
-const CategoryForm  = lazy(() => import('@/pages/inventory/categories/CategoryForm'))
-
-// Master data
-const WarehouseList = lazy(() => import('@/pages/master-data/warehouses/WarehouseList'))
 
 // ── Generator Management ──────────────────────────────────────────────
 const GeneratorList = lazy(() => import('@/pages/generators/GeneratorList'))
 const GeneratorForm = lazy(() => import('@/pages/generators/GeneratorForm'))
-
 
 // ── Roles ─────────────────────────────────────────────────────────────────
 const RolesPermissions = lazy(() => import('@/pages/roles/RolesPermissions'))
@@ -84,21 +78,13 @@ export const router = createBrowserRouter([
       rr(ROUTES.PRODUCT_EDIT,   ProductForm),
       rr(ROUTES.PRODUCT_DETAIL, ProductDetail),
 
-      // Inventory — Categories
-      rr(ROUTES.CATEGORIES,    CategoryList),
-      rr(ROUTES.CATEGORY_ADD,  CategoryForm),
-      rr(ROUTES.CATEGORY_EDIT, CategoryForm),
-
       // Roles
       rr(ROUTES.ROLES, RolesPermissions),
-
-      rr(ROUTES.WAREHOUSES, WarehouseList),
 
       // Generator Management
       rr(ROUTES.GENERATORS,     GeneratorList),
       rr(ROUTES.GENERATOR_ADD,  GeneratorForm),
       rr(ROUTES.GENERATOR_EDIT, GeneratorForm),
-
 
       // Profile (no role gate — any authenticated user)
       { path: ROUTES.PROFILE, element: s(ProfilePage) },
