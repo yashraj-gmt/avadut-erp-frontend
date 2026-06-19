@@ -202,7 +202,6 @@ export default function ProductForm() {
                                                                     e.purchasePrice = 'Enter a valid price.'
     if (form.stockQuantity && (isNaN(form.stockQuantity) || Number(form.stockQuantity) < 0))
                                                                     e.stockQuantity = 'Enter a valid quantity.'
-    if (!isEdit && totalImgCount === 0)                             e.images        = 'At least one product image is required.'
     return e
   }
 
@@ -514,7 +513,7 @@ export default function ProductForm() {
                 <div
                   className="pf-drop"
                   style={{
-                    border: `2px dashed ${dragging ? 'var(--color-primary)' : errors.images ? 'var(--color-danger)' : 'var(--color-border-strong)'}`,
+                    border: `2px dashed ${dragging ? 'var(--color-primary)' : 'var(--color-border-strong)'}`,
                     borderRadius: 'var(--radius-md)',
                     padding: '24px 16px',
                     background: dragging ? 'var(--color-primary-50)' : 'var(--color-surface)',
