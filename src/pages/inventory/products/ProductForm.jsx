@@ -89,7 +89,7 @@ export default function ProductForm() {
   /* ── Form state ───────────────────────────────────────────────── */
   const initialFormState = {
     name: '', sku: '', productBy: '', description: '',
-    purchasePrice: '', stockQuantity: '0', isActive: true,
+    purchasePrice: '', rentPrice: '', stockQuantity: '0', isActive: true,
   }
 
   const [form, setForm] = useState(initialFormState)
@@ -118,6 +118,7 @@ export default function ProductForm() {
         productBy:     p.productBy     ?? '',
         description:   p.description   ?? '',
         purchasePrice: p.purchasePrice != null ? String(p.purchasePrice) : '',
+        rentPrice:     p.rentPrice     != null ? String(p.rentPrice)     : '',
         stockQuantity: p.currentStock  != null ? String(p.currentStock)  : '0',
         isActive:      p.isActive      ?? true,
       })
@@ -200,6 +201,8 @@ export default function ProductForm() {
     if (!form.sku.trim())                                           e.sku           = 'SKU / product code is required.'
     if (form.purchasePrice && (isNaN(form.purchasePrice) || Number(form.purchasePrice) < 0))
                                                                     e.purchasePrice = 'Enter a valid price.'
+    if (form.rentPrice && (isNaN(form.rentPrice) || Number(form.rentPrice) < 0))
+                                                                    e.rentPrice     = 'Enter a valid rent price.'
     if (form.stockQuantity && (isNaN(form.stockQuantity) || Number(form.stockQuantity) < 0))
                                                                     e.stockQuantity = 'Enter a valid quantity.'
     return e
@@ -234,6 +237,7 @@ export default function ProductForm() {
         productCode:   form.sku.trim().toUpperCase(),
         productBy:     form.productBy     || null,
         purchasePrice: form.purchasePrice ? Number(form.purchasePrice) : null,
+        rentPrice:     form.rentPrice     ? Number(form.rentPrice)     : null,
         stockQuantity: form.stockQuantity ? Number(form.stockQuantity) : 0,
         description:   form.description   || null,
         isActive:      form.isActive,
@@ -417,8 +421,18 @@ export default function ProductForm() {
                   <ErrMsg message={errors.purchasePrice} />
                 </div>
 
-                {/* Stock Quantity */}
+                {/* Rent Price */}
                 <div>
+                  <Label>Rent Price</Label>
+                  <div style={{ position: 'relative' }}>
+                    <span style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-muted)', fontSize: 14, fontWeight: 600 }}>₹</span>
+                    <TextField name="rentPrice" value={form.rentPrice} onChange={e => field('rentPrice', e.target.value)} hasError={!!errors.rentPrice} placeholder="0.00" type="number" min="0" step="0.01" style={{ paddingLeft: 28 }} />
+                  </div>
+                  <ErrMsg message={errors.rentPrice} />
+                </div>
+
+                {/* Stock Quantity */}
+                <div className="pf-full">
                   <Label>Stock Quantity (Unit)</Label>
                   <TextField name="stockQuantity" value={form.stockQuantity} onChange={e => field('stockQuantity', e.target.value)} hasError={!!errors.stockQuantity} placeholder="0" type="number" min="0" />
                   <ErrMsg message={errors.stockQuantity} />

@@ -82,6 +82,7 @@ export default function GeneratorForm() {
     name: '',
     generatorCode: '',
     purchasePrice: '',
+    rentPrice: '',
     stockQuantity: '0',
     productBy: '',
     description: '',
@@ -111,6 +112,7 @@ export default function GeneratorForm() {
         name:          g.name          ?? '',
         generatorCode: g.generatorCode ?? '',
         purchasePrice: g.purchasePrice != null ? String(g.purchasePrice) : '',
+        rentPrice:     g.rentPrice     != null ? String(g.rentPrice)     : '',
         stockQuantity: g.stockQuantity != null ? String(g.stockQuantity) : '0',
         productBy:     g.productBy     ?? '',
         description:   g.description   ?? '',
@@ -169,6 +171,8 @@ export default function GeneratorForm() {
     if (!form.generatorCode.trim())                             e.generatorCode = 'Generator code is required.'
     if (form.purchasePrice && (isNaN(form.purchasePrice) || Number(form.purchasePrice) < 0))
                                                                 e.purchasePrice = 'Enter a valid price.'
+    if (form.rentPrice && (isNaN(form.rentPrice) || Number(form.rentPrice) < 0))
+                                                                e.rentPrice     = 'Enter a valid rent price.'
     if (form.stockQuantity && (isNaN(form.stockQuantity) || Number(form.stockQuantity) < 0))
                                                                 e.stockQuantity = 'Enter a valid quantity.'
     return e
@@ -201,6 +205,7 @@ export default function GeneratorForm() {
         name:          form.name.trim(),
         generatorCode: form.generatorCode.trim().toUpperCase(),
         purchasePrice: form.purchasePrice ? Number(form.purchasePrice) : null,
+        rentPrice:     form.rentPrice     ? Number(form.rentPrice)     : null,
         stockQuantity: form.stockQuantity ? Number(form.stockQuantity) : 0,
         productBy:     form.productBy.trim() || null,
         description:   form.description.trim() || null,
@@ -368,6 +373,14 @@ export default function GeneratorForm() {
                   <ErrMsg message={errors.purchasePrice} />
                 </div>
                 <div>
+                  <Label>Rent Price</Label>
+                  <div style={{ position: 'relative' }}>
+                    <span style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-muted)', fontSize: 14, fontWeight: 600 }}>₹</span>
+                    <TextField name="rentPrice" value={form.rentPrice} onChange={e => field('rentPrice', e.target.value)} hasError={!!errors.rentPrice} placeholder="0.00" type="number" min="0" step="0.01" style={{ paddingLeft: 28 }} />
+                  </div>
+                  <ErrMsg message={errors.rentPrice} />
+                </div>
+                <div className="pf-full">
                   <Label>Stock Quantity (Unit)</Label>
                   <TextField name="stockQuantity" value={form.stockQuantity} onChange={e => field('stockQuantity', e.target.value)} hasError={!!errors.stockQuantity} placeholder="0" type="number" min="0" />
                   <ErrMsg message={errors.stockQuantity} />

@@ -317,7 +317,7 @@ export default function GeneratorList() {
     noStock:  generators.filter((g) => (g.stockQuantity ?? 0) === 0).length,
   };
 
-  const SKELETON_COLS = 7;
+  const SKELETON_COLS = 8;
 
   return (
     <>
@@ -675,6 +675,7 @@ export default function GeneratorList() {
                   <th style={thStyle}>Code (SKU)</th>
                   <th style={thStyle}>Product By</th>
                   <th style={{ ...thStyle, textAlign: "right" }}>Purchase ₹</th>
+                  <th style={{ ...thStyle, textAlign: "right" }}>Rent ₹</th>
                   <th style={{ ...thStyle, textAlign: "center" }}>Stock</th>
                   <th style={{ ...thStyle, textAlign: "center" }}>Active</th>
                   <th style={{ ...thStyle, textAlign: "center" }}>Actions</th>
@@ -687,7 +688,7 @@ export default function GeneratorList() {
                   ))
                 ) : paged.length === 0 ? (
                   <tr>
-                    <td colSpan={8} style={{ textAlign: "center", padding: "60px 20px" }}>
+                    <td colSpan={9} style={{ textAlign: "center", padding: "60px 20px" }}>
                       <div style={{ fontSize: 40, marginBottom: 8 }}>⚡</div>
                       <div style={{ fontWeight: 600, color: "var(--color-text-muted)" }}>
                         {search || activeFilter !== "all" ? "No generators match your filters" : "No generators yet"}
@@ -743,6 +744,9 @@ export default function GeneratorList() {
                       </td>
                       <td style={{ ...tdStyle, textAlign: "right", fontWeight: 700, fontSize: 13 }}>
                         {fmtCurrency(gen.purchasePrice)}
+                      </td>
+                      <td style={{ ...tdStyle, textAlign: "right", fontWeight: 700, fontSize: 13, color: 'var(--color-primary)' }}>
+                        {fmtCurrency(gen.rentPrice)}
                       </td>
                       <td style={{ ...tdStyle, textAlign: "center", fontWeight: 700 }}>
                         <span style={{ color: (gen.stockQuantity ?? 0) === 0 ? "var(--color-danger)" : "var(--color-text)" }}>
@@ -836,7 +840,10 @@ export default function GeneratorList() {
                   </div>
                   <div className="gl-mc-footer">
                     <span style={{ fontSize: 12, color: "var(--color-text-muted)" }}>
-                      Rent: <strong>{fmtCurrency(gen.rentPricePerDay)}</strong>/day
+                      Purchase: <strong>{fmtCurrency(gen.purchasePrice)}</strong>
+                    </span>
+                    <span style={{ fontSize: 12, color: "var(--color-primary)", marginLeft: 8 }}>
+                      Rent: <strong>{fmtCurrency(gen.rentPrice)}</strong>
                     </span>
                     <div style={{ marginLeft: "auto" }}>
                       <Toggle active={gen.isActive} onToggle={() => handleToggle(gen.id)} disabled={togglingId === gen.id} />

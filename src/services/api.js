@@ -11,7 +11,7 @@ const api = axios.create({
     'ngrok-skip-browser-warning': 'true',
   },
   timeout:         15000,
-  withCredentials: true,
+  withCredentials: true,   // send HTTP-only refresh-token cookie automatically
 })
 
 // ── Token refresh state ────────────────────────────────────────────────────
@@ -80,7 +80,10 @@ api.interceptors.response.use(
           storedRefreshToken ? { refreshToken: storedRefreshToken } : {},
           {
             withCredentials: true,
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+              'Content-Type': 'application/json',
+              'ngrok-skip-browser-warning': 'true',
+            },
           }
         )
 

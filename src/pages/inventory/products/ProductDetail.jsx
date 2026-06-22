@@ -242,6 +242,7 @@ export default function ProductDetail() {
               <div className="pd-pricing">
                 {[
                   { label: 'Purchase Price', value: fmt(product.purchasePrice), color: 'var(--color-text)' },
+                  { label: 'Rent Price',     value: fmt(product.rentPrice),     color: 'var(--color-primary)' },
                   { label: 'Stock Quantity', value: String(stock), color: isOutOfStock ? 'var(--color-danger)' : isLowStock ? 'var(--color-warning)' : 'var(--color-text)' },
                 ].map((item, i, arr) => (
                   <React.Fragment key={item.label}>

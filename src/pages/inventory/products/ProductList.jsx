@@ -249,6 +249,7 @@ export default function ProductList() {
                     { label: 'SKU',         align: 'left',   col: 'sku'  },
                     { label: 'Product By',  align: 'left',   col: null   },
                     { label: 'Purchase ₹',  align: 'right',  col: 'price'},
+                    { label: 'Rent ₹',      align: 'right',  col: null   },
                     { label: 'Stock',       align: 'center', col: 'stock'},
                     { label: 'Status',      align: 'center', col: null   },
                     { label: 'Actions',     align: 'center', col: null   },
@@ -291,6 +292,9 @@ export default function ProductList() {
                         </td>
                         <td style={{ padding: '12px 16px', textAlign: 'right' }}>
                           <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--color-text)' }}>{fmt(p.purchasePrice)}</div>
+                        </td>
+                        <td style={{ padding: '12px 16px', textAlign: 'right' }}>
+                          <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--color-primary)' }}>{fmt(p.rentPrice)}</div>
                         </td>
                         <td style={{ padding: '12px 16px', textAlign: 'center' }}>
                           <span style={{ fontWeight: 700, fontSize: 15, color: (p.currentStock ?? 0) === 0 ? 'var(--color-danger)' : 'var(--color-text)' }}>
