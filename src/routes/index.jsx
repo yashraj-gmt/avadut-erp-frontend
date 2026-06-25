@@ -19,8 +19,9 @@ const ProductForm   = lazy(() => import('@/pages/inventory/products/ProductForm'
 const ProductDetail = lazy(() => import('@/pages/inventory/products/ProductDetail'))
 
 // ── Generator Management ──────────────────────────────────────────────
-const GeneratorList = lazy(() => import('@/pages/generators/GeneratorList'))
-const GeneratorForm = lazy(() => import('@/pages/generators/GeneratorForm'))
+const GeneratorList   = lazy(() => import('@/pages/generators/GeneratorList'))
+const GeneratorForm   = lazy(() => import('@/pages/generators/GeneratorForm'))
+const GeneratorDetail = lazy(() => import('@/pages/generators/GeneratorDetail'))
 
 // ── Roles ─────────────────────────────────────────────────────────────────
 const RolesPermissions = lazy(() => import('@/pages/roles/RolesPermissions'))
@@ -82,9 +83,10 @@ export const router = createBrowserRouter([
       rr(ROUTES.ROLES, RolesPermissions),
 
       // Generator Management
-      rr(ROUTES.GENERATORS,     GeneratorList),
-      rr(ROUTES.GENERATOR_ADD,  GeneratorForm),
-      rr(ROUTES.GENERATOR_EDIT, GeneratorForm),
+      rr(ROUTES.GENERATORS,        GeneratorList),
+      rr(ROUTES.GENERATOR_ADD,     GeneratorForm),
+      rr(ROUTES.GENERATOR_EDIT,    GeneratorForm),
+      rr(ROUTES.GENERATOR_DETAIL,  GeneratorDetail),
 
       // Profile (no role gate — any authenticated user)
       { path: ROUTES.PROFILE, element: s(ProfilePage) },

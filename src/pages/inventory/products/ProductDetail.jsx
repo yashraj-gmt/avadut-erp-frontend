@@ -43,7 +43,11 @@ export default function ProductDetail() {
       const res = await productService.getById(id)
       const p   = res.data?.data ?? res.data
       setProduct(p)
-      setActiveImg(p?.images?.find(i => i.isPrimary) ?? p?.images?.[0] ?? null)
+      setActiveImg(
+  p?.images?.find(i => i.isPrimary === true || i.primary === true) 
+  ?? p?.images?.[0] 
+  ?? null
+)
     } catch (err) {
       toast({ type: 'error', title: 'Failed to load product', message: err?.response?.data?.message ?? 'Please try again.' })
       navigate('/inventory/products')

@@ -50,6 +50,12 @@ const Icon = {
       <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
     </svg>
   ),
+  Eye: () => (
+    <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+      <circle cx="12" cy="12" r="3"/>
+    </svg>
+  ),
 };
 
 /* ─── Style helpers ──────────────────────────────────────────── */
@@ -92,8 +98,14 @@ const actionBtnStyle = (type, disabled) => ({
   borderRadius: 8,
   border: "none",
   cursor: disabled ? "not-allowed" : "pointer",
-  background: type === "amber" ? "#fee2e2" : "var(--color-danger-light)",
-  color: type === "amber" ? "#dc2626" : "var(--color-danger)",
+  background:
+    type === "blue"  ? "var(--color-primary-100)" :
+    type === "amber" ? "#fee2e2" :
+    "var(--color-danger-light)",
+  color:
+    type === "blue"  ? "var(--color-primary)" :
+    type === "amber" ? "#dc2626" :
+    "var(--color-danger)",
   opacity: disabled ? 0.5 : 1,
   transition: "all 0.15s",
 });
@@ -764,6 +776,14 @@ export default function GeneratorList() {
                         <div style={{ display: "flex", gap: 6, justifyContent: "center" }}>
                           <button
                             className="gl-action-btn"
+                            style={actionBtnStyle("blue", false)}
+                            title="View"
+                            onClick={() => navigate(ROUTES.GENERATOR_DETAIL.replace(":id", gen.id))}
+                          >
+                            <Icon.Eye />
+                          </button>
+                          <button
+                            className="gl-action-btn"
                             style={actionBtnStyle("amber", false)}
                             title="Edit"
                             onClick={() => navigate(ROUTES.GENERATOR_EDIT.replace(":id", gen.id))}
@@ -815,10 +835,13 @@ export default function GeneratorList() {
                       </div>
                     </div>
                     <div className="gl-mc-actions">
-                      <button className="gl-action-btn" style={actionBtnStyle("amber", false)} onClick={() => navigate(ROUTES.GENERATOR_EDIT.replace(":id", gen.id))}>
+                      <button className="gl-action-btn" style={actionBtnStyle("blue", false)} title="View" onClick={() => navigate(ROUTES.GENERATOR_DETAIL.replace(":id", gen.id))}>
+                        <Icon.Eye />
+                      </button>
+                      <button className="gl-action-btn" style={actionBtnStyle("amber", false)} title="Edit" onClick={() => navigate(ROUTES.GENERATOR_EDIT.replace(":id", gen.id))}>
                         <Icon.Edit />
                       </button>
-                      <button className="gl-action-btn" style={actionBtnStyle("red", false)} onClick={() => setDeleteId(gen.id)}>
+                      <button className="gl-action-btn" style={actionBtnStyle("red", false)} title="Delete" onClick={() => setDeleteId(gen.id)}>
                         <Icon.Trash />
                       </button>
                     </div>

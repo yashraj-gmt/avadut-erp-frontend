@@ -6,7 +6,10 @@ import { useAuthStore } from '@/store/authStore'
 // ── Base instance ──────────────────────────────────────────────────────────
 const api = axios.create({
   baseURL:         ENV.API_BASE_URL,
-  headers:         { 'Content-Type': 'application/json' },
+  headers:         { 
+    'Content-Type': 'application/json',
+    'ngrok-skip-browser-warning': 'true',
+  },
   timeout:         15000,
   withCredentials: true,   // send HTTP-only refresh-token cookie automatically
 })
@@ -77,7 +80,10 @@ api.interceptors.response.use(
           storedRefreshToken ? { refreshToken: storedRefreshToken } : {},
           {
             withCredentials: true,
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+              'Content-Type': 'application/json',
+              'ngrok-skip-browser-warning': 'true',
+            },
           }
         )
 
