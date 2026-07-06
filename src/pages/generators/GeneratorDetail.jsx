@@ -75,10 +75,16 @@ export default function GeneratorDetail() {
   const [showDelete, setShowDelete] = useState(false)
   const [deleting,   setDeleting]   = useState(false)
   const [lightbox,   setLightbox]   = useState(false)
+  const [prevId,     setPrevId]     = useState(id)
+
+  if (id !== prevId) {
+    setPrevId(id)
+    setGenerator(null)
+    setLoading(true)
+  }
 
   /* ── Fetch generator ──────────────────────────────────────────────── */
   const fetchGenerator = useCallback(async () => {
-    setLoading(true)
     try {
       const res = await generatorService.getById(id)
       const g   = res?.data?.data ?? res?.data ?? res

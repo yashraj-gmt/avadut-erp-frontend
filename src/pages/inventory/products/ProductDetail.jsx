@@ -35,10 +35,19 @@ export default function ProductDetail() {
   const [activeImg,   setActiveImg]   = useState(null)
   const [lightbox,    setLightbox]    = useState(null)
   const [lightboxIdx, setLightboxIdx] = useState(0)
+  const [prevId,      setPrevId]      = useState(id)
+
+  if (id !== prevId) {
+    setPrevId(id)
+    setProduct(null)
+    setLoading(true)
+    setActiveImg(null)
+    setLightbox(null)
+    setLightboxIdx(0)
+  }
 
   /* ── Fetch product */
   const fetchProduct = useCallback(async () => {
-    setLoading(true)
     try {
       const res = await productService.getById(id)
       const p   = res.data?.data ?? res.data
@@ -58,7 +67,7 @@ export default function ProductDetail() {
 
   useEffect(() => { fetchProduct() }, [fetchProduct])
 
-  /* ── Delete ───────────────────────────────────────────────────── */
+  /* ── Delete  */
   const handleDelete = async () => {
     setDeleting(true)
     try {
@@ -93,7 +102,7 @@ export default function ProductDetail() {
 
   if (!product) return null
 
-  /* ── Derived values ───────────────────────────────────────────── */
+  /* ── Derived values  */
   const stock = product.currentStock ?? 0
   const isOutOfStock = stock === 0
   const isLowStock = stock <= 5 && stock > 0
@@ -140,7 +149,7 @@ export default function ProductDetail() {
 
       <div className="pd-container">
 
-        {/* ── Page Header ───────────────────────────────────────── */}
+        {/* ── Page Header  */}
         <div className="pd-page-header">
           <div className="pd-header-left">
             <button
@@ -170,7 +179,7 @@ export default function ProductDetail() {
           </div>
         </div>
 
-        {/* ── Main Grid ─────────────────────────────────────────── */}
+        {/* ── Main Grid  */}
         <div className="pd-main-grid">
 
           {/* LEFT: Image Gallery */}

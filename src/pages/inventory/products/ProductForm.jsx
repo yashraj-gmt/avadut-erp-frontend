@@ -389,7 +389,7 @@ export default function ProductForm() {
 
                 {/* Description (full-width) */}
                 <div className="pf-full">
-                  <Label>Description</Label>
+                  <Label>Remarks</Label>
                   <textarea
                     value={form.description}
                     onChange={e => field('description', e.target.value)}

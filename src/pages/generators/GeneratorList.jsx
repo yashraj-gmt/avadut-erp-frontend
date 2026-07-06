@@ -217,6 +217,7 @@ export default function GeneratorList() {
   const [activeFilter, setActiveFilter] = useState("all");
   const [page, setPage]           = useState(1);
   const [deleteId, setDeleteId]   = useState(null);
+  const [deleting, setDeleting]   = useState(false);
 
   const PAGE_SIZE = 8;
 
@@ -294,7 +295,7 @@ export default function GeneratorList() {
   const handleDelete = async () => {
     if (!deleteId) return;
     const gen = generators.find((g) => g.id === deleteId);
-
+    setDeleting(true);
     try {
       await generatorService.delete(deleteId);
       setGenerators((prev) => prev.filter((g) => g.id !== deleteId));
@@ -315,6 +316,8 @@ export default function GeneratorList() {
         title: "Delete failed",
         message: err?.message || "Could not delete this generator.",
       });
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -926,16 +929,16 @@ export default function GeneratorList() {
 
 
       {/* ── Delete Confirmation Modal ─────────────────────────── */}
-      {deleteId && (
-        <ConfirmModal
-          title="Delete Generator"
-          message={`Are you sure you want to delete "${generators.find((g) => g.id === deleteId)?.name || "this generator"}"? This action cannot be undone.`}
-          confirmLabel="Delete"
-          confirmVariant="danger"
-          onConfirm={handleDelete}
-          onCancel={() => setDeleteId(null)}
-        />
-      )}
+      <ConfirmModal
+        isOpen={!!deleteId}
+        onClose={() => !deleting && setDeleteId(null)}
+        onConfirm={handleDelete}
+        title="Delete Generator"
+        message={`Are you sure you want to delete "${generators.find((g) => g.id === deleteId)?.name || "this generator"}"? This action cannot be undone.`}
+        confirmLabel="Delete"
+        variant="danger"
+        loading={deleting}
+      />
     </>
   );
 }

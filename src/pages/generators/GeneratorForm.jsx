@@ -342,7 +342,7 @@ export default function GeneratorForm() {
                   <TextField name="productBy" value={form.productBy} onChange={e => field('productBy', e.target.value)} placeholder="Manufacturer / Brand" />
                 </div>
                 <div className="pf-full">
-                  <Label>Description</Label>
+                  <Label>Remarks</Label>
                   <textarea
                     value={form.description}
                     onChange={e => field('description', e.target.value)}

@@ -23,6 +23,12 @@ const GeneratorList   = lazy(() => import('@/pages/generators/GeneratorList'))
 const GeneratorForm   = lazy(() => import('@/pages/generators/GeneratorForm'))
 const GeneratorDetail = lazy(() => import('@/pages/generators/GeneratorDetail'))
 
+// ── Generator Order Management ────────────────────────────────────────
+const GeneratorOrderList   = lazy(() => import('@/pages/generators/orders/GeneratorOrderList'))
+const GeneratorOrderForm   = lazy(() => import('@/pages/generators/orders/GeneratorOrderForm'))
+const GeneratorOrderDetail = lazy(() => import('@/pages/generators/orders/GeneratorOrderDetail'))
+const GeneratorOrderBilling = lazy(() => import('@/pages/generators/orders/GeneratorOrderBilling'))
+
 // ── Roles ─────────────────────────────────────────────────────────────────
 const RolesPermissions = lazy(() => import('@/pages/roles/RolesPermissions'))
 
@@ -82,11 +88,18 @@ export const router = createBrowserRouter([
       // Roles
       rr(ROUTES.ROLES, RolesPermissions),
 
-      // Generator Management
+      // Generator Inventory Management
       rr(ROUTES.GENERATORS,        GeneratorList),
       rr(ROUTES.GENERATOR_ADD,     GeneratorForm),
       rr(ROUTES.GENERATOR_EDIT,    GeneratorForm),
       rr(ROUTES.GENERATOR_DETAIL,  GeneratorDetail),
+
+      // Generator Order Management
+      rr(ROUTES.GENERATOR_ORDERS,        GeneratorOrderList),
+      rr(ROUTES.GENERATOR_ORDER_ADD,     GeneratorOrderForm),
+      rr(ROUTES.GENERATOR_ORDER_EDIT,    GeneratorOrderForm),
+      rr(ROUTES.GENERATOR_ORDER_DETAIL,  GeneratorOrderDetail),
+      rr(ROUTES.GENERATOR_ORDER_BILLING, GeneratorOrderBilling),
 
       // Profile (no role gate — any authenticated user)
       { path: ROUTES.PROFILE, element: s(ProfilePage) },

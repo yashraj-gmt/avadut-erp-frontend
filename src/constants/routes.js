@@ -22,4 +22,11 @@ export const ROUTES = {
   GENERATOR_ADD:     '/generators/add',
   GENERATOR_EDIT:    '/generators/:id/edit',
   GENERATOR_DETAIL:  '/generators/:id',
+
+  // ── Generator Order Management ───────────────────────────────────────────
+  GENERATOR_ORDERS:        '/generators/orders',
+  GENERATOR_ORDER_ADD:     '/generators/orders/add',
+  GENERATOR_ORDER_EDIT:    '/generators/orders/:id/edit',
+  GENERATOR_ORDER_DETAIL:  '/generators/orders/:id',
+  GENERATOR_ORDER_BILLING: '/generators/orders/:id/billing',
 };
