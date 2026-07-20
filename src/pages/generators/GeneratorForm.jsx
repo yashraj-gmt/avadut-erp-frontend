@@ -82,7 +82,8 @@ export default function GeneratorForm() {
     name: '',
     generatorCode: '',
     purchasePrice: '',
-    rentPrice: '',
+    partyDieselRentPrice: '',
+    withDieselRentPrice: '',
     stockQuantity: '0',
     productBy: '',
     description: '',
@@ -111,8 +112,9 @@ export default function GeneratorForm() {
       setForm({
         name:          g.name          ?? '',
         generatorCode: g.generatorCode ?? '',
-        purchasePrice: g.purchasePrice != null ? String(g.purchasePrice) : '',
-        rentPrice:     g.rentPrice     != null ? String(g.rentPrice)     : '',
+        purchasePrice:        g.purchasePrice           != null ? String(g.purchasePrice)           : '',
+        partyDieselRentPrice: g.partyDieselRentPrice     != null ? String(g.partyDieselRentPrice)     : '',
+        withDieselRentPrice:  g.withDieselRentPrice      != null ? String(g.withDieselRentPrice)      : '',
         stockQuantity: g.stockQuantity != null ? String(g.stockQuantity) : '0',
         productBy:     g.productBy     ?? '',
         description:   g.description   ?? '',
@@ -168,11 +170,13 @@ export default function GeneratorForm() {
     const e = {}
     if (!form.name.trim())                                      e.name          = 'Generator name is required.'
     else if (form.name.trim().length < 2)                       e.name          = 'Name must be at least 2 characters.'
-    if (!form.generatorCode.trim())                             e.generatorCode = 'Generator code is required.'
+    // if (!form.generatorCode.trim())                             e.generatorCode = 'Generator code is required.'
     if (form.purchasePrice && (isNaN(form.purchasePrice) || Number(form.purchasePrice) < 0))
                                                                 e.purchasePrice = 'Enter a valid price.'
-    if (form.rentPrice && (isNaN(form.rentPrice) || Number(form.rentPrice) < 0))
-                                                                e.rentPrice     = 'Enter a valid rent price.'
+    if (form.partyDieselRentPrice && (isNaN(form.partyDieselRentPrice) || Number(form.partyDieselRentPrice) < 0))
+                                                                e.partyDieselRentPrice = 'Enter a valid party diesel rent price.'
+    if (form.withDieselRentPrice && (isNaN(form.withDieselRentPrice) || Number(form.withDieselRentPrice) < 0))
+                                                                e.withDieselRentPrice  = 'Enter a valid with diesel rent price.'
     if (form.stockQuantity && (isNaN(form.stockQuantity) || Number(form.stockQuantity) < 0))
                                                                 e.stockQuantity = 'Enter a valid quantity.'
     return e
@@ -203,9 +207,10 @@ export default function GeneratorForm() {
     try {
       const payload = {
         name:          form.name.trim(),
-        generatorCode: form.generatorCode.trim().toUpperCase(),
-        purchasePrice: form.purchasePrice ? Number(form.purchasePrice) : null,
-        rentPrice:     form.rentPrice     ? Number(form.rentPrice)     : null,
+        generatorCode: form.generatorCode.trim() ? form.generatorCode.trim().toUpperCase() : null,
+        purchasePrice:        form.purchasePrice        ? Number(form.purchasePrice)        : null,
+        partyDieselRentPrice: form.partyDieselRentPrice ? Number(form.partyDieselRentPrice) : null,
+        withDieselRentPrice:  form.withDieselRentPrice  ? Number(form.withDieselRentPrice)  : null,
         stockQuantity: form.stockQuantity ? Number(form.stockQuantity) : 0,
         productBy:     form.productBy.trim() || null,
         description:   form.description.trim() || null,
@@ -333,7 +338,7 @@ export default function GeneratorForm() {
                   <ErrMsg message={errors.name} />
                 </div>
                 <div>
-                  <Label req>Generator Code (SKU)</Label>
+                  <Label>Generator Code (SKU)</Label>
                   <TextField name="generatorCode" value={form.generatorCode} onChange={e => field('generatorCode', e.target.value)} hasError={!!errors.generatorCode} placeholder="e.g. GEN-001" disabled={isEdit} />
                   <ErrMsg message={errors.generatorCode} />
                 </div>
@@ -373,12 +378,20 @@ export default function GeneratorForm() {
                   <ErrMsg message={errors.purchasePrice} />
                 </div>
                 <div>
-                  <Label>Rent Price</Label>
+                  <Label>Rent Price (Per day)</Label>
                   <div style={{ position: 'relative' }}>
                     <span style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-muted)', fontSize: 14, fontWeight: 600 }}>₹</span>
-                    <TextField name="rentPrice" value={form.rentPrice} onChange={e => field('rentPrice', e.target.value)} hasError={!!errors.rentPrice} placeholder="0.00" type="number" min="0" step="0.01" style={{ paddingLeft: 28 }} />
+                    <TextField name="partyDieselRentPrice" value={form.partyDieselRentPrice} onChange={e => field('partyDieselRentPrice', e.target.value)} hasError={!!errors.partyDieselRentPrice} placeholder="0.00" type="number" min="0" step="0.01" style={{ paddingLeft: 28 }} />
                   </div>
-                  <ErrMsg message={errors.rentPrice} />
+                  <ErrMsg message={errors.partyDieselRentPrice} />
+                </div>
+                <div>
+                  <Label>Diesel Price (Per Hour)</Label>
+                  <div style={{ position: 'relative' }}>
+                    <span style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-muted)', fontSize: 14, fontWeight: 600 }}>₹</span>
+                    <TextField name="withDieselRentPrice" value={form.withDieselRentPrice} onChange={e => field('withDieselRentPrice', e.target.value)} hasError={!!errors.withDieselRentPrice} placeholder="0.00" type="number" min="0" step="0.01" style={{ paddingLeft: 28 }} />
+                  </div>
+                  <ErrMsg message={errors.withDieselRentPrice} />
                 </div>
                 <div className="pf-full">
                   <Label>Stock Quantity (Unit)</Label>

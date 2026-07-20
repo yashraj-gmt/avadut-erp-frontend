@@ -29,6 +29,8 @@ const ROUTE_LABELS = {
   [ROUTES.GENERATOR_DETAIL]: 'Generator Detail',
   [ROUTES.ROLES]:          'Roles & Permissions',
   [ROUTES.PROFILE]:        'Profile',
+  [ROUTES.STAFF_ORDERS]:       'My Orders (Staff)',
+  [ROUTES.STAFF_ORDER_DETAIL]: 'Order Detail (Staff)',
 }
 
 // ── Role config — covers all possible UserRole enum values ───────────────────
@@ -47,8 +49,8 @@ const ROLE_CONFIG = {
   },
 }
 
-// Only ADMIN and SUPER_ADMIN are assignable in the user form / role-change modal
-const ASSIGNABLE_ROLES = ['ADMIN', 'SUPER_ADMIN']
+// ADMIN, SUPER_ADMIN, and STAFF can all be created through the user form
+const ASSIGNABLE_ROLES = ['ADMIN', 'SUPER_ADMIN', 'STAFF']
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const formatDate = (iso) => {
@@ -179,7 +181,7 @@ function UserModal({ isOpen, onClose, onSubmit, editUser, loading }) {
             <span className="text-sm font-medium" style={{ color:'var(--color-text)' }}>
               Role <span style={{ color:'var(--color-danger)' }}>*</span>
             </span>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-3 gap-3">
               {ASSIGNABLE_ROLES.map((r) => {
                 const cfg      = ROLE_CONFIG[r]
                 const selected = form.role === r

@@ -3,15 +3,15 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ROUTES } from '@/constants/routes';
 import {
-  mockOrders,
   STATUS_CONFIG,
   DIESEL_TYPES,
   fmtDate,
   calcDuration,
 } from './mockData';
+import { generatorOrderService } from '@/services/generatorOrderService';
 
 /* ─── Shared in-memory store (same reference as form) ───────────────────── */
-let LOCAL_ORDERS = [...mockOrders];
+let LOCAL_ORDERS = [];
 
 /* ─── Icons ─────────────────────────────────────────────────────────────── */
 const Icon = {
@@ -310,13 +310,15 @@ export default function GeneratorOrderDetail() {
 
   useEffect(() => {
     setLoading(true);
-    const t = setTimeout(() => {
-      const found = LOCAL_ORDERS.find(o => o.id === id) || mockOrders.find(o => o.id === id);
-      if (found) setOrder(found);
-      else setNotFound(true);
-      setLoading(false);
-    }, 600);
-    return () => clearTimeout(t);
+    generatorOrderService.getById(id)
+      .then(found => {
+        setOrder(found);
+      })
+      .catch(err => {
+        console.error('Failed to load order detail', err);
+        setNotFound(true);
+      })
+      .finally(() => setLoading(false));
   }, [id]);
 
   if (loading) {
@@ -377,7 +379,7 @@ export default function GeneratorOrderDetail() {
                 <a href="#" onClick={e => { e.preventDefault(); navigate(ROUTES.GENERATORS); }}>Generator</a>
                 {' › '}
                 <a href="#" onClick={e => { e.preventDefault(); navigate(ROUTES.GENERATOR_ORDERS); }}>Orders</a>
-                {' › '}{order.id}
+                {' › '}{order.orderNumber || order.id}
               </p>
             </div>
           </div>
@@ -397,7 +399,7 @@ export default function GeneratorOrderDetail() {
         <div className="gd2-banner">
           <div>
             <div className="gd2-banner-sub">Generator Order</div>
-            <div className="gd2-banner-id">{order.id}</div>
+            <div className="gd2-banner-id">{order.orderNumber || order.id}</div>
           </div>
           <div style={{ textAlign:'right' }}>
             <div className="gd2-banner-meta"><Icon.Calendar /> Created: {fmtDate(order.createdAt)}</div>
@@ -412,27 +414,35 @@ export default function GeneratorOrderDetail() {
               <Icon.User />{order.clientName}
             </Field>
             <Field label="Order Number" muted>
-              <Icon.Receipt />{order.id}
+              <Icon.Receipt />{order.orderNumber || order.id}
             </Field>
             <Field label="Contact Number" muted>
               <Icon.Phone />{order.contactNumber}
             </Field>
           </div>
-          <div className="gd2-grid" style={{ borderTop: '1px dashed var(--color-border)', paddingTop: 20 }}>
+          <div className="gd2-grid" style={{ borderTop: '1px dashed var(--color-border)', paddingTop: 20, marginBottom: 16 }}>
             <Field label="Operator Name" muted>
-              {order.operatorName || order.generators?.[0]?.operatorName || '—'}
+              {order.operatorName || '—'}
             </Field>
+            <Field label="Operator Mobile" muted>
+              <Icon.Phone />{order.operatorMobile || '—'}
+            </Field>
+            <Field label="Alternate Mobile" muted>
+              <Icon.Phone />{order.alternateMobile || '—'}
+            </Field>
+          </div>
+          <div className="gd2-grid" style={{ borderTop: '1px dashed var(--color-border)', paddingTop: 20 }}>
             <Field label="Cable Required" muted>
               <span style={{
                 padding:'3px 10px', borderRadius:20, fontSize:11.5, fontWeight:700,
-                background: (order.cableRequired ?? order.generators?.[0]?.cableRequired) ? '#D1FAE5' : '#FEE2E2',
-                color:       (order.cableRequired ?? order.generators?.[0]?.cableRequired) ? '#065F46' : '#991B1B',
+                background: order.cableRequired ? '#D1FAE5' : '#FEE2E2',
+                color:       order.cableRequired ? '#065F46' : '#991B1B',
               }}>
-                {(order.cableRequired ?? order.generators?.[0]?.cableRequired) ? '✓ Yes' : '✗ No'}
+                {order.cableRequired ? '✓ Yes' : '✗ No'}
               </span>
             </Field>
-            <Field label="Diesel Type" muted>
-              <DieselBadge type={order.dieselType || order.generators?.[0]?.dieselType} />
+            <Field label="With Diesel" muted>
+              <DieselBadge type={order.dieselType} />
             </Field>
           </div>
         </CardSection>
@@ -457,6 +467,7 @@ export default function GeneratorOrderDetail() {
                 <tr>
                   <th className="gd2-gen-th" style={{ width:40 }}>#</th>
                   <th className="gd2-gen-th">Generator</th>
+                  <th className="gd2-gen-th" style={{ textAlign:'center' }}>Cable</th>
                   <th className="gd2-gen-th" style={{ textAlign:'center' }}>Start</th>
                   <th className="gd2-gen-th" style={{ textAlign:'center' }}>End</th>
                   <th className="gd2-gen-th" style={{ textAlign:'center' }}>Duration</th>
@@ -468,6 +479,13 @@ export default function GeneratorOrderDetail() {
                     <td className="gd2-gen-td" style={{ color:'var(--color-text-subtle)', fontSize:12 }}>{i+1}</td>
                     <td className="gd2-gen-td">
                       <div style={{ fontWeight:700, color:'var(--color-primary-dark)' }}>{g.generatorName}</div>
+                    </td>
+                    <td className="gd2-gen-td" style={{ textAlign:'center' }}>
+                      {g.cableSize ? (
+                        <span style={{ fontSize:12, background:'#f1f5f9', border:'1px solid #e2e8f0', borderRadius:4, padding:'2px 8px', color:'#475569', fontWeight:600 }}>
+                          {g.cableSize}{g.cableSize !== 'Earth Rod' ? ' mm²' : ''}
+                        </span>
+                      ) : <span style={{ color:'var(--color-text-subtle)', fontSize:12 }}>—</span>}
                     </td>
                     <td className="gd2-gen-td" style={{ textAlign:'center', fontFamily:'monospace', fontSize:13, fontWeight:600 }}>
                       {g.startTime}
@@ -529,6 +547,21 @@ export default function GeneratorOrderDetail() {
                 <span>{order.siteAddress || '—'}</span>
               </div>
             </div>
+            {order.siteAddressLink && (
+              <div className="gd2-field">
+                <label>Site Address Link</label>
+                <div className="gd2-field-val" style={{ marginTop:6 }}>
+                  <a
+                    href={order.siteAddressLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ color:'var(--color-primary)', fontWeight:600, fontSize:14, wordBreak:'break-all' }}
+                  >
+                    🗺 {order.siteAddressLink}
+                  </a>
+                </div>
+              </div>
+            )}
           </div>
         </CardSection>
 

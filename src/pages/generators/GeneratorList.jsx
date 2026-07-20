@@ -243,7 +243,7 @@ export default function GeneratorList() {
     fetchGenerators();
   }, [fetchGenerators]);
 
-  /* ── Client-side filtering ─────────────────────────────────── */
+  /* Client-side filtering */
   const filtered = generators.filter((g) => {
     const q = search.toLowerCase();
     const matchSearch =
@@ -260,7 +260,7 @@ export default function GeneratorList() {
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const paged      = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
-  /* ── Toggle active status ──────────────────────────────────── */
+  /* Toggle active status */
   const handleToggle = async (id) => {
     const gen = generators.find((g) => g.id === id);
     if (!gen || togglingId) return;
@@ -690,7 +690,8 @@ export default function GeneratorList() {
                   <th style={thStyle}>Code (SKU)</th>
                   <th style={thStyle}>Product By</th>
                   <th style={{ ...thStyle, textAlign: "right" }}>Purchase ₹</th>
-                  <th style={{ ...thStyle, textAlign: "right" }}>Rent ₹</th>
+                  <th style={{ ...thStyle, textAlign: "right" }}>Party Diesel ₹</th>
+                  <th style={{ ...thStyle, textAlign: "right" }}>With Diesel ₹</th>
                   <th style={{ ...thStyle, textAlign: "center" }}>Stock</th>
                   <th style={{ ...thStyle, textAlign: "center" }}>Active</th>
                   <th style={{ ...thStyle, textAlign: "center" }}>Actions</th>
@@ -703,7 +704,7 @@ export default function GeneratorList() {
                   ))
                 ) : paged.length === 0 ? (
                   <tr>
-                    <td colSpan={9} style={{ textAlign: "center", padding: "60px 20px" }}>
+                    <td colSpan={10} style={{ textAlign: "center", padding: "60px 20px" }}>
                       <div style={{ fontSize: 40, marginBottom: 8 }}>⚡</div>
                       <div style={{ fontWeight: 600, color: "var(--color-text-muted)" }}>
                         {search || activeFilter !== "all" ? "No generators match your filters" : "No generators yet"}
@@ -761,7 +762,10 @@ export default function GeneratorList() {
                         {fmtCurrency(gen.purchasePrice)}
                       </td>
                       <td style={{ ...tdStyle, textAlign: "right", fontWeight: 700, fontSize: 13, color: 'var(--color-primary)' }}>
-                        {fmtCurrency(gen.rentPrice)}
+                        {fmtCurrency(gen.partyDieselRentPrice)}
+                      </td>
+                      <td style={{ ...tdStyle, textAlign: "right", fontWeight: 700, fontSize: 13, color: 'var(--color-primary)' }}>
+                        {fmtCurrency(gen.withDieselRentPrice)}
                       </td>
                       <td style={{ ...tdStyle, textAlign: "center", fontWeight: 700 }}>
                         <span style={{ color: (gen.stockQuantity ?? 0) === 0 ? "var(--color-danger)" : "var(--color-text)" }}>
@@ -869,7 +873,10 @@ export default function GeneratorList() {
                       Purchase: <strong>{fmtCurrency(gen.purchasePrice)}</strong>
                     </span>
                     <span style={{ fontSize: 12, color: "var(--color-primary)", marginLeft: 8 }}>
-                      Rent: <strong>{fmtCurrency(gen.rentPrice)}</strong>
+                      Party: <strong>{fmtCurrency(gen.partyDieselRentPrice)}</strong>
+                    </span>
+                    <span style={{ fontSize: 12, color: "var(--color-primary)", marginLeft: 8 }}>
+                      Diesel: <strong>{fmtCurrency(gen.withDieselRentPrice)}</strong>
                     </span>
                     <div style={{ marginLeft: "auto" }}>
                       <Toggle active={gen.isActive} onToggle={() => handleToggle(gen.id)} disabled={togglingId === gen.id} />

@@ -29,4 +29,8 @@ export const ROUTES = {
   GENERATOR_ORDER_EDIT:    '/generators/orders/:id/edit',
   GENERATOR_ORDER_DETAIL:  '/generators/orders/:id',
   GENERATOR_ORDER_BILLING: '/generators/orders/:id/billing',
+
+  // ── Staff Portal ─────────────────────────────────────────────────────────
+  STAFF_ORDERS:        '/staff/orders',
+  STAFF_ORDER_DETAIL:  '/staff/orders/:id',
 };

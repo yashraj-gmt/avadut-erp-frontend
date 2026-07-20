@@ -25,4 +25,23 @@ export const generatorService = {
   create:  (data, image)    => api.post('/admin/generators',      buildGeneratorFormData(data, image), multipart),
   update:  (id, data, image)=> api.patch(`/admin/generators/${id}`, buildGeneratorFormData(data, image), multipart),
   delete:  (id)             => api.delete(`/admin/generators/${id}`),
+
+  /**
+   * Fetch all generators for dropdown use.
+   * Returns a flat array: [{ id, name, generatorCode }]
+   */
+  getForDropdown: async () => {
+    // api.get() → interceptor returns response.data (the full JSON body)
+    // Body shape: { success: true, data: { content: [...], ... } }
+    const body = await api.get('/admin/generators', { params: { size: 500 } });
+    // Try every possible nesting depth
+    const content =
+      body?.data?.content   // { success, data: { content } }
+      || body?.content      // { content } flat
+      || (Array.isArray(body?.data) ? body.data : null) // { data: [...] }
+      || (Array.isArray(body) ? body : []);             // [...] bare array
+    return Array.isArray(content)
+      ? content.map(g => ({ id: g.id, name: g.name, generatorCode: g.generatorCode, code: g.generatorCode }))
+      : [];
+  },
 }

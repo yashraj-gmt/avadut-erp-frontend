@@ -282,9 +282,10 @@ export default function GeneratorDetail() {
               {/* Pricing & Stock */}
               <div className="gd-pricing">
                 {[
-                  { label: 'Purchase Price', value: fmt(generator.purchasePrice), color: 'var(--color-text)' },
-                  { label: 'Rent Price',     value: fmt(generator.rentPrice),     color: 'var(--color-primary)' },
-                  { label: 'Stock Qty',      value: String(stock),                color: isOutOfStock ? 'var(--color-danger)' : isLowStock ? 'var(--color-warning)' : 'var(--color-text)' },
+                  { label: 'Purchase Price',        value: fmt(generator.purchasePrice),        color: 'var(--color-text)' },
+                  { label: 'Party Diesel Rent ₹',   value: fmt(generator.partyDieselRentPrice), color: 'var(--color-primary)' },
+                  { label: 'With Diesel Rent ₹',    value: fmt(generator.withDieselRentPrice),  color: 'var(--color-primary)' },
+                  { label: 'Stock Qty',              value: String(stock),                       color: isOutOfStock ? 'var(--color-danger)' : isLowStock ? 'var(--color-warning)' : 'var(--color-text)' },
                 ].map((item, i, arr) => (
                   <React.Fragment key={item.label}>
                     <div className="gd-pricing-item">

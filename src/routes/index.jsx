@@ -32,6 +32,10 @@ const GeneratorOrderBilling = lazy(() => import('@/pages/generators/orders/Gener
 // ── Roles ─────────────────────────────────────────────────────────────────
 const RolesPermissions = lazy(() => import('@/pages/roles/RolesPermissions'))
 
+// ── Staff Portal ──────────────────────────────────────────────────────────
+const StaffOrderList   = lazy(() => import('@/pages/staff/StaffOrderList'))
+const StaffOrderDetail = lazy(() => import('@/pages/staff/StaffOrderDetail'))
+
 // ── Misc ──────────────────────────────────────────────────────────────────
 const ProfilePage  = lazy(() => import('@/pages/profile/ProfilePage'))
 const Unauthorized = lazy(() => import('@/pages/Unauthorized'))
@@ -100,6 +104,10 @@ export const router = createBrowserRouter([
       rr(ROUTES.GENERATOR_ORDER_EDIT,    GeneratorOrderForm),
       rr(ROUTES.GENERATOR_ORDER_DETAIL,  GeneratorOrderDetail),
       rr(ROUTES.GENERATOR_ORDER_BILLING, GeneratorOrderBilling),
+
+      // Staff Portal
+      rr(ROUTES.STAFF_ORDERS,       StaffOrderList),
+      rr(ROUTES.STAFF_ORDER_DETAIL, StaffOrderDetail),
 
       // Profile (no role gate — any authenticated user)
       { path: ROUTES.PROFILE, element: s(ProfilePage) },

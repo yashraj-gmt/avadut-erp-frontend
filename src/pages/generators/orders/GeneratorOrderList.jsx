@@ -4,10 +4,10 @@ import { useNavigate } from 'react-router-dom';
 import { ROUTES } from '@/constants/routes';
 import DateRangePicker from './DateRangePicker';
 import {
-  mockOrders as initialOrders,
   fmtDate,
   MOCK_BILLS,
 } from './mockData';
+import { generatorOrderService } from '@/services/generatorOrderService';
 
 /* ─── Icons ─────────────────────────────────────────────────────────────── */
 const Icon = {
@@ -333,9 +333,10 @@ const PAGE_SIZE = 8;
 export default function GeneratorOrderList() {
   const navigate = useNavigate();
 
-  // Data state (local mock — no API)
-  const [orders, setOrders] = useState([...initialOrders]);
+  // Data state
+  const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [totalElements, setTotalElements] = useState(0);
 
   // UI state
   const [search, setSearch]             = useState('');
@@ -347,50 +348,38 @@ export default function GeneratorOrderList() {
   const [filterBillingStatus, setFilterBillingStatus] = useState('all');
   const [filterBookingStatus, setFilterBookingStatus] = useState('all');
 
-  // Simulate initial load
+  // Fetch data
   React.useEffect(() => {
     setLoading(true);
-    const t = setTimeout(() => setLoading(false), 800);
-    return () => clearTimeout(t);
-  }, []);
+    generatorOrderService.getAll(search, filterBookingStatus === 'all' ? '' : filterBookingStatus, page - 1, PAGE_SIZE)
+      .then(res => {
+        setOrders(res?.content || []);
+        setTotalElements(res?.totalElements || 0);
+      })
+      .catch(err => {
+        console.error('Failed to fetch orders:', err);
+      })
+      .finally(() => setLoading(false));
+  }, [page, search, filterBookingStatus, filterBillingStatus, filterDate]);
 
-  /* ── Filtered data ── */
+  // Filtered locally for billing status and date (ideally this should be moved to backend too, but keeping minimal changes for now)
   const filtered = useMemo(() => {
-    const q = search.toLowerCase();
     return orders.filter(o => {
-      // 1. Search query match
-      const genNames = (o.generators || []).map(g => (g.generatorName || '').toLowerCase()).join(' ');
-      const opNames  = o.operatorName ? o.operatorName.toLowerCase() : '';
-      const matchSearch =
-        o.clientName.toLowerCase().includes(q) ||
-        o.id.toLowerCase().includes(q) ||
-        genNames.includes(q) ||
-        opNames.includes(q);
-
-      if (!matchSearch) return false;
-
-      // 2. Billing Status Match
-      const isBilled = MOCK_BILLS.some(b => b.orderId === o.id);
+      // 1. Billing Status Match
+      const isBilled = o.billingStatus === 'COMPLETED';
       if (filterBillingStatus === 'pending' && isBilled) return false;
       if (filterBillingStatus === 'completed' && !isBilled) return false;
 
-      // 3. Booking Status Match
-      if (filterBookingStatus !== 'all') {
-        const orderBookingStatus = (o.bookingStatus || 'Booked').toLowerCase();
-        if (orderBookingStatus !== filterBookingStatus.toLowerCase()) return false;
-      }
-
-      // 4. Function Date Range Match
+      // 2. Function Date Range Match
       if (filterDate && filterDate.includes(' to ')) {
         const [selFromStr, selToStr] = filterDate.split(' to ');
         const selFrom = new Date(selFromStr);
         const selTo = new Date(selToStr);
 
-        if (o.functionDate && o.functionDate.includes(' to ')) {
-          const [orderFromStr, orderToStr] = o.functionDate.split(' to ');
-          const orderFrom = new Date(orderFromStr);
-          const orderTo = new Date(orderToStr);
+        const orderFrom = o.functionDateFrom ? new Date(o.functionDateFrom) : null;
+        const orderTo = o.functionDateTo ? new Date(o.functionDateTo) : null;
 
+        if (orderFrom && orderTo) {
           const intersects = orderFrom <= selTo && orderTo >= selFrom;
           if (!intersects) return false;
         } else {
@@ -400,19 +389,19 @@ export default function GeneratorOrderList() {
 
       return true;
     });
-  }, [orders, search, filterBillingStatus, filterBookingStatus, filterDate]);
+  }, [orders, filterBillingStatus, filterDate]);
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const totalPages = Math.max(1, Math.ceil(totalElements / PAGE_SIZE));
+  const paged = filtered; // Since we already paginate from backend, paged is just filtered orders
 
   /* ── Delete ── */
   const handleDelete = () => {
     if (!deleteTarget) return;
-    setOrders(prev => prev.filter(o => o.id !== deleteTarget.id));
-    const newFiltered = filtered.filter(o => o.id !== deleteTarget.id);
-    const newTotal = Math.max(1, Math.ceil(newFiltered.length / PAGE_SIZE));
-    if (page > newTotal) setPage(newTotal);
-    setDeleteTarget(null);
+    generatorOrderService.delete(deleteTarget.id).then(() => {
+      setOrders(prev => prev.filter(o => o.id !== deleteTarget.id));
+      setTotalElements(prev => prev - 1);
+      setDeleteTarget(null);
+    });
   };
 
   /* ── Pagination pages ── */
@@ -432,7 +421,7 @@ export default function GeneratorOrderList() {
     const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
     const todayCount = orders.filter(o => o.createdAt && o.createdAt.startsWith(todayStr)).length;
 
-    const completedBilling = orders.filter(o => MOCK_BILLS.some(b => b.orderId === o.id)).length;
+    const completedBilling = orders.filter(o => o.billingStatus === 'COMPLETED').length;
     const pendingBilling = totalOrders - completedBilling;
     const totalGenerators = orders.reduce((sum, o) => sum + (o.generators?.length || 0), 0);
 
@@ -445,10 +434,19 @@ export default function GeneratorOrderList() {
     };
   }, [orders]);
 
+  // Inject styles on mount to avoid re-rendering <style> tag which causes focus loss in some React versions
+  React.useEffect(() => {
+    const styleId = 'go-styles';
+    if (!document.getElementById(styleId)) {
+      const style = document.createElement('style');
+      style.id = styleId;
+      style.innerHTML = STYLES;
+      document.head.appendChild(style);
+    }
+  }, []);
+
   return (
     <>
-      <style>{STYLES}</style>
-
       <div className="go-page">
 
         {/* ── Header ─────────────────────────────────────────── */}
@@ -522,7 +520,6 @@ export default function GeneratorOrderList() {
               placeholder="Search client, ORD-X, operator..."
               value={search}
               onChange={e => { setSearch(e.target.value); setPage(1); }}
-              disabled={loading}
             />
           </div>
 
@@ -573,6 +570,7 @@ export default function GeneratorOrderList() {
                   <th style={{ ...thStyle, width:44 }}>#</th>
                   <th style={thStyle}>Order Number</th>
                   <th style={thStyle}>Client Name</th>
+                  <th style={thStyle}>Contact</th>
                   <th style={thStyle}>Generators</th>
                   <th style={{ ...thStyle, textAlign:'center' }}>Function Date</th>
                   <th style={{ ...thStyle, textAlign:'center' }}>Booking Status</th>
@@ -582,10 +580,10 @@ export default function GeneratorOrderList() {
               </thead>
               <tbody>
                 {loading ? (
-                  Array.from({ length: 6 }).map((_, i) => <SkeletonRow key={i} cols={8} />)
+                  Array.from({ length: 6 }).map((_, i) => <SkeletonRow key={i} cols={9} />)
                 ) : paged.length === 0 ? (
                   <tr>
-                    <td colSpan={8} style={{ padding:'64px 20px', textAlign:'center' }}>
+                    <td colSpan={9} style={{ padding:'64px 20px', textAlign:'center' }}>
                       <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:10, color:'var(--color-text-subtle)' }}>
                         <Icon.ClipboardEmpty />
                         <div style={{ fontWeight:600, color:'var(--color-text-muted)', fontSize:15 }}>
@@ -605,8 +603,8 @@ export default function GeneratorOrderList() {
                   const gens = o.generators || [];
                   const firstName = gens[0]?.generatorName || '—';
                   const extra    = gens.length > 1 ? ` +${gens.length - 1} more` : '';
-                  const isBilled = MOCK_BILLS.some(b => b.orderId === o.id);
-                  const orderBookingStatus = o.bookingStatus || 'Booked';
+                  const isBilled = o.billingStatus === 'COMPLETED';
+                  const orderBookingStatus = o.orderStatus === 'CONFIRMED' ? 'Confirmed' : (o.bookingStatus || 'Booked');
 
                   return (
                   <tr
@@ -623,14 +621,14 @@ export default function GeneratorOrderList() {
                         background:'var(--color-primary-100)', color:'var(--color-primary-dark)',
                         padding:'2px 8px', borderRadius:6,
                       }}>
-                        {o.id}
+                        {o.orderNumber || `#${o.id}`}
                       </span>
                     </td>
                     <td style={tdStyle}>
                       <div style={{ fontWeight:600 }}>{o.clientName}</div>
-                      <div style={{ fontSize:12, color:'var(--color-text-subtle)', marginTop:1 }}>
-                        {o.contactNumber}
-                      </div>
+                    </td>
+                    <td style={tdStyle}>
+                      {o.contactNumber}
                     </td>
                     <td style={tdStyle}>
                       <div style={{ fontWeight:600, fontSize:13 }}>{firstName}</div>
@@ -721,8 +719,8 @@ export default function GeneratorOrderList() {
                 <div style={{ marginTop:10, fontWeight:600 }}>No orders found</div>
               </div>
             ) : paged.map(o => {
-              const isBilled = MOCK_BILLS.some(b => b.orderId === o.id);
-              const orderBookingStatus = o.bookingStatus || 'Booked';
+              const isBilled = o.billingStatus === 'COMPLETED';
+              const orderBookingStatus = o.orderStatus === 'CONFIRMED' ? 'Confirmed' : (o.bookingStatus || 'Booked');
 
               return (
               <div key={o.id} className="go-mobile-card">

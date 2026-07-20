@@ -8,6 +8,8 @@ import {
 import { useState } from 'react';
 import { useUIStore }     from '@/store/uiStore';
 import { usePermissions } from '@/hooks/usePermissions';
+import { useAuthStore }   from '@/store/authStore';
+import { ROLES }          from '@/constants/roles';
 import { ROUTES }         from '@/constants/routes';
 import { cn }             from '@/utils/cn';
 
@@ -41,19 +43,20 @@ function NavItem({ label, icon: Icon, route, collapsed }) {
 /* ────────────────────────────────────────────────────────────────────────
    SubNavItem — an indented child link inside a dropdown group
 ──────────────────────────────────────────────────────────────────────── */
-function SubNavItem({ label, icon: Icon, route }) {
+function SubNavItem({ label, icon: Icon, route, isActive }) {
   return (
     <NavLink
       to={route}
-      className={({ isActive }) =>
-        cn(
+      className={({ isActive: navLinkActive }) => {
+        const active = isActive !== undefined ? isActive : navLinkActive;
+        return cn(
           'flex items-center gap-2.5 rounded-lg text-sm font-semibold w-full transition-all duration-200',
           'py-2.5 pl-10 pr-3',
-          isActive
+          active
             ? 'bg-[#0052cc] text-white'
             : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
-        )
-      }
+        );
+      }}
       style={{ marginBottom: '4px', textDecoration: 'none' }}
     >
       {Icon && <Icon size={15} className="shrink-0" />}
@@ -155,10 +158,19 @@ export default function Sidebar() {
 
   const location  = useLocation();
   const { canAccess } = usePermissions();
+  const { user }      = useAuthStore();
   const sc = sidebarCollapsed;
+
+  const isStaff = user?.role === ROLES.STAFF;
 
   // Whether any Generator route is currently active
   const isGenActive = location.pathname.startsWith('/generators');
+  // Whether any Staff route is currently active
+  const isStaffActive = location.pathname.startsWith('/staff');
+
+  // Generator active states to prevent overlap
+  const isOrdersActive = location.pathname.startsWith('/generators/orders');
+  const isInventoryActive = location.pathname.startsWith('/generators') && !isOrdersActive;
 
   return (
     <aside
@@ -215,49 +227,69 @@ export default function Sidebar() {
           />
         )}
 
-        {/* Products Management */}
-        {canAccess(ROUTES.PRODUCTS) && (
-          <NavItem
-            label="Products Management"
-            icon={Package}
-            route={ROUTES.PRODUCTS}
-            collapsed={sc}
-          />
+        {/* ── STAFF PORTAL NAV ── */}
+        {isStaff && (
+          <>
+            {/* My Orders — staff-specific route */}
+            <NavItem
+              label="My Orders"
+              icon={ClipboardList}
+              route={ROUTES.STAFF_ORDERS}
+              collapsed={sc}
+            />
+          </>
         )}
 
-        {/* ── Generator Management dropdown ── */}
-        {(canAccess(ROUTES.GENERATORS) || canAccess(ROUTES.GENERATOR_ORDERS)) && (
-          <DropdownGroup
-            label="Generator Management"
-            icon={Zap}
-            collapsed={sc}
-            isActive={isGenActive}
-          >
-            {canAccess(ROUTES.GENERATORS) && (
-              <SubNavItem
-                label="Generator Inventory"
-                icon={Box}
-                route={ROUTES.GENERATORS}
+        {/* ── ADMIN / SUPER_ADMIN NAV ── */}
+        {!isStaff && (
+          <>
+            {/* Products Management */}
+            {canAccess(ROUTES.PRODUCTS) && (
+              <NavItem
+                label="Products Management"
+                icon={Package}
+                route={ROUTES.PRODUCTS}
+                collapsed={sc}
               />
             )}
-            {canAccess(ROUTES.GENERATOR_ORDERS) && (
-              <SubNavItem
-                label="Order Management"
-                icon={ClipboardList}
-                route={ROUTES.GENERATOR_ORDERS}
-              />
-            )}
-          </DropdownGroup>
-        )}
 
-        {/* Roles */}
-        {canAccess(ROUTES.ROLES) && (
-          <NavItem
-            label="Roles"
-            icon={ShieldCheck}
-            route={ROUTES.ROLES}
-            collapsed={sc}
-          />
+            {/* ── Generator Management dropdown ── */}
+            {(canAccess(ROUTES.GENERATORS) || canAccess(ROUTES.GENERATOR_ORDERS)) && (
+              <DropdownGroup
+                label="Generator Management"
+                icon={Zap}
+                collapsed={sc}
+                isActive={isGenActive}
+              >
+                {canAccess(ROUTES.GENERATORS) && (
+                  <SubNavItem
+                    label="Generator Inventory"
+                    icon={Box}
+                    route={ROUTES.GENERATORS}
+                    isActive={isInventoryActive}
+                  />
+                )}
+                {canAccess(ROUTES.GENERATOR_ORDERS) && (
+                  <SubNavItem
+                    label="Order Management"
+                    icon={ClipboardList}
+                    route={ROUTES.GENERATOR_ORDERS}
+                    isActive={isOrdersActive}
+                  />
+                )}
+              </DropdownGroup>
+            )}
+
+            {/* Roles */}
+            {canAccess(ROUTES.ROLES) && (
+              <NavItem
+                label="Roles"
+                icon={ShieldCheck}
+                route={ROUTES.ROLES}
+                collapsed={sc}
+              />
+            )}
+          </>
         )}
 
       </nav>

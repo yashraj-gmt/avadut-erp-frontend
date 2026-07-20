@@ -1,21 +1,16 @@
 // src/pages/generators/orders/GeneratorOrderForm.jsx
-import React, { useState, useEffect, useId } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ROUTES } from '@/constants/routes';
 import DateRangePicker from './DateRangePicker';
 import {
-  mockOrders,
-  ORDER_STATUSES,
   DIESEL_TYPES,
-  MOCK_GENERATORS,
-  MOCK_OPERATORS,
-  calcDuration,
-  createOrder,
+  CABLE_SIZES,
   newGeneratorEntry,
 } from './mockData';
-
-/* ─── Shared in-memory store (survives HMR) ─────────────────────────────── */
-let LOCAL_ORDERS = [...mockOrders];
+import { generatorOrderService } from '@/services/generatorOrderService';
+import { generatorService } from '@/services/generatorService';
+import { userService } from '@/services/userService';
 
 /* ─── Icons ─────────────────────────────────────────────────────────────── */
 const Icon = {
@@ -131,23 +126,14 @@ const STYLES = `
   .gf2-breadcrumb a { color:var(--color-primary); text-decoration:none; }
 
   /* ── Section card ── */
-  /* ── Section card ── */
   .gf2-card {
-    background: transparent;
-    border: none;
-    border-radius: 0;
-    margin-bottom: 28px;
-    box-shadow: none;
-    animation: gf2-fadein .3s ease;
+    background: transparent; border: none; border-radius: 0;
+    margin-bottom: 28px; box-shadow: none; animation: gf2-fadein .3s ease;
   }
   .gf2-card-header {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 12px 0 16px 0;
-    background: transparent;
-    border-bottom: 1.5px solid var(--color-border);
-    margin-bottom: 20px;
+    display: flex; align-items: center; gap: 10px;
+    padding: 12px 0 16px 0; background: transparent;
+    border-bottom: 1.5px solid var(--color-border); margin-bottom: 20px;
   }
   .gf2-card-icon { display: flex; color: var(--color-primary); }
   .gf2-card-title { font-size: 15px; font-weight: 700; color: var(--color-text); margin: 0; }
@@ -168,154 +154,124 @@ const STYLES = `
     outline:none; transition:border-color .2s,box-shadow .2s; font-family:inherit;
   }
   .gf2-input:focus, .gf2-select:focus, .gf2-textarea:focus {
-    border-color:var(--color-primary);
-    box-shadow:0 0 0 3px rgba(37,99,235,.10);
+    border-color:var(--color-primary); box-shadow:0 0 0 3px var(--color-primary-50);
   }
-  .gf2-input.err, .gf2-select.err { border-color:var(--color-danger); }
-  .gf2-input.err:focus { box-shadow:0 0 0 3px rgba(239,68,68,.10); }
-  .gf2-select { cursor:pointer; appearance:none; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='none' stroke='%2364748b' stroke-width='2' viewBox='0 0 24 24'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right 12px center; padding-right:32px; }
-  .gf2-textarea { min-height:90px; resize:vertical; line-height:1.6; }
-  .gf2-err { font-size:12px; color:var(--color-danger); display:flex; align-items:center; gap:4px; margin-top:2px; }
-
-  /* ── Duration display ── */
-  .gf2-duration {
-    display:flex; align-items:center; justify-content:center; gap:8px;
-    border:1.5px solid var(--color-primary-100); border-radius:var(--radius-md);
-    background:linear-gradient(135deg,var(--color-primary-50),var(--color-primary-100));
-    padding:10px 14px; font-size:15px; font-weight:800; color:var(--color-primary-dark);
-    letter-spacing:.4px; height:42px;
+  .gf2-input.err, .gf2-select.err, .gf2-textarea.err {
+    border-color:var(--color-danger); box-shadow:0 0 0 3px rgba(239,68,68,.08);
   }
-  .gf2-duration span { font-size:12px; font-weight:600; color:var(--color-primary); opacity:.8; }
+  .gf2-err { display:flex; align-items:center; gap:5px; color:var(--color-danger); font-size:12px; margin-top:2px; }
+  .gf2-textarea { resize:vertical; min-height:80px; }
 
-  /* ── Toggle Yes/No ── */
-  .gf2-toggle-grp { display:flex; }
+  /* ── Toggle buttons ── */
+  .gf2-toggle-grp { display:flex; gap:0; }
   .gf2-toggle-btn {
-    padding:9px 18px; border:1.5px solid var(--color-border);
-    font-size:13px; font-weight:600; cursor:pointer; font-family:inherit;
-    transition:all .18s; color:var(--color-text-muted); background:var(--color-surface);
+    flex:1; padding:9px 12px; font-size:13px; font-weight:600; cursor:pointer;
+    border:1.5px solid var(--color-border); background:var(--color-surface); color:var(--color-text-muted);
+    transition:all .2s; font-family:inherit;
   }
-  .gf2-toggle-btn:first-child { border-radius:8px 0 0 8px; border-right:none; }
-  .gf2-toggle-btn:last-child  { border-radius:0 8px 8px 0; }
-  .gf2-toggle-btn.on { background:var(--color-primary); color:#fff; border-color:var(--color-primary); }
+  .gf2-toggle-btn:first-child { border-radius:var(--radius-md) 0 0 var(--radius-md); }
+  .gf2-toggle-btn:last-child  { border-radius:0 var(--radius-md) var(--radius-md) 0; border-left:none; }
+  .gf2-toggle-btn.on { background:var(--color-primary); border-color:var(--color-primary); color:#fff; }
 
-  /* ── Diesel type chips ── */
-  .gf2-chip-grp { display:flex; gap:8px; flex-wrap:wrap; }
+  /* ── Chip selector ── */
+  .gf2-chip-grp { display:flex; flex-wrap:wrap; gap:8px; }
   .gf2-chip {
-    display:flex; align-items:center; gap:7px;
-    padding:8px 14px; border:1.5px solid var(--color-border);
-    border-radius:8px; cursor:pointer; font-size:13px; font-weight:500;
-    background:var(--color-surface); color:var(--color-text-muted);
-    transition:all .18s; white-space:nowrap; font-family:inherit;
+    display:inline-flex; align-items:center; gap:8px; padding:8px 14px;
+    border:1.5px solid var(--color-border); border-radius:20px; cursor:pointer;
+    font-size:13px; font-weight:500; background:var(--color-surface); color:var(--color-text-muted);
+    transition:all .2s; font-family:inherit;
   }
-  .gf2-chip.on { border-color:var(--color-primary); background:var(--color-primary-50); color:var(--color-primary-dark); }
+  .gf2-chip.on {
+    border-color:var(--color-primary); background:var(--color-primary-50);
+    color:var(--color-primary-dark); font-weight:600;
+  }
   .gf2-chip-box {
-    width:15px; height:15px; border-radius:4px; border:2px solid var(--color-border-strong);
-    display:flex; align-items:center; justify-content:center; flex-shrink:0; transition:all .18s;
+    width:14px; height:14px; border-radius:3px; border:1.5px solid var(--color-border);
+    display:flex; align-items:center; justify-content:center; flex-shrink:0;
   }
   .gf2-chip-box.on { background:var(--color-primary); border-color:var(--color-primary); }
 
-  /* ── Generator entry row (Single row layout) ── */
-  .gf2-gen-row {
-    display: flex;
-    align-items: flex-end;
-    gap: 12px;
-    margin-bottom: 12px;
-    width: 100%;
-  }
-  .gf2-subsequent-label {
-    display: none;
-  }
-  .gf2-remove-btn {
-    display:flex; align-items:center; gap:5px;
-    padding:6px 12px; border-radius:7px; border:1.5px solid #fca5a5;
-    background:#fff; color:#dc2626; font-size:12px; font-weight:600;
-    cursor:pointer; font-family:inherit; transition:all .18s;
-  }
-  .gf2-remove-btn:hover { background:#fee2e2; border-color:#dc2626; }
-
-  /* ── Add generator button ── */
-  .gf2-add-gen-btn {
-    display:flex; align-items:center; gap:8px;
-    width: auto; padding:10px 18px; margin-top:8px;
-    border:2px dashed var(--color-border); border-radius:var(--radius-md);
-    background:transparent; color:var(--color-text-muted);
-    font-size:13.5px; font-weight:600; cursor:pointer; font-family:inherit;
-    transition:all .2s;
-  }
-  .gf2-add-gen-btn:hover {
-    border-color:var(--color-primary); color:var(--color-primary);
-    background:var(--color-primary-50);
-  }
-
-  /* ── Combobox (datalist) wrapper ── */
+  /* ── Combobox ── */
   .gf2-combo-wrap { position:relative; }
-  .gf2-combo-wrap input { padding-right:32px; }
-  .gf2-combo-icon { position:absolute; right:10px; top:50%; transform:translateY(-50%); color:var(--color-text-subtle); pointer-events:none; }
+  .gf2-combo-icon {
+    position:absolute; right:10px; top:50%; transform:translateY(-50%);
+    color:var(--color-text-muted); pointer-events:none;
+  }
+  .gf2-combo-wrap .gf2-input { padding-right:32px; }
+
+  /* ── Generator rows ── */
+  .gf2-gen-row {
+    display: flex; align-items: flex-start; gap: 12px;
+    padding: 16px 0; border-bottom: 1.5px solid var(--color-border);
+  }
+  .gf2-gen-row:last-child { border-bottom: none; }
+  .gf2-remove-btn {
+    display:flex; align-items:center; justify-content:center;
+    border:1.5px solid var(--color-danger-light,#fca5a5);
+    background:var(--color-danger-50,#fef2f2); color:var(--color-danger);
+    border-radius:var(--radius-md); cursor:pointer; transition:all .2s;
+  }
+  .gf2-remove-btn:hover { background:var(--color-danger); color:#fff; border-color:var(--color-danger); }
+
+  /* ── Skeleton ── */
+  .gf2-skel {
+    background:linear-gradient(90deg,var(--color-surface-2) 25%,var(--color-surface) 50%,var(--color-surface-2) 75%);
+    background-size:200% 100%; animation:gf2-pulse 1.5s ease-in-out infinite; border-radius:var(--radius-md);
+  }
+
+  /* ── Toast ── */
+  .gf2-toast {
+    position:fixed; top:24px; right:24px; z-index:9999;
+    display:flex; align-items:center; gap:12px; padding:14px 18px; border-radius:12px;
+    background:var(--color-surface); border:1px solid var(--color-border);
+    box-shadow:0 8px 30px rgba(0,0,0,.15); animation:gf2-toast .3s ease;
+  }
 
   /* ── Action bar ── */
   .gf2-action-bar-card {
-    background: var(--color-surface);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-lg);
-    box-shadow: var(--shadow-sm);
-    overflow: hidden;
-    margin-top: 24px;
+    background: var(--color-surface); border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); margin-top: 24px;
   }
   .gf2-action-bar {
-    display:flex; justify-content:flex-end; gap:10px;
-    padding:18px 24px; background:var(--color-surface-2);
-    flex-wrap:wrap;
+    display:flex; justify-content:flex-end; align-items:center; gap:10px;
+    padding:18px 24px; background:var(--color-surface-2); flex-wrap:wrap; border-radius:var(--radius-lg);
   }
   .gf2-btn {
-    display:inline-flex; align-items:center; gap:7px;
-    padding:10px 20px; border-radius:var(--radius-md);
-    font-size:13.5px; font-weight:600; cursor:pointer; font-family:inherit;
-    transition:all .2s; border:none; white-space:nowrap;
+    display:inline-flex; align-items:center; gap:7px; padding:10px 18px; border:none;
+    border-radius:var(--radius-md); font-size:13px; font-weight:600; cursor:pointer;
+    transition:all .2s; font-family:inherit; white-space:nowrap;
   }
-  .gf2-btn-cancel { background:var(--color-surface); color:var(--color-danger); border:1.5px solid #fca5a5; }
-  .gf2-btn-cancel:hover { background:#fee2e2; }
-  .gf2-btn-reset  { background:var(--color-surface); color:var(--color-text-muted); border:1.5px solid var(--color-border); }
-  .gf2-btn-reset:hover  { background:var(--color-surface-2); }
-  .gf2-btn-save   {
-    background:linear-gradient(135deg,var(--color-primary),var(--color-primary-dark));
-    color:#fff; box-shadow:var(--shadow-md);
-  }
-  .gf2-btn-save:hover   { transform:translateY(-1px); box-shadow:0 8px 24px rgba(37,99,235,.35); }
-  .gf2-btn-save:disabled { opacity:.6; cursor:not-allowed; transform:none !important; }
-  .gf2-btn-print  { background:#1e293b; color:#fff; border:1.5px solid #334155; }
-  .gf2-btn-print:hover  { background:#0f172a; }
+  .gf2-btn-cancel { background:var(--color-surface); border:1.5px solid var(--color-border); color:var(--color-text-muted); }
+  .gf2-btn-cancel:hover { border-color:var(--color-text-muted); color:var(--color-text); }
+  .gf2-btn-reset  { background:var(--color-surface); border:1.5px solid #f59e0b; color:#f59e0b; }
+  .gf2-btn-reset:hover  { background:#f59e0b; color:#fff; }
+  .gf2-btn-print  { background:#7c3aed; color:#fff; }
+  .gf2-btn-print:hover  { background:#6d28d9; }
   .gf2-btn-share  { background:#0d9488; color:#fff; }
   .gf2-btn-share:hover  { background:#0f766e; }
+  .gf2-btn-save   { background:var(--color-primary); color:#fff; }
+  .gf2-btn-save:hover   { background:var(--color-primary-dark); }
+  .gf2-btn-save:disabled { opacity:.65; cursor:not-allowed; }
 
-  @media (max-width: 768px) {
-    .gf2-gen-row {
-      grid-template-columns: 1fr !important;
-      gap: 12px;
-      border-bottom: 1.5px solid var(--color-border);
-      padding-bottom: 20px;
-      margin-bottom: 20px;
-    }
-    .gf2-subsequent-label {
-      display: block;
-    }
-    .gf2-remove-wrap {
-      height: auto !important;
-      padding-bottom: 0 !important;
-      justify-content: flex-end;
-      margin-top: 4px;
-    }
+  /* ── Share dropdown ── */
+  .gf2-share-wrap { position: relative; display: inline-flex; }
+  .gf2-share-dropdown {
+    position: absolute; bottom: calc(100% + 8px); right: 0;
+    background: #fff; border: 1px solid #e2e8f0; border-radius: 8px;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.13); padding: 6px; z-index: 1000; min-width: 160px;
   }
+  .gf2-share-item {
+    display: flex; align-items: center; gap: 10px; width: 100%;
+    padding: 10px 14px; background: none; border: none; text-align: left;
+    cursor: pointer; font-size: 13px; font-weight: 600; color: #475569;
+    border-radius: 6px; font-family: inherit;
+  }
+  .gf2-share-item:hover { background: #f1f5f9; color: #0f172a; }
 
-  /* ── Responsive ── */
-  @media (max-width:1023px) {
-    .gf2-page { padding:20px 24px; }
-    .gf2-grid-3 { grid-template-columns:1fr 1fr; }
-  }
+  @media (max-width: 768px) { .gf2-gen-row { flex-wrap: wrap; } }
   @media (max-width:639px) {
     .gf2-page { padding:16px; }
     .gf2-grid-2, .gf2-grid-3 { grid-template-columns:1fr; }
-    .gf2-card-body { padding:16px; }
-    .gf2-gen-body { padding:14px 12px; }
     .gf2-action-bar { justify-content:stretch; }
     .gf2-btn { flex:1 1 auto; justify-content:center; }
   }
@@ -325,19 +281,14 @@ const STYLES = `
 function Label({ children, required }) {
   return (
     <label className="gf2-label">
-      {children}
-      {required && <span className="gf2-req">*</span>}
+      {children}{required && <span className="gf2-req">*</span>}
     </label>
   );
 }
 
 function ErrMsg({ msg }) {
   if (!msg) return null;
-  return (
-    <div className="gf2-err">
-      <Icon.AlertCircle />{msg}
-    </div>
-  );
+  return <div className="gf2-err"><Icon.AlertCircle />{msg}</div>;
 }
 
 function CardSection({ icon: Ic, title, children }) {
@@ -353,51 +304,76 @@ function CardSection({ icon: Ic, title, children }) {
 }
 
 /* ─── Single Generator Entry Row ─────────────────────────────────────────── */
-function GeneratorEntry({ entry, index, total, errors, onChange, onRemove, onAdd }) {
+function GeneratorEntry({ entry, index, total, errors, onChange, onRemove, onAdd, generatorOptions, showCable }) {
   return (
     <div className="gf2-gen-row">
-      <div className="gf2-field" style={{ flex: 1 }}>
+      {/* Generator select */}
+      <div className="gf2-field" style={{ flex: 1, minWidth: 0 }}>
         {index === 0 && <Label required>Generator</Label>}
         <select
           id={`sel-gen-${index}`}
           className={`gf2-select${errors?.generatorId ? ' err' : ''}`}
           value={entry.generatorId}
           onChange={e => {
-            const found = MOCK_GENERATORS.find(g => g.id === e.target.value);
+            const found = generatorOptions.find(g => String(g.id) === e.target.value);
             onChange(index, 'generatorId', e.target.value);
-            onChange(index, 'generatorName', found ? found.name : '');
+            onChange(index, 'generatorName', found ? (found.name || '') : '');
           }}
         >
           <option value="">— Select Generator —</option>
-          {MOCK_GENERATORS.map(g => (
-            <option key={g.id} value={g.id}>{g.name} ({g.code})</option>
+          {generatorOptions.map(g => (
+            <option key={g.id} value={String(g.id)}>
+              {g.name}{g.generatorCode ? ` (${g.generatorCode})` : g.code ? ` (${g.code})` : ''}
+            </option>
           ))}
         </select>
         <ErrMsg msg={errors?.generatorId} />
       </div>
 
-      <div style={{ display: 'flex', gap: '8px' }}>
-        {/* Inline Add (+) button beside dropdown */}
+      {/* Cable select (only when cable required) */}
+      {showCable && (
+        <div className="gf2-field" style={{ flex: 1, minWidth: 0 }}>
+          {index === 0 && <Label required>Select Cable</Label>}
+          <select
+            id={`sel-cable-${index}`}
+            className={`gf2-select${errors?.cableSize ? ' err' : ''}`}
+            value={entry.cableSize || ''}
+            onChange={e => onChange(index, 'cableSize', e.target.value)}
+          >
+            <option value="">— Select Cable —</option>
+            {CABLE_SIZES.map(c => (
+              <option key={c.size} value={c.size}>
+                {c.size === 'Earth Rod' ? 'Earth Rod' : `${c.size} mm²`} — ₹{c.rate}/unit
+              </option>
+            ))}
+          </select>
+          <ErrMsg msg={errors?.cableSize} />
+        </div>
+      )}
+
+      {/* Add / Remove buttons */}
+      <div style={{
+        display: 'flex', gap: 8, flexShrink: 0,
+        alignSelf: index === 0 ? 'flex-end' : 'center',
+        paddingBottom: index === 0 ? '2px' : 0,
+      }}>
         <button
           type="button"
           onClick={onAdd}
           style={{
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            width: '42px', height: '42px', borderRadius: 'var(--radius-md)',
+            width: 42, height: 42, borderRadius: 'var(--radius-md)',
             border: '1.5px solid var(--color-primary-100)', background: 'var(--color-primary-50)',
-            color: 'var(--color-primary)', fontSize: '20px', cursor: 'pointer',
-            transition: 'all 0.15s'
+            color: 'var(--color-primary)', fontSize: 20, cursor: 'pointer', transition: 'all 0.15s',
           }}
           title="Add Generator"
-        >
-          +
-        </button>
+        >+</button>
 
         {total > 1 && (
           <button
             type="button"
             className="gf2-remove-btn"
-            style={{ padding: '0', width: '42px', height: '42px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            style={{ width: 42, height: 42, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
             onClick={() => onRemove(index)}
             id={`btn-remove-gen-${index}`}
             title="Remove Generator"
@@ -415,17 +391,17 @@ function SkeletonForm() {
   return (
     <div className="gf2-page">
       <div className="gf2-header">
-        <div className="gf2-back-btn" style={{ pointerEvents:'none' }}><Icon.ArrowLeft /></div>
-        <div style={{ flex:1 }}>
-          <div className="gf2-skel" style={{ width:260, height:26, marginBottom:8 }} />
-          <div className="gf2-skel" style={{ width:180, height:13 }} />
+        <div className="gf2-back-btn" style={{ pointerEvents: 'none' }}><Icon.ArrowLeft /></div>
+        <div style={{ flex: 1 }}>
+          <div className="gf2-skel" style={{ width: 260, height: 26, marginBottom: 8 }} />
+          <div className="gf2-skel" style={{ width: 180, height: 13 }} />
         </div>
       </div>
       {[180, 300, 120].map((h, i) => (
-        <div key={i} className="gf2-card" style={{ marginBottom:20 }}>
-          <div style={{ height:52, background:'var(--color-surface-2)' }} />
-          <div style={{ padding:24 }}>
-            <div className="gf2-skel" style={{ height:h }} />
+        <div key={i} className="gf2-card" style={{ marginBottom: 20 }}>
+          <div style={{ height: 52, background: 'var(--color-surface-2)' }} />
+          <div style={{ padding: 24 }}>
+            <div className="gf2-skel" style={{ height: h }} />
           </div>
         </div>
       ))}
@@ -433,15 +409,20 @@ function SkeletonForm() {
   );
 }
 
-/* ─── Initial state helpers ──────────────────────────────────────────────── */
+/* ─── Initial state ──────────────────────────────────────────────────────── */
 const INITIAL_ORDER = {
-  clientName: '',
-  contactNumber: '',
-  operatorName: '',
-  cableRequired: true,
-  dieselType: DIESEL_TYPES.WITH_OWNER,
-  siteAddress: '',
-  remarks: ''
+  orderNumber:            '',
+  clientName:             '',
+  contactNumber:          '',
+  alternateContactNumber: '',
+  operatorName:           '',
+  operatorMobile:         '',
+  cableRequired:          true,
+  dieselType:             DIESEL_TYPES.WITH_OWNER,
+  siteAddress:            '',
+  siteAddressLink:        '',
+  remarks:                '',
+  functionDate:           '',
 };
 const INITIAL_GENERATORS = () => [newGeneratorEntry()];
 
@@ -451,62 +432,98 @@ export default function GeneratorOrderForm() {
   const { id }   = useParams();
   const isEdit   = !!id;
 
-  const [order, setOrder]         = useState(INITIAL_ORDER);
-  const [generators, setGens]     = useState(INITIAL_GENERATORS);
-  const [orderErrors, setOErr]    = useState({});
-  const [genErrors, setGErr]      = useState([]);
-  const [loading, setLoading]     = useState(isEdit);
-  const [saving, setSaving]       = useState(false);
-  const [toast, setToast]         = useState(null);
-  const [orderNumberDraft, setOrderNumberDraft] = useState('');
+  const [order, setOrder]                       = useState(INITIAL_ORDER);
+  const [generators, setGens]                   = useState(INITIAL_GENERATORS);
+  const [orderErrors, setOErr]                  = useState({});
+  const [genErrors, setGErr]                    = useState([]);
+  const [loading, setLoading]                   = useState(isEdit);
+  const [saving, setSaving]                     = useState(false);
+  const [toast, setToast]                       = useState(null);
+  const [operatorOptions, setOperatorOptions]   = useState([]);
+  const [generatorOptions, setGeneratorOptions] = useState([]);
+  const [shareOpen, setShareOpen]               = useState(false);
 
-  // Calculate order draft number on mount
+  /* ── Load operators from Users API ── */
   useEffect(() => {
-    if (!isEdit) {
-      const allOrders = [...LOCAL_ORDERS];
-      const numbers = allOrders.map(o => {
-        const match = o.id.match(/\d+/);
-        return match ? parseInt(match[0], 10) : 0;
-      });
-      const nextNum = Math.max(0, ...numbers) + 1;
-      setOrderNumberDraft(`ORD-${String(nextNum).padStart(5, '0')}`);
-    }
-  }, [isEdit]);
+    userService.getAll()
+      .then(data => {
+        const list = Array.isArray(data) ? data
+                   : Array.isArray(data?.content) ? data.content
+                   : [];
+        setOperatorOptions(
+          list
+            .filter(u => u.isActive !== false)
+            .map(u => ({ id: u.id, name: u.name || '', mobile: u.mobile || '' }))
+        );
+      })
+      .catch(() => { /* silent – user can type name manually */ });
+  }, []);
+
+  /* ── Load generators from Inventory API ── */
+  useEffect(() => {
+    generatorService.getForDropdown()
+      .then(gens => setGeneratorOptions(Array.isArray(gens) ? gens : []))
+      .catch(() => { /* silent */ });
+  }, []);
 
   /* ── Load existing order in edit mode ── */
   useEffect(() => {
     if (!isEdit) return;
     setLoading(true);
-    setTimeout(() => {
-      const found = LOCAL_ORDERS.find(o => o.id === id) || mockOrders.find(o => o.id === id);
-      if (found) {
+    generatorOrderService.getById(id)
+      .then(res => {
+        const o = res?.data || res || {};
         setOrder({
-          clientName:    found.clientName    || '',
-          contactNumber: found.contactNumber || '',
-          operatorName:  found.operatorName || found.generators?.[0]?.operatorName || '',
-          cableRequired: found.cableRequired ?? found.generators?.[0]?.cableRequired ?? true,
-          dieselType:    found.dieselType || found.generators?.[0]?.dieselType || DIESEL_TYPES.WITH_OWNER,
-          siteAddress:   found.siteAddress   || '',
-          remarks:       found.remarks       || '',
-          functionDate:  found.functionDate  || '',
+          orderNumber:            o.orderNumber     || '',
+          clientName:             o.clientName      || '',
+          contactNumber:          o.contactNumber   || '',
+          alternateContactNumber: o.alternateMobile || '',
+          operatorName:           o.operatorName    || '',
+          operatorMobile:         o.operatorMobile  || '',
+          cableRequired:          o.cableRequired   ?? true,
+          dieselType:             o.withDiesel === false ? DIESEL_TYPES.PARTY : DIESEL_TYPES.WITH_OWNER,
+          siteAddress:            o.siteAddress     || '',
+          siteAddressLink:        o.siteAddressLink || '',
+          remarks:                o.notes           || o.remarks || '',
+          functionDate:           o.functionDateFrom && o.functionDateTo
+            ? `${o.functionDateFrom} to ${o.functionDateTo}`
+            : (o.functionDate || ''),
         });
-        setGens(
-          found.generators?.length
-            ? found.generators.map(g => ({ ...g }))
-            : INITIAL_GENERATORS()
-        );
-      }
-      setLoading(false);
-    }, 600);
+        if (o.generators?.length) {
+          setGens(o.generators.map(item => ({
+            _id:           `g-${item.id || Math.random()}`,
+            generatorId:   String(item.generatorId || ''),
+            generatorName: item.generatorName || '',
+            cableSize:     item.cableSize   || '',
+            startTime:     item.startTime   ? String(item.startTime).slice(0, 5) : '09:00',
+            endTime:       item.endTime     ? String(item.endTime).slice(0, 5)   : '18:00',
+            duration:      item.duration    ? String(item.duration) : '09:00',
+          })));
+        }
+      })
+      .catch(() => setToast({ title: '❌ Load Error', msg: 'Failed to load order. Please try again.' }))
+      .finally(() => setLoading(false));
   }, [id, isEdit]);
 
-  /* ── Order field change ── */
+  /* ── Close share dropdown on outside click ── */
+  useEffect(() => {
+    if (!shareOpen) return;
+    const handler = e => { if (!e.target.closest('.gf2-share-wrap')) setShareOpen(false); };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [shareOpen]);
+
+  /* ── Field change handlers ── */
   const handleOrderChange = (field, value) => {
     setOrder(prev => ({ ...prev, [field]: value }));
     if (orderErrors[field]) setOErr(prev => ({ ...prev, [field]: '' }));
   };
 
-  /* ── Generator field change ── */
+  // Digits-only for phone fields
+  const handlePhoneChange = (field, value) => {
+    if (/^\d*$/.test(value)) handleOrderChange(field, value);
+  };
+
   const handleGenChange = (idx, field, value) => {
     setGens(prev => {
       const next = [...prev];
@@ -522,285 +539,251 @@ export default function GeneratorOrderForm() {
     }
   };
 
-  /* ── Add / remove generators ── */
-  const addGenerator = () => setGens(prev => [...prev, newGeneratorEntry()]);
-
-  const removeGenerator = (idx) => setGens(prev => prev.filter((_, i) => i !== idx));
+  const addGenerator    = () => setGens(prev => [...prev, newGeneratorEntry()]);
+  const removeGenerator = idx => setGens(prev => prev.filter((_, i) => i !== idx));
 
   /* ── Validation ── */
   const validate = () => {
     let valid = true;
     const oe  = {};
+
     if (!order.clientName.trim())    { oe.clientName    = 'Client name is required';    valid = false; }
     if (!order.contactNumber.trim()) { oe.contactNumber = 'Contact number is required'; valid = false; }
+    if (
+      order.alternateContactNumber.trim() &&
+      order.alternateContactNumber.trim() === order.contactNumber.trim()
+    ) {
+      oe.alternateContactNumber = 'Alternate number must differ from contact number';
+      valid = false;
+    }
     if (!order.operatorName.trim())  { oe.operatorName  = 'Operator name is required';  valid = false; }
     if (!order.siteAddress.trim())   { oe.siteAddress   = 'Site address is required';   valid = false; }
-    if (!order.functionDate || !order.functionDate.trim()) { oe.functionDate = 'Function date range is required'; valid = false; }
+    if (!order.functionDate?.trim()) { oe.functionDate  = 'Function date range is required'; valid = false; }
+
     setOErr(oe);
 
     const ge = generators.map(g => {
       const e = {};
-      if (!g.generatorId)        { e.generatorId   = 'Select a generator';    valid = false; }
+      if (!g.generatorId)                      { e.generatorId = 'Select a generator';  valid = false; }
+      if (order.cableRequired && !g.cableSize) { e.cableSize   = 'Select a cable size'; valid = false; }
       return e;
     });
     setGErr(ge);
+
+    if (!valid) {
+      setTimeout(() => {
+        const el = document.querySelector('.gf2-input.err, .gf2-select.err, .gf2-textarea.err');
+        if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); el.focus(); }
+      }, 80);
+    }
     return valid;
   };
 
-  /* ── Submit ── */
-  const handleSave = () => {
-    if (!validate()) return;
-    setSaving(true);
-    const gensWithDuration = generators.map(g => ({
-      ...g,
-      startTime: g.startTime || '09:00',
-      endTime: g.endTime || '18:00',
-      duration: g.duration || '09:00',
-    }));
-    setTimeout(() => {
-      if (isEdit) {
-        LOCAL_ORDERS = LOCAL_ORDERS.map(o =>
-          o.id === id
-            ? { ...o, ...order, generators: gensWithDuration, updatedAt: new Date().toISOString() }
-            : o
-        );
-        setToast({ title: 'Order Updated!', msg: `Order ${id} has been updated successfully.` });
-      } else {
-        const newOrder = createOrder({ ...order, id: orderNumberDraft, generators: gensWithDuration }, LOCAL_ORDERS);
-        LOCAL_ORDERS = [newOrder, ...LOCAL_ORDERS];
-        setToast({ title: 'Order Saved!', msg: 'New generator order created successfully.' });
-      }
-      setSaving(false);
-      setTimeout(() => { setToast(null); navigate(ROUTES.GENERATOR_ORDERS); }, 1600);
-    }, 900);
+  /* ── Parse "YYYY-MM-DD to YYYY-MM-DD" ── */
+  const parseFunctionDate = str => {
+    if (!str) return { from: null, to: null };
+    const parts = str.split(' to ');
+    return parts.length === 2
+      ? { from: parts[0].trim(), to: parts[1].trim() }
+      : { from: str.trim(), to: str.trim() };
   };
 
-  /* ── Print / Share PDF Invoice ── */
-  const handlePrintPDF = (e) => {
-    e.preventDefault();
-    const printWindow = window.open('', '_blank', 'width=850,height=900');
-    if (!printWindow) {
-      alert("Please allow popups to print / save invoice.");
-      return;
+  /* ── Save to API ── */
+  const handleSave = async () => {
+    if (!validate()) return;
+    setSaving(true);
+
+    const { from: functionDateFrom, to: functionDateTo } = parseFunctionDate(order.functionDate);
+
+    const payload = {
+      clientName:      order.clientName.trim(),
+      contactNumber:   order.contactNumber.trim(),
+      alternateMobile: order.alternateContactNumber.trim() || null,
+      operatorName:    order.operatorName.trim(),
+      operatorMobile:  order.operatorMobile.trim() || null,
+      cableRequired:   order.cableRequired,
+      dieselType:      order.dieselType,
+      siteAddress:     order.siteAddress.trim(),
+      siteAddressLink: order.siteAddressLink.trim() || null,
+      remarks:         order.remarks.trim() || null,
+      functionDate:    order.functionDate.trim(),
+      functionDateFrom,
+      functionDateTo,
+      generators: generators.map(g => ({
+        generatorId: g.generatorId,
+        cableSize:   order.cableRequired ? (g.cableSize || null) : null,
+        startTime:   g.startTime || '09:00',
+        endTime:     g.endTime   || '18:00',
+      })),
+    };
+
+    try {
+      if (isEdit) {
+        await generatorOrderService.update(id, payload);
+        setToast({ title: 'Order Updated!', msg: `Order ${id} updated successfully.` });
+      } else {
+        await generatorOrderService.create(payload);
+        setToast({ title: 'Order Saved!', msg: 'New generator order created successfully.' });
+      }
+      setTimeout(() => { setToast(null); navigate(ROUTES.GENERATOR_ORDERS); }, 1800);
+    } catch (err) {
+      const msg = err?.response?.data?.message || err?.message || 'Failed to save. Please try again.';
+      setToast({ title: '❌ Error', msg });
+      setSaving(false);
     }
+  };
+
+  /* ── Print Order Sheet PDF ── */
+  const handlePrintPDF = e => {
+    if (e) e.preventDefault();
+    const printWindow = window.open('', '_blank', 'width=860,height=900');
+    if (!printWindow) { alert('Please allow popups to print the order sheet.'); return; }
+
+    const orderRef = id || 'New Order';
+    const dateStr  = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 
     const gensRows = generators.map((g, idx) => {
-      const genObj = MOCK_GENERATORS.find(item => item.id === g.generatorId) || { name: g.generatorName || '—', code: '—' };
+      const found = generatorOptions.find(item => String(item.id) === String(g.generatorId));
+      const name  = found ? found.name : (g.generatorName || '—');
+      const cable = order.cableRequired && g.cableSize
+        ? (g.cableSize === 'Earth Rod' ? ' | Cable: Earth Rod' : ` | Cable: ${g.cableSize} mm²`)
+        : '';
       return `
         <tr>
-          <td style="border: 1px solid #cbd5e1; padding: 10px; text-align: center; font-size: 13px;">${idx + 1}</td>
-          <td style="border: 1px solid #cbd5e1; padding: 10px; font-size: 13px; font-weight: 600;">${genObj.name}</td>
-        </tr>
-      `;
+          <td style="border:1px solid #cbd5e1;padding:10px;text-align:center;font-size:13px;">${idx + 1}</td>
+          <td style="border:1px solid #cbd5e1;padding:10px;font-size:13px;font-weight:600;">${name}${cable}</td>
+        </tr>`;
     }).join('');
 
-    const invoiceHtml = `
-      <!DOCTYPE html>
-      <html>
+    printWindow.document.write(`
+      <!DOCTYPE html><html>
       <head>
         <meta charset="utf-8">
-        <title>Order Invoice - ${order.clientName || 'New Client'}</title>
+        <title>Order Sheet - ${order.clientName || 'Client'}</title>
         <style>
-          body {
-            font-family: 'DM Sans', -apple-system, sans-serif;
-            color: #1e293b;
-            margin: 0;
-            padding: 30px;
-            background: #fff;
-          }
-          .invoice-box {
-            max-width: 800px;
-            margin: auto;
-            border: 1px solid #e2e8f0;
-            border-radius: 12px;
-            padding: 30px;
-            background: #fff;
-          }
+          body { font-family: Arial, sans-serif; color: #1e293b; margin: 0; padding: 32px; background: #fff; }
+          .box { max-width: 800px; margin: auto; }
           .header-row {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            border-bottom: 2px solid #2563eb;
-            padding-bottom: 20px;
-            margin-bottom: 25px;
+            display: flex; justify-content: space-between; align-items: flex-start;
+            padding-bottom: 16px; margin-bottom: 24px; border-bottom: 2.5px solid #2563eb;
           }
-          .company-logo h1 {
-            margin: 0;
-            font-size: 26px;
-            font-weight: 800;
-            color: #2563eb;
-            letter-spacing: -0.5px;
+          .logo-side { display: flex; flex-direction: column; align-items: flex-start; }
+          .logo-side img { height: 56px; object-fit: contain; }
+          .co-name  { font-size: 15px; font-weight: 800; color: #2563eb; letter-spacing: 1px; margin-top: 4px; }
+          .doc-type { font-size: 12px; color: #475569; margin-top: 1px; }
+          .order-meta { text-align: right; }
+          .order-meta p { margin: 5px 0; font-size: 13px; color: #475569; }
+          .order-meta strong { color: #0f172a; min-width: 110px; display: inline-block; text-align: left; }
+          .details-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-bottom: 22px; }
+          .section-label {
+            font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px;
+            color: #64748b; border-bottom: 1.5px solid #e2e8f0; padding-bottom: 6px; margin-bottom: 10px;
           }
-          .company-logo p {
-            margin: 4px 0 0;
-            font-size: 12px;
-            color: #64748b;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-          }
-          .invoice-info {
-            text-align: right;
-          }
-          .invoice-info h2 {
-            margin: 0 0 6px;
-            font-size: 20px;
-            font-weight: 700;
-            color: #0f172a;
-          }
-          .invoice-info p {
-            margin: 3px 0;
-            font-size: 13px;
-            color: #475569;
-          }
-          .details-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 30px;
-            margin-bottom: 30px;
-          }
-          .section-title {
-            font-size: 11px;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            color: #64748b;
-            margin-bottom: 8px;
-            border-bottom: 1px solid #cbd5e1;
-            padding-bottom: 4px;
-          }
-          .info-p {
-            margin: 5px 0;
-            font-size: 13.5px;
-            line-height: 1.5;
-          }
-          .inv-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 30px;
-          }
-          .inv-table th {
-            background: #f8fafc;
-            border: 1px solid #cbd5e1;
-            padding: 10px;
-            font-size: 11px;
-            font-weight: 700;
-            text-transform: uppercase;
-            color: #475569;
-            text-align: left;
-          }
-          .remarks-area {
-            background: #f8fafc;
-            border: 1px solid #e2e8f0;
-            border-radius: 8px;
-            padding: 14px;
-            font-size: 13px;
-            line-height: 1.6;
-            margin-bottom: 35px;
-            color: #475569;
-          }
-          .footer-section {
-            border-top: 1px solid #e2e8f0;
-            padding-top: 15px;
-            text-align: center;
-            font-size: 11px;
-            color: #94a3b8;
-          }
-          @media print {
-            body { padding: 0; }
-            .invoice-box { border: none; padding: 0; }
-          }
+          .info-row { display: flex; margin: 7px 0; font-size: 13px; line-height: 1.5; }
+          .info-key { font-weight: 700; min-width: 115px; color: #334155; flex-shrink: 0; }
+          .info-val { color: #1e293b; }
+          .site-val { font-size: 13px; color: #1e293b; margin-top: 6px; line-height: 1.6; }
+          table { width: 100%; border-collapse: collapse; margin: 8px 0 24px; }
+          th { background:#f8fafc; border:1px solid #cbd5e1; padding:10px; font-size:11px;
+               font-weight:700; text-transform:uppercase; color:#475569; text-align:left; }
+          .footer { border-top: 1px solid #e2e8f0; padding-top: 14px; text-align: center; font-size: 11px; color: #94a3b8; margin-top: 8px; }
+          @media print { body { padding: 0; } }
         </style>
       </head>
       <body>
-        <div class="invoice-box">
+        <div class="box">
           <div class="header-row">
-            <div class="company-logo">
-              <img src="/images/avadhut-logo.png" alt="Avadhut Logo" style="height: 64px; object-fit: contain; display: block;" />
-              <p style="margin-top: 6px;">Generator Management System</p>
+            <div class="logo-side">
+              <img src="/images/avadhut-logo.png" alt="Avadhut Logo" />
+              <span class="co-name">AVADHUT</span>
+              <span class="doc-type">ORDER SHEET</span>
             </div>
-            <div class="invoice-info">
-              <h2>ORDER SHEET</h2>
-              <p><strong>Order Number:</strong> ${id || orderNumberDraft}</p>
-              <p><strong>Date:</strong> ${new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
+            <div class="order-meta">
+              <p><strong>Order Number</strong> : ${orderRef}</p>
+              <p><strong>Date</strong>         : ${dateStr}</p>
             </div>
           </div>
 
           <div class="details-grid">
             <div>
-              <div class="section-title">Client Details</div>
-              <p class="info-p"><strong>Name:</strong> ${order.clientName || '—'}</p>
-              <p class="info-p"><strong>Contact:</strong> ${order.contactNumber || '—'}</p>
+              <div class="section-label">Client Details</div>
+              <div class="info-row"><span class="info-key">Name</span><span class="info-val">: ${order.clientName || '—'}</span></div>
+              <div class="info-row"><span class="info-key">Contact</span><span class="info-val">: ${order.contactNumber || '—'}</span></div>
+              ${order.alternateContactNumber ? `<div class="info-row"><span class="info-key">Alt. Contact</span><span class="info-val">: ${order.alternateContactNumber}</span></div>` : ''}
             </div>
             <div>
-              <div class="section-title">Service Details</div>
-              <p class="info-p"><strong>Function Date:</strong> ${order.functionDate || '—'}</p>
-              <p class="info-p"><strong>Operator:</strong> ${order.operatorName || '—'}</p>
-              <p class="info-p"><strong>Cable:</strong> ${order.cableRequired ? 'Yes' : 'No'}</p>
-              <p class="info-p"><strong>Diesel Type:</strong> ${order.dieselType === DIESEL_TYPES.WITH_OWNER ? 'With Owner' : 'Party Diesel'}</p>
-            </div>
-            <div style="grid-column: 1 / -1; margin-top: 10px;">
-              <div class="section-title">Site Address</div>
-              <p class="info-p">${order.siteAddress || '—'}</p>
+              <div class="section-label">Service Details</div>
+              <div class="info-row"><span class="info-key">Function Date</span><span class="info-val">: ${order.functionDate || '—'}</span></div>
+              <div class="info-row"><span class="info-key">Operator</span><span class="info-val">: ${order.operatorName || '—'}</span></div>
+              ${order.operatorMobile ? `<div class="info-row"><span class="info-key">Operator Mo. No.</span><span class="info-val">: ${order.operatorMobile}</span></div>` : ''}
+              <div class="info-row"><span class="info-key">Cable Required</span><span class="info-val">: ${order.cableRequired ? 'Yes' : 'No'}</span></div>
+              <div class="info-row"><span class="info-key">Diesel Type</span><span class="info-val">: ${order.dieselType === DIESEL_TYPES.WITH_OWNER ? 'With Owner' : 'Party Diesel'}</span></div>
             </div>
           </div>
 
-          <div class="section-title">Generators List</div>
-          <table class="inv-table">
+          <div style="margin-bottom:22px;">
+            <div class="section-label">Site Address</div>
+            <div class="site-val">${order.siteAddress || '—'}${order.siteAddressLink ? `<br><a href="${order.siteAddressLink}" style="color:#2563eb;font-size:12px;">📍 View Location</a>` : ''}</div>
+          </div>
+
+          <div class="section-label">Generator Details</div>
+          <table>
             <thead>
               <tr>
-                <th style="width: 30px; text-align: center;">#</th>
+                <th style="width:40px;text-align:center;">#</th>
                 <th>Generator Description</th>
               </tr>
             </thead>
-            <tbody>
-              ${gensRows}
-            </tbody>
+            <tbody>${gensRows}</tbody>
           </table>
 
           ${order.remarks ? `
-            <div class="section-title">Special Remarks / Instructions</div>
-            <div class="remarks-area">${order.remarks.replace(/\n/g, '<br>')}</div>
-          ` : ''}
+            <div class="section-label">Remarks / Instructions</div>
+            <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px;font-size:13px;line-height:1.6;margin-bottom:24px;color:#475569;">
+              ${order.remarks.replace(/\n/g, '<br>')}
+            </div>` : ''}
 
-          <div class="footer-section">
-            <p>This is a computer-generated order document. No signature is required.</p>
+          <div class="footer">
+            <p>This is a computer-generated order document. No signature required.</p>
             <p>© ${new Date().getFullYear()} Avadhut ERP Systems. All rights reserved.</p>
           </div>
         </div>
-        <script>
-          window.onload = function() {
-            window.print();
-          };
-        </script>
-      </body>
-      </html>
-    `;
-    printWindow.document.write(invoiceHtml);
+        <script>window.onload = function() { window.print(); };<\/script>
+      </body></html>`);
     printWindow.document.close();
   };
 
-  const handleSharePDF = (e) => {
-    e.preventDefault();
-    alert("Preparing order PDF for sharing... Please click OK to open the share document (you can Save as PDF).");
-    handlePrintPDF(e);
+  /* ── Share via WhatsApp / Email ── */
+  const handleShareOption = channel => {
+    const orderRef   = id || 'New Order';
+    const clientName = order.clientName || 'Client';
+    const funcDate   = order.functionDate || '—';
+    const rawMsg =
+      `Generator Order Details:\nOrder Ref: ${orderRef}\nClient: ${clientName}\n` +
+      `Function Date: ${funcDate}\nFor full order sheet, use the Print option.`;
+
+    if (channel === 'whatsapp') {
+      window.open(`https://wa.me/?text=${encodeURIComponent(rawMsg)}`, '_blank');
+    } else if (channel === 'email') {
+      const subject = encodeURIComponent(`Generator Order ${orderRef} – ${clientName}`);
+      const body    = encodeURIComponent(rawMsg);
+      window.location.href = `mailto:?subject=${subject}&body=${body}`;
+    }
+    setShareOpen(false);
   };
 
-  /* ── Reset ── */
+  /* ── Reset form ── */
   const handleReset = () => {
-    if (isEdit) return; // don't reset in edit mode to avoid data loss
+    if (isEdit) return;
     setOrder(INITIAL_ORDER);
     setGens(INITIAL_GENERATORS());
     setOErr({});
     setGErr([]);
   };
 
+  /* ── Render ── */
   if (loading) {
-    return (
-      <>
-        <style>{STYLES}</style>
-        <SkeletonForm />
-      </>
-    );
+    return (<><style>{STYLES}</style><SkeletonForm /></>);
   }
 
   return (
@@ -809,14 +792,10 @@ export default function GeneratorOrderForm() {
 
       <div className="gf2-page">
 
-        {/* ── Page Header ────────────────────────────────────── */}
+        {/* ── Page Header ── */}
         <div className="gf2-header">
-          <button
-            className="gf2-back-btn"
-            id="btn-back"
-            onClick={() => navigate(ROUTES.GENERATOR_ORDERS)}
-            title="Back to Orders"
-          >
+          <button className="gf2-back-btn" id="btn-back"
+            onClick={() => navigate(ROUTES.GENERATOR_ORDERS)} title="Back to Orders">
             <Icon.ArrowLeft />
           </button>
           <div>
@@ -832,10 +811,10 @@ export default function GeneratorOrderForm() {
           </div>
         </div>
 
-        {/* ──────────────────────────────────────────────────────
-            SECTION 1 — ORDER DETAILS
-        ────────────────────────────────────────────────────── */}
+        {/* ── SECTION 1: ORDER DETAILS ── */}
         <CardSection icon={Icon.User} title="Order Details">
+
+          {/* Row 1: Client Name | Order Number | Function Date */}
           <div className="gf2-grid-3" style={{ marginBottom: 20 }}>
             <div className="gf2-field">
               <Label required>Client Name</Label>
@@ -855,9 +834,8 @@ export default function GeneratorOrderForm() {
                 id="inp-order-number"
                 className="gf2-input"
                 style={{ background: 'var(--color-surface-2)', cursor: 'not-allowed', color: 'var(--color-text-muted)' }}
-                value={isEdit ? id : orderNumberDraft}
-                disabled
-                readOnly
+                value={isEdit ? (order.orderNumber || id) : 'Auto-generated'}
+                disabled readOnly
               />
             </div>
 
@@ -873,65 +851,78 @@ export default function GeneratorOrderForm() {
             </div>
           </div>
 
-          <div className="gf2-grid-3">
+          {/* Row 2: Contact | Alternate Contact | Operator */}
+          <div className="gf2-grid-3" style={{ marginBottom: 20 }}>
             <div className="gf2-field">
               <Label required>Contact Number</Label>
               <input
                 id="inp-contact"
                 type="tel"
                 maxLength={15}
+                inputMode="numeric"
                 className={`gf2-input${orderErrors.contactNumber ? ' err' : ''}`}
                 placeholder="e.g. 9876543210"
                 value={order.contactNumber}
-                onChange={e => handleOrderChange('contactNumber', e.target.value)}
+                onChange={e => handlePhoneChange('contactNumber', e.target.value)}
               />
               <ErrMsg msg={orderErrors.contactNumber} />
+            </div>
+
+            <div className="gf2-field">
+              <Label>Alternate Contact Number</Label>
+              <input
+                id="inp-alt-contact"
+                type="tel"
+                maxLength={15}
+                inputMode="numeric"
+                className={`gf2-input${orderErrors.alternateContactNumber ? ' err' : ''}`}
+                placeholder="e.g. 9876543210"
+                value={order.alternateContactNumber}
+                onChange={e => handlePhoneChange('alternateContactNumber', e.target.value)}
+              />
+              <ErrMsg msg={orderErrors.alternateContactNumber} />
             </div>
 
             <div className="gf2-field">
               <Label required>Operator Name</Label>
               <div className="gf2-combo-wrap">
                 <input
-                  id="inp-op-common"
-                  list="op-list-common"
+                  id="inp-operator"
+                  list="op-datalist"
                   className={`gf2-input${orderErrors.operatorName ? ' err' : ''}`}
                   placeholder="Select or type operator name…"
                   value={order.operatorName}
-                  onChange={e => handleOrderChange('operatorName', e.target.value)}
+                  onChange={e => {
+                    const val   = e.target.value;
+                    const found = operatorOptions.find(op => op.name === val);
+                    handleOrderChange('operatorName', val);
+                    if (found) handleOrderChange('operatorMobile', found.mobile || '');
+                  }}
                   autoComplete="off"
                 />
                 <span className="gf2-combo-icon"><Icon.ChevronDown /></span>
               </div>
-              <datalist id="op-list-common">
-                {MOCK_OPERATORS.map(op => <option key={op} value={op} />)}
+              <datalist id="op-datalist">
+                {operatorOptions.map(op => <option key={op.id || op.name} value={op.name} />)}
               </datalist>
               <ErrMsg msg={orderErrors.operatorName} />
             </div>
+          </div>
 
+          {/* Row 3: Cable Required | Diesel Type */}
+          <div className="gf2-grid-3">
             <div className="gf2-field">
               <Label>Cable Required</Label>
               <div className="gf2-toggle-grp">
-                <button
-                  id="btn-cable-yes-common"
-                  type="button"
+                <button id="btn-cable-yes" type="button"
                   className={`gf2-toggle-btn${order.cableRequired ? ' on' : ''}`}
-                  onClick={() => handleOrderChange('cableRequired', true)}
-                >
-                  Yes
-                </button>
-                <button
-                  id="btn-cable-no-common"
-                  type="button"
+                  onClick={() => handleOrderChange('cableRequired', true)}>Yes</button>
+                <button id="btn-cable-no" type="button"
                   className={`gf2-toggle-btn${!order.cableRequired ? ' on' : ''}`}
-                  onClick={() => handleOrderChange('cableRequired', false)}
-                >
-                  No
-                </button>
+                  onClick={() => handleOrderChange('cableRequired', false)}>No</button>
               </div>
             </div>
-          </div>
 
-          <div className="gf2-grid-3" style={{ marginTop: 20 }}>
             <div className="gf2-field">
               <Label>Diesel Type</Label>
               <div className="gf2-chip-grp">
@@ -941,13 +932,9 @@ export default function GeneratorOrderForm() {
                 ].map(opt => {
                   const active = order.dieselType === opt.value;
                   return (
-                    <button
-                      key={opt.value}
-                      id={`btn-diesel-${opt.value}-common`}
-                      type="button"
+                    <button key={opt.value} id={`btn-diesel-${opt.value}`} type="button"
                       className={`gf2-chip${active ? ' on' : ''}`}
-                      onClick={() => handleOrderChange('dieselType', opt.value)}
-                    >
+                      onClick={() => handleOrderChange('dieselType', opt.value)}>
                       <span className={`gf2-chip-box${active ? ' on' : ''}`}>
                         {active && (
                           <svg width="9" height="9" fill="none" stroke="#fff" strokeWidth="3" viewBox="0 0 24 24">
@@ -964,24 +951,22 @@ export default function GeneratorOrderForm() {
           </div>
         </CardSection>
 
-        {/* ──────────────────────────────────────────────────────
-            SECTION 2 — GENERATOR DETAILS
-        ────────────────────────────────────────────────────── */}
+        {/* ── SECTION 2: GENERATOR DETAILS ── */}
         <div className="gf2-card">
-          <div className="gf2-card-header" style={{ justifyContent:'space-between' }}>
-            <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+          <div className="gf2-card-header" style={{ justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <span className="gf2-card-icon"><Icon.Zap /></span>
               <h3 className="gf2-card-title">Generator Details</h3>
             </div>
             <span style={{
-              fontSize:12, fontWeight:700, padding:'3px 10px', borderRadius:20,
-              background:'var(--color-primary-100)', color:'var(--color-primary-dark)',
+              fontSize: 12, fontWeight: 700, padding: '3px 10px', borderRadius: 20,
+              background: 'var(--color-primary-100)', color: 'var(--color-primary-dark)',
             }}>
               {generators.length} Generator{generators.length !== 1 ? 's' : ''}
             </span>
           </div>
 
-          <div className="gf2-card-body" style={{ marginTop: '16px' }}>
+          <div className="gf2-card-body" style={{ marginTop: 16 }}>
             {generators.map((entry, idx) => (
               <GeneratorEntry
                 key={entry._id}
@@ -992,16 +977,16 @@ export default function GeneratorOrderForm() {
                 onChange={handleGenChange}
                 onRemove={removeGenerator}
                 onAdd={addGenerator}
+                generatorOptions={generatorOptions}
+                showCable={order.cableRequired}
               />
             ))}
           </div>
         </div>
 
-        {/* ──────────────────────────────────────────────────────
-            SECTION 3 — ADDITIONAL INFORMATION
-        ────────────────────────────────────────────────────── */}
+        {/* ── SECTION 3: ADDITIONAL INFORMATION ── */}
         <CardSection icon={Icon.MapPin} title="Additional Information">
-          <div style={{ display:'flex', flexDirection:'column', gap:18 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
             <div className="gf2-field">
               <Label required>Site Address</Label>
               <textarea
@@ -1013,6 +998,18 @@ export default function GeneratorOrderForm() {
                 rows={3}
               />
               <ErrMsg msg={orderErrors.siteAddress} />
+            </div>
+
+            <div className="gf2-field">
+              <Label>Site Address Location Link</Label>
+              <input
+                id="inp-site-link"
+                type="url"
+                className="gf2-input"
+                placeholder="e.g. https://maps.google.com/..."
+                value={order.siteAddressLink}
+                onChange={e => handleOrderChange('siteAddressLink', e.target.value)}
+              />
             </div>
 
             <div className="gf2-field">
@@ -1029,52 +1026,49 @@ export default function GeneratorOrderForm() {
           </div>
         </CardSection>
 
-        {/* ──────────────────────────────────────────────────────
-            ACTION BAR
-        ────────────────────────────────────────────────────── */}
-        <div className="gf2-action-bar-card" style={{ marginBottom:0 }}>
+        {/* ── ACTION BAR ── */}
+        <div className="gf2-action-bar-card" style={{ marginBottom: 0 }}>
           <div className="gf2-action-bar">
-            <button
-              id="btn-cancel"
-              className="gf2-btn gf2-btn-cancel"
-              type="button"
-              onClick={() => navigate(ROUTES.GENERATOR_ORDERS)}
-            >
-              Cancel
-            </button>
+            <button id="btn-cancel" className="gf2-btn gf2-btn-cancel" type="button"
+              onClick={() => navigate(ROUTES.GENERATOR_ORDERS)}>Cancel</button>
+
             {!isEdit && (
-              <button
-                id="btn-reset"
-                className="gf2-btn gf2-btn-reset"
-                type="button"
-                onClick={handleReset}
-              >
+              <button id="btn-reset" className="gf2-btn gf2-btn-reset" type="button" onClick={handleReset}>
                 <Icon.RotateCcw /> Reset
               </button>
             )}
-            <button
-              id="btn-print"
-              className="gf2-btn gf2-btn-print"
-              type="button"
-              onClick={handlePrintPDF}
-            >
+
+            <button id="btn-print" className="gf2-btn gf2-btn-print" type="button" onClick={handlePrintPDF}>
               <Icon.Printer /> Print
             </button>
-            <button
-              id="btn-share"
-              className="gf2-btn gf2-btn-share"
-              type="button"
-              onClick={handleSharePDF}
-            >
-              <Icon.Share /> Share
-            </button>
-            <button
-              id="btn-save"
-              className="gf2-btn gf2-btn-save"
-              type="button"
-              onClick={handleSave}
-              disabled={saving}
-            >
+
+            {/* Share dropdown */}
+            <div className="gf2-share-wrap">
+              <button id="btn-share" className="gf2-btn gf2-btn-share" type="button"
+                onClick={() => setShareOpen(prev => !prev)}>
+                <Icon.Share /> Share <Icon.ChevronDown />
+              </button>
+              {shareOpen && (
+                <div className="gf2-share-dropdown">
+                  <button type="button" className="gf2-share-item" onClick={() => handleShareOption('whatsapp')}>
+                    <svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24" style={{ color: '#25d366', flexShrink: 0 }}>
+                      <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51h-.57c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+                    </svg>
+                    WhatsApp
+                  </button>
+                  <button type="button" className="gf2-share-item" onClick={() => handleShareOption('email')}>
+                    <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" style={{ color: '#ea4335', flexShrink: 0 }}>
+                      <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+                      <polyline points="22,6 12,13 2,6"/>
+                    </svg>
+                    Email
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <button id="btn-save" className="gf2-btn gf2-btn-save" type="button"
+              onClick={handleSave} disabled={saving}>
               <Icon.Save />
               {saving ? 'Saving…' : isEdit ? 'Update Order' : 'Save Order'}
             </button>
@@ -1083,13 +1077,15 @@ export default function GeneratorOrderForm() {
 
       </div>
 
-      {/* ── Toast Notification ── */}
+      {/* ── Toast ── */}
       {toast && (
         <div className="gf2-toast">
-          <span style={{ fontSize:20 }}>✅</span>
+          <span style={{ fontSize: 20 }}>{toast.title.includes('❌') ? '❌' : '✅'}</span>
           <div>
-            <div style={{ fontSize:14, fontWeight:700, color:'var(--color-text)' }}>{toast.title}</div>
-            <div style={{ fontSize:12, color:'var(--color-text-muted)', marginTop:2 }}>{toast.msg}</div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-text)' }}>
+              {toast.title.replace('❌ ', '')}
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 2 }}>{toast.msg}</div>
           </div>
         </div>
       )}
