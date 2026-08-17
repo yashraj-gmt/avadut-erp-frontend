@@ -84,7 +84,7 @@ export default function GeneratorForm() {
     purchasePrice: '',
     partyDieselRentPrice: '',
     withDieselRentPrice: '',
-    stockQuantity: '0',
+    stockQuantity: '',
     productBy: '',
     description: '',
     isActive: true,
@@ -177,8 +177,11 @@ export default function GeneratorForm() {
                                                                 e.partyDieselRentPrice = 'Enter a valid party diesel rent price.'
     if (form.withDieselRentPrice && (isNaN(form.withDieselRentPrice) || Number(form.withDieselRentPrice) < 0))
                                                                 e.withDieselRentPrice  = 'Enter a valid with diesel rent price.'
-    if (form.stockQuantity && (isNaN(form.stockQuantity) || Number(form.stockQuantity) < 0))
-                                                                e.stockQuantity = 'Enter a valid quantity.'
+    if (!form.stockQuantity || String(form.stockQuantity).trim() === '') {
+      e.stockQuantity = 'Stock quantity is required.'
+    } else if (isNaN(form.stockQuantity) || Number(form.stockQuantity) < 1) {
+      e.stockQuantity = 'Stock quantity must be at least 1.'
+    }
     return e
   }
 
@@ -367,7 +370,7 @@ export default function GeneratorForm() {
 
             {/* Card 2: Pricing & Stock */}
             <div className="pf-card">
-              <CardHeader icon={Icon.Dollar}>Pricing &amp; Stock</CardHeader>
+              <CardHeader>Pricing &amp; Stock</CardHeader>
               <div className="pf-grid-2">
                 <div>
                   <Label>Purchase Price</Label>
@@ -386,7 +389,7 @@ export default function GeneratorForm() {
                   <ErrMsg message={errors.partyDieselRentPrice} />
                 </div>
                 <div>
-                  <Label>Diesel Price (Per Hour)</Label>
+                  <Label>Diesel Price(with diesel)</Label>
                   <div style={{ position: 'relative' }}>
                     <span style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-muted)', fontSize: 14, fontWeight: 600 }}>₹</span>
                     <TextField name="withDieselRentPrice" value={form.withDieselRentPrice} onChange={e => field('withDieselRentPrice', e.target.value)} hasError={!!errors.withDieselRentPrice} placeholder="0.00" type="number" min="0" step="0.01" style={{ paddingLeft: 28 }} />

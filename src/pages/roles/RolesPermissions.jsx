@@ -62,7 +62,7 @@ const formatDateTime = (iso) => {
   return new Date(iso).toLocaleString('en-IN', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' })
 }
 const getInitials = (name = '') =>
-  name.split(' ').slice(0, 2).map((w) => w[0]).join('').toUpperCase()
+  (name || '').split(' ').filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase() || 'U'
 
 const AVATAR_COLORS = [
   { bg:'var(--color-primary-100)',  text:'var(--color-primary-dark)' },
@@ -72,7 +72,7 @@ const AVATAR_COLORS = [
 ]
 
 function Avatar({ name, id }) {
-  const col = AVATAR_COLORS[id % AVATAR_COLORS.length]
+  const col = AVATAR_COLORS[(id || 0) % AVATAR_COLORS.length]
   return (
     <span
       className="inline-flex items-center justify-center w-8 h-8 rounded-full text-xs font-bold flex-shrink-0"
@@ -93,7 +93,14 @@ function UserModal({ isOpen, onClose, onSubmit, editUser, loading }) {
   // Reset form when modal opens
   useEffect(() => {
     if (isOpen) {
-      setForm(editUser ?? EMPTY_FORM)
+      setForm(editUser ? {
+        ...EMPTY_FORM,
+        ...editUser,
+        name: editUser.name || '',
+        email: editUser.email || '',
+        mobile: editUser.mobile || '',
+        password: '',
+      } : EMPTY_FORM)
       setErrors({})
     }
   }, [isOpen, editUser])
@@ -105,13 +112,51 @@ function UserModal({ isOpen, onClose, onSubmit, editUser, loading }) {
     setErrors((prev) => ({ ...prev, [key]: '' }))
   }
 
-    const validate = () => {
+  // Only allow digits for mobile number
+  const handleMobileChange = (e) => {
+    const digits = e.target.value.replace(/\D/g, '').slice(0, 10)
+    set('mobile', digits)
+  }
+
+  const validate = () => {
     const e = {}
-    if (!form.name.trim())  e.name  = 'Name is required'
-    if (form.email.trim() && !/\S+@\S+\.\S+/.test(form.email)) e.email = 'Enter a valid email'
-    if (!editUser && !form.password.trim()) e.password = 'Password is required'
-    else if (!editUser && form.password.length < 6) e.password = 'Minimum 6 characters'
-    if (!form.mobile.trim()) e.mobile = 'Mobile is required'
+
+    // Full Name — required, min 2 chars, letters/numbers/spaces allowed
+    const name = (form.name || '').trim()
+    if (!name) {
+      e.name = 'Full name is required'
+    } else if (name.length < 2) {
+      e.name = 'Name must be at least 2 characters'
+    } else if (!/^[a-zA-Z0-9\s.'-]+$/.test(name)) {
+      e.name = 'Name can only contain letters, numbers, spaces, and . \' -'
+    }
+
+    // Mobile — required, exactly 10 digits
+    const mobile = (form.mobile || '').trim()
+    if (!mobile) {
+      e.mobile = 'Mobile number is required'
+    } else if (!/^\d{10}$/.test(mobile)) {
+      e.mobile = 'Enter a valid 10-digit mobile number'
+    }
+
+    // Email — optional but must be valid format if provided
+    const email = (form.email || '').trim()
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      e.email = 'Enter a valid email address (e.g. user@company.com)'
+    }
+
+    // Password — required for new users; optional for edit (only validate if entered)
+    const pwd = form.password || ''
+    if (!editUser) {
+      if (!pwd.trim()) {
+        e.password = 'Password is required'
+      } else if (pwd.length < 6) {
+        e.password = 'Password must be at least 6 characters'
+      }
+    } else if (pwd.length > 0 && pwd.length < 6) {
+      e.password = 'Password must be at least 6 characters'
+    }
+
     return e
   }
 
@@ -159,15 +204,27 @@ function UserModal({ isOpen, onClose, onSubmit, editUser, loading }) {
         {/* Body */}
         <div className="px-5 py-4 flex flex-col gap-4 overflow-y-auto">
           <Input label="Full Name" placeholder="e.g. Arjun Mehta" required
-            value={form.name} error={errors.name}
+            value={form.name || ''} error={errors.name}
             onChange={(e) => set('name', e.target.value)} />
 
-          <Input label="Mobile" placeholder="+91 98765 43210" required
-            value={form.mobile} error={errors.mobile}
-            onChange={(e) => set('mobile', e.target.value)} />
+          <Input label="Mobile" placeholder="10-digit mobile number" required
+            value={form.mobile || ''} error={errors.mobile}
+            inputMode="numeric"
+            maxLength={10}
+            onChange={handleMobileChange}
+            onKeyDown={(e) => {
+              // Allow: backspace, delete, tab, escape, enter, arrows, home, end
+              const allowed = ['Backspace','Delete','Tab','Escape','Enter','ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Home','End']
+              if (allowed.includes(e.key)) return
+              // Block non-digit keys
+              if (!/^\d$/.test(e.key)) e.preventDefault()
+              // Block if already 10 digits
+              if ((form.mobile || '').length >= 10 && !['Backspace','Delete'].includes(e.key)) e.preventDefault()
+            }}
+          />
 
           <Input label="Email Address (Optional)" type="email" placeholder="user@company.com"
-            value={form.email} error={errors.email}
+            value={form.email || ''} error={errors.email}
             onChange={(e) => set('email', e.target.value)} />
 
           {!editUser && (
@@ -450,19 +507,22 @@ function UserManagement() {
 
   // ── Stats ─────────────────────────────────────────────────────────────
   const total       = users.length
-  const superAdmins = users.filter((u) => u.role === 'SUPER_ADMIN').length
-  const admins      = users.filter((u) => u.role === 'ADMIN').length
-  const active      = users.filter((u) => u.isActive).length
+  const superAdmins = users.filter((u) => u?.role === 'SUPER_ADMIN').length
+  const admins      = users.filter((u) => u?.role === 'ADMIN').length
+  const active      = users.filter((u) => u?.isActive).length
 
   const filtered = useMemo(() => {
-    let result = users
-    if (filterRole !== 'ALL') result = result.filter((u) => u.role === filterRole)
-    if (search.trim())
-      result = result.filter((u) =>
-        u.name.toLowerCase().includes(search.toLowerCase())  ||
-        u.email.toLowerCase().includes(search.toLowerCase()) ||
-        (u.mobile ?? '').includes(search)
-      )
+    let result = users || []
+    if (filterRole !== 'ALL') result = result.filter((u) => u?.role === filterRole)
+    if (search && search.trim()) {
+      const q = search.toLowerCase().trim()
+      result = result.filter((u) => {
+        const name   = (u?.name || '').toLowerCase()
+        const email  = (u?.email || '').toLowerCase()
+        const mobile = u?.mobile || ''
+        return name.includes(q) || email.includes(q) || mobile.includes(q)
+      })
+    }
     return result
   }, [users, search, filterRole])
 
@@ -472,21 +532,22 @@ function UserManagement() {
   // ── Create / Update ───────────────────────────────────────────────────
   const handleSubmit = async (form) => {
     setSaving(true)
+    const payload = {
+      name:     (form.name || '').trim(),
+      email:    (form.email || '').trim() || null,
+      mobile:   (form.mobile || '').trim(),
+      role:     form.role,
+      isActive: form.isActive,
+    }
     try {
       if (editUser) {
-        const updated = await userService.update(editUser.id, {
-          name:     form.name,
-          email:    form.email,
-          mobile:   form.mobile,
-          role:     form.role,
-          isActive: form.isActive,
-        })
+        const updated = await userService.update(editUser.id, payload)
         setUsers((prev) => prev.map((u) => u.id === editUser.id ? updated : u))
-        toast({ type:'success', title:'User updated', message:`${form.name} has been updated.` })
+        toast({ type:'success', title:'User updated', message:`${payload.name} has been updated.` })
       } else {
-        const created = await userService.create(form)
+        const created = await userService.create({ ...payload, password: form.password })
         setUsers((prev) => [created, ...prev])
-        toast({ type:'success', title:'User created', message:`${form.name} has been added.` })
+        toast({ type:'success', title:'User created', message:`${payload.name} has been added.` })
       }
       setModalOpen(false)
     } catch (err) {

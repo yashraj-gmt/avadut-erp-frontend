@@ -5,6 +5,9 @@ import { ROUTES } from '@/constants/routes';
 import DateRangePicker from './DateRangePicker';
 import {
   fmtDate,
+  formatToDMY,
+  formatRangeToDMY,
+  parseDateStr,
   MOCK_BILLS,
 } from './mockData';
 import { generatorOrderService } from '@/services/generatorOrderService';
@@ -39,10 +42,12 @@ const Icon = {
       <circle cx="12" cy="12" r="3"/>
     </svg>
   ),
-  DollarSign: () => (
-    <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-      <line x1="12" y1="1" x2="12" y2="23"/>
-      <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+  Receipt: () => (
+    <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"/>
+      <path d="M16 8H8"/>
+      <path d="M16 12H8"/>
+      <path d="M15 16H9"/>
     </svg>
   ),
   Calendar: () => (
@@ -150,8 +155,34 @@ const STYLES = `
 
   /* ── Stats ── */
   .go-stats-row { display:grid; grid-template-columns:repeat(5,1fr); gap:16px; margin-bottom:24px; }
-  .go-stat-card { background:var(--color-surface); border-radius:var(--radius-lg); padding:16px 20px; box-shadow:var(--shadow-sm); display:flex; align-items:center; gap:14px; }
-  .go-stat-value { font-size:24px; font-weight:800; color:var(--color-text); line-height:1.1; }
+  .go-stat-card {
+    background:var(--color-surface);
+    border:2px solid transparent;
+    border-radius:var(--radius-lg);
+    padding:16px 20px;
+    box-shadow:var(--shadow-sm);
+    display:flex;
+    align-items:center;
+    gap:14px;
+    cursor:pointer;
+    transition:all .2s ease;
+    user-select:none;
+    position:relative;
+  }
+  .go-stat-card:hover {
+    transform:translateY(-2px);
+    box-shadow:var(--shadow-md);
+    border-color:var(--color-border);
+  }
+  .go-stat-card.active {
+    border-color:var(--color-primary);
+    background:linear-gradient(135deg, rgba(37,99,235,0.08) 0%, rgba(37,99,235,0.02) 100%);
+    box-shadow:0 4px 14px rgba(37,99,235,0.18);
+  }
+  .go-stat-card.active .go-stat-value {
+    color:var(--color-primary);
+  }
+  .go-stat-value { font-size:24px; font-weight:800; color:var(--color-text); line-height:1.1; transition:color .2s; }
   .go-stat-label { font-size:11px; color:var(--color-text-muted); margin-top:4px; font-weight:600; text-transform:uppercase; letter-spacing:.5px; }
 
   /* ── Toolbar ── */
@@ -175,14 +206,40 @@ const STYLES = `
 
   /* ── Card / Table ── */
   .go-card { background:var(--color-surface); border-radius:var(--radius-xl); box-shadow:var(--shadow-md); overflow:hidden; }
-  .go-table-wrap { overflow-x:auto; -webkit-overflow-scrolling:touch; }
-  .go-table { width:100%; border-collapse:collapse; }
+  .go-table-wrap { overflow-x:auto; -webkit-overflow-scrolling:touch; position:relative; }
+  .go-table { width:100%; border-collapse:separate; border-spacing:0; }
   .go-thead { background:var(--color-surface-2); border-bottom:1.5px solid var(--color-border); }
   .go-row { border-bottom:1px solid var(--color-surface-2); transition:background .15s; }
   .go-row:hover td { background:rgba(37,99,235,.04) !important; }
+  .go-row:hover .go-td-sticky-left,
+  .go-row:hover .go-td-sticky-right { background:#f0f7ff !important; }
   .go-row:last-child { border-bottom:none; }
   .go-action-btn { transition:transform .15s; }
   .go-action-btn:hover:not(:disabled) { transform:scale(1.1); }
+
+  /* ── Sticky Columns ── */
+  .go-th-sticky-left, .go-td-sticky-left {
+    position: sticky;
+    left: 0;
+    z-index: 2;
+    box-shadow: 2px 0 6px -1px rgba(0,0,0,.08);
+    border-right: 1.5px solid var(--color-border) !important;
+  }
+  .go-th-sticky-left {
+    background: var(--color-surface-2) !important;
+    z-index: 4;
+  }
+  .go-th-sticky-right, .go-td-sticky-right {
+    position: sticky;
+    right: 0;
+    z-index: 2;
+    box-shadow: -2px 0 6px -1px rgba(0,0,0,.08);
+    border-left: 1.5px solid var(--color-border) !important;
+  }
+  .go-th-sticky-right {
+    background: var(--color-surface-2) !important;
+    z-index: 4;
+  }
 
   /* ── Pagination ── */
   .go-pagination {
@@ -281,18 +338,32 @@ const pageBtn = (active) => ({
 function SkeletonRow({ cols }) {
   return (
     <tr style={{ borderBottom:'1px solid var(--color-surface-2)' }}>
-      {Array.from({ length: cols }).map((_, i) => (
-        <td key={i} style={{ padding:'16px' }}>
-          <div className="go-skeleton" style={{ width:`${50+(i%4)*12}%` }} />
-        </td>
-      ))}
+      {Array.from({ length: cols }).map((_, i) => {
+        const isFirst = i === 0;
+        const isLast = i === cols - 1;
+        return (
+          <td
+            key={i}
+            className={isFirst ? 'go-td-sticky-left' : isLast ? 'go-td-sticky-right' : ''}
+            style={{ padding:'16px', background:'var(--color-surface)' }}
+          >
+            <div className="go-skeleton" style={{ width:`${50+(i%4)*12}%` }} />
+          </td>
+        );
+      })}
     </tr>
   );
 }
 
-function StatCard({ label, value, icon: IconComponent, iconBg, iconColor }) {
+function StatCard({ label, value, icon: IconComponent, iconBg, iconColor, active, onClick }) {
   return (
-    <div className="go-stat-card">
+    <div
+      className={`go-stat-card ${active ? 'active' : ''}`}
+      onClick={onClick}
+      role="button"
+      tabIndex={0}
+      title={`Filter by ${label}`}
+    >
       <div style={{
         width: 40, height: 40, borderRadius: 10,
         background: iconBg, color: iconColor,
@@ -327,8 +398,34 @@ function StatusChip({ bg, color, label }) {
   );
 }
 
+const isTodayOrder = (o) => {
+  if (!o) return false;
+  const now = new Date();
+  const todayYMD = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  const todayDMY = `${String(now.getDate()).padStart(2, '0')}-${String(now.getMonth() + 1).padStart(2, '0')}-${now.getFullYear()}`;
+
+  // Created today
+  if (o.createdAt && o.createdAt.startsWith(todayYMD)) return true;
+
+  // Exact function date match
+  if (o.functionDateFrom && (o.functionDateFrom.startsWith(todayYMD) || o.functionDateFrom.startsWith(todayDMY))) return true;
+  if (o.functionDate && (o.functionDate.includes(todayYMD) || o.functionDate.includes(todayDMY))) return true;
+
+  // Range contains today
+  const fFrom = o.functionDateFrom ? parseDateStr(o.functionDateFrom) : (o.functionDate ? parseDateStr(o.functionDate.split(' to ')[0]) : null);
+  const fTo   = o.functionDateTo   ? parseDateStr(o.functionDateTo)   : (o.functionDate ? parseDateStr(o.functionDate.split(' to ')[1] || o.functionDate) : null);
+
+  if (fFrom && fTo) {
+    const todayZero = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const fromZero  = new Date(fFrom.getFullYear(), fFrom.getMonth(), fFrom.getDate()).getTime();
+    const toZero    = new Date(fTo.getFullYear(), fTo.getMonth(), fTo.getDate()).getTime();
+    if (todayZero >= fromZero && todayZero <= toZero) return true;
+  }
+  return false;
+};
+
 /* ─── Main Component ─────────────────────────────────────────────────────── */
-const PAGE_SIZE = 8;
+const PAGE_SIZE = 50;
 
 export default function GeneratorOrderList() {
   const navigate = useNavigate();
@@ -342,16 +439,19 @@ export default function GeneratorOrderList() {
   const [search, setSearch]             = useState('');
   const [page, setPage]                 = useState(1);
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [activeTab, setActiveTab]       = useState('all'); // 'all' | 'today' | 'pending_billing' | 'completed_billing' | 'generators_booked'
 
   // Filters state
   const [filterDate, setFilterDate]                   = useState('');
   const [filterBillingStatus, setFilterBillingStatus] = useState('all');
   const [filterBookingStatus, setFilterBookingStatus] = useState('all');
+  const hasFilters = search !== '' || filterDate !== '' || filterBillingStatus !== 'all' || filterBookingStatus !== 'all' || activeTab !== 'all';
 
   // Fetch data
   React.useEffect(() => {
     setLoading(true);
-    generatorOrderService.getAll(search, filterBookingStatus === 'all' ? '' : filterBookingStatus, page - 1, PAGE_SIZE)
+    const backendStatus = filterBookingStatus === 'booked' ? 'PENDING' : (filterBookingStatus === 'confirmed' ? 'CONFIRMED' : '');
+    generatorOrderService.getAll(search, backendStatus, page - 1, PAGE_SIZE)
       .then(res => {
         setOrders(res?.content || []);
         setTotalElements(res?.totalElements || 0);
@@ -362,9 +462,20 @@ export default function GeneratorOrderList() {
       .finally(() => setLoading(false));
   }, [page, search, filterBookingStatus, filterBillingStatus, filterDate]);
 
-  // Filtered locally for billing status and date (ideally this should be moved to backend too, but keeping minimal changes for now)
+  // Filtered locally for tab selection, billing status and date (safeguard)
   const filtered = useMemo(() => {
     return orders.filter(o => {
+      // Tab Filter
+      if (activeTab === 'today' && !isTodayOrder(o)) return false;
+      if (activeTab === 'pending_billing' && o.billingStatus === 'COMPLETED') return false;
+      if (activeTab === 'completed_billing' && o.billingStatus !== 'COMPLETED') return false;
+      if (activeTab === 'generators_booked' && (!o.generators || o.generators.length === 0)) return false;
+
+      // 0. Booking Status Match
+      const isConfirmed = o.orderStatus === 'CONFIRMED';
+      if (filterBookingStatus === 'booked' && isConfirmed) return false;
+      if (filterBookingStatus === 'confirmed' && !isConfirmed) return false;
+
       // 1. Billing Status Match
       const isBilled = o.billingStatus === 'COMPLETED';
       if (filterBillingStatus === 'pending' && isBilled) return false;
@@ -373,13 +484,17 @@ export default function GeneratorOrderList() {
       // 2. Function Date Range Match
       if (filterDate && filterDate.includes(' to ')) {
         const [selFromStr, selToStr] = filterDate.split(' to ');
-        const selFrom = new Date(selFromStr);
-        const selTo = new Date(selToStr);
+        const selFrom = parseDateStr(selFromStr);
+        const selTo = parseDateStr(selToStr);
+        if (selFrom) selFrom.setHours(0, 0, 0, 0);
+        if (selTo) selTo.setHours(23, 59, 59, 999);
 
-        const orderFrom = o.functionDateFrom ? new Date(o.functionDateFrom) : null;
-        const orderTo = o.functionDateTo ? new Date(o.functionDateTo) : null;
+        const orderFrom = o.functionDateFrom ? parseDateStr(o.functionDateFrom) : (o.functionDate ? parseDateStr(o.functionDate.split(' to ')[0]) : null);
+        const orderTo = o.functionDateTo ? parseDateStr(o.functionDateTo) : (o.functionDate ? parseDateStr(o.functionDate.split(' to ')[1] || o.functionDate) : null);
+        if (orderFrom) orderFrom.setHours(0, 0, 0, 0);
+        if (orderTo) orderTo.setHours(23, 59, 59, 999);
 
-        if (orderFrom && orderTo) {
+        if (orderFrom && orderTo && selFrom && selTo) {
           const intersects = orderFrom <= selTo && orderTo >= selFrom;
           if (!intersects) return false;
         } else {
@@ -389,7 +504,7 @@ export default function GeneratorOrderList() {
 
       return true;
     });
-  }, [orders, filterBillingStatus, filterDate]);
+  }, [orders, activeTab, filterBookingStatus, filterBillingStatus, filterDate]);
 
   const totalPages = Math.max(1, Math.ceil(totalElements / PAGE_SIZE));
   const paged = filtered; // Since we already paginate from backend, paged is just filtered orders
@@ -415,14 +530,9 @@ export default function GeneratorOrderList() {
   /* ── Calculations for summary statistics ── */
   const stats = useMemo(() => {
     const totalOrders = orders.length;
-
-    // Today's orders (local timezone day string check)
-    const today = new Date();
-    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-    const todayCount = orders.filter(o => o.createdAt && o.createdAt.startsWith(todayStr)).length;
-
+    const todayCount = orders.filter(isTodayOrder).length;
     const completedBilling = orders.filter(o => o.billingStatus === 'COMPLETED').length;
-    const pendingBilling = totalOrders - completedBilling;
+    const pendingBilling = orders.filter(o => o.billingStatus !== 'COMPLETED').length;
     const totalGenerators = orders.reduce((sum, o) => sum + (o.generators?.length || 0), 0);
 
     return {
@@ -477,6 +587,8 @@ export default function GeneratorOrderList() {
             icon={Icon.ClipboardList}
             iconBg="var(--color-primary-50)"
             iconColor="var(--color-primary)"
+            active={activeTab === 'all'}
+            onClick={() => { setActiveTab('all'); setPage(1); }}
           />
           <StatCard
             label="Today's Orders"
@@ -484,6 +596,8 @@ export default function GeneratorOrderList() {
             icon={Icon.Calendar}
             iconBg="var(--color-info-light)"
             iconColor="var(--color-info)"
+            active={activeTab === 'today'}
+            onClick={() => { setActiveTab(prev => prev === 'today' ? 'all' : 'today'); setPage(1); }}
           />
           <StatCard
             label="Pending Billing"
@@ -491,6 +605,8 @@ export default function GeneratorOrderList() {
             icon={Icon.AlertCircle}
             iconBg="#FEF3C7"
             iconColor="#92400E"
+            active={activeTab === 'pending_billing'}
+            onClick={() => { setActiveTab(prev => prev === 'pending_billing' ? 'all' : 'pending_billing'); setPage(1); }}
           />
           <StatCard
             label="Completed Billing"
@@ -498,6 +614,8 @@ export default function GeneratorOrderList() {
             icon={Icon.CheckCircle}
             iconBg="#D1FAE5"
             iconColor="#065F46"
+            active={activeTab === 'completed_billing'}
+            onClick={() => { setActiveTab(prev => prev === 'completed_billing' ? 'all' : 'completed_billing'); setPage(1); }}
           />
           <StatCard
             label="Generators Booked"
@@ -505,6 +623,8 @@ export default function GeneratorOrderList() {
             icon={Icon.Zap}
             iconBg="var(--color-primary-100)"
             iconColor="var(--color-primary-dark)"
+            active={activeTab === 'generators_booked'}
+            onClick={() => { setActiveTab(prev => prev === 'generators_booked' ? 'all' : 'generators_booked'); setPage(1); }}
           />
         </div>
 
@@ -558,6 +678,42 @@ export default function GeneratorOrderList() {
               <option value="confirmed">Booking: Confirmed</option>
             </select>
           </div>
+
+          {hasFilters && (
+            <button
+              id="btn-clear-filters"
+              onClick={() => {
+                setSearch('');
+                setFilterDate('');
+                setFilterBillingStatus('all');
+                setFilterBookingStatus('all');
+                setActiveTab('all');
+                setPage(1);
+              }}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '10px 16px',
+                background: 'var(--color-surface)',
+                border: '1.5px solid var(--color-border)',
+                borderRadius: 'var(--radius-md)',
+                color: 'var(--color-text-muted)',
+                fontSize: '14px',
+                fontWeight: '600',
+                cursor: 'pointer',
+                transition: 'all 0.15s',
+                height: '42px',
+                fontFamily: 'inherit'
+              }}
+              className="go-action-btn"
+            >
+              <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                <path d="M18 6 6 18M6 6l12 12"/>
+              </svg>
+              Clear Filters
+            </button>
+          )}
         </div>
 
         {/* ── Main Card ──────────────────────────────────────── */}
@@ -567,32 +723,37 @@ export default function GeneratorOrderList() {
             <table className="go-table">
               <thead className="go-thead">
                 <tr>
-                  <th style={{ ...thStyle, width:44 }}>#</th>
-                  <th style={thStyle}>Order Number</th>
+                  <th className="go-th-sticky-left" style={{ ...thStyle, width:54, textAlign:'center' }}>Sr. No.</th>
+                  <th style={thStyle}>Generator Name</th>
+                  <th style={thStyle}>Order No.</th>
                   <th style={thStyle}>Client Name</th>
                   <th style={thStyle}>Contact</th>
-                  <th style={thStyle}>Generators</th>
+                  <th style={thStyle}>Site Address</th>
+                  <th style={{ ...thStyle, textAlign:'center' }}>Diesel Type</th>
+                  <th style={{ ...thStyle, textAlign:'center' }}>Cable</th>
+                  <th style={thStyle}>Operator Name</th>
                   <th style={{ ...thStyle, textAlign:'center' }}>Function Date</th>
                   <th style={{ ...thStyle, textAlign:'center' }}>Booking Status</th>
                   <th style={{ ...thStyle, textAlign:'center' }}>Billing Status</th>
-                  <th style={{ ...thStyle, textAlign:'center' }}>Actions</th>
+                  <th style={{ ...thStyle, textAlign:'center' }}>Billing Number</th>
+                  <th className="go-th-sticky-right" style={{ ...thStyle, textAlign:'center', width:140 }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
-                  Array.from({ length: 6 }).map((_, i) => <SkeletonRow key={i} cols={9} />)
+                  Array.from({ length: 6 }).map((_, i) => <SkeletonRow key={i} cols={14} />)
                 ) : paged.length === 0 ? (
                   <tr>
-                    <td colSpan={9} style={{ padding:'64px 20px', textAlign:'center' }}>
+                    <td colSpan={14} style={{ padding:'64px 20px', textAlign:'center' }}>
                       <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:10, color:'var(--color-text-subtle)' }}>
                         <Icon.ClipboardEmpty />
                         <div style={{ fontWeight:600, color:'var(--color-text-muted)', fontSize:15 }}>
-                          {search || filterDate || filterBillingStatus !== 'all' || filterBookingStatus !== 'all'
+                          {search || filterDate || filterBillingStatus !== 'all' || filterBookingStatus !== 'all' || activeTab !== 'all'
                             ? 'No orders match your search or filters'
                             : 'No orders yet'}
                         </div>
                         <div style={{ fontSize:13, color:'var(--color-text-subtle)' }}>
-                          {search || filterDate || filterBillingStatus !== 'all' || filterBookingStatus !== 'all'
+                          {search || filterDate || filterBillingStatus !== 'all' || filterBookingStatus !== 'all' || activeTab !== 'all'
                             ? 'Try adjusting your search query or clear filters'
                             : 'Click "Add New Order" to create your first generator order'}
                         </div>
@@ -605,43 +766,109 @@ export default function GeneratorOrderList() {
                   const extra    = gens.length > 1 ? ` +${gens.length - 1} more` : '';
                   const isBilled = o.billingStatus === 'COMPLETED';
                   const orderBookingStatus = o.orderStatus === 'CONFIRMED' ? 'Confirmed' : (o.bookingStatus || 'Booked');
+                  const isWithDiesel = o.withDiesel !== false && o.dieselType !== 'PARTY';
+                  const hasCable = o.cableRequired !== false;
+                  const billNum = o.billNumber || o.billingNumber;
+                  const rowBg = i % 2 === 0 ? 'var(--color-surface)' : 'var(--color-bg)';
 
                   return (
                   <tr
                     key={o.id}
                     className="go-row"
-                    style={{ background: i % 2 === 0 ? 'var(--color-surface)' : 'var(--color-bg)' }}
+                    style={{ background: rowBg }}
                   >
-                    <td style={{ ...tdStyle, color:'var(--color-text-subtle)', fontSize:13, width:44 }}>
+                    {/* 1. Sr. No. (Sticky Left) */}
+                    <td className="go-td-sticky-left" style={{ ...tdStyle, color:'var(--color-text-subtle)', fontSize:13, width:54, textAlign:'center', background: rowBg }}>
                       {(page - 1) * PAGE_SIZE + i + 1}
                     </td>
+
+                    {/* 2. Generator Name */}
+                    <td style={tdStyle}>
+                      <div style={{ fontWeight:600, fontSize:13, whiteSpace:'nowrap' }}>{firstName}</div>
+                      {extra && (
+                        <div style={{ fontSize:11, color:'var(--color-primary)', fontWeight:600, marginTop:1, whiteSpace:'nowrap' }}>
+                          {extra}
+                        </div>
+                      )}
+                    </td>
+
+                    {/* 3. Order No. */}
                     <td style={tdStyle}>
                       <span style={{
-                        fontFamily:'monospace', fontWeight:700, fontSize:13,
+                        fontFamily:'monospace', fontWeight:700, fontSize:12.5,
                         background:'var(--color-primary-100)', color:'var(--color-primary-dark)',
-                        padding:'2px 8px', borderRadius:6,
+                        padding:'2px 8px', borderRadius:6, whiteSpace:'nowrap'
                       }}>
                         {o.orderNumber || `#${o.id}`}
                       </span>
                     </td>
+
+                    {/* 4. Client Name */}
                     <td style={tdStyle}>
-                      <div style={{ fontWeight:600 }}>{o.clientName}</div>
+                      <div style={{ fontWeight:600, whiteSpace:'nowrap' }}>{o.clientName || '—'}</div>
                     </td>
-                    <td style={tdStyle}>
-                      {o.contactNumber}
+
+                    {/* 5. Contact */}
+                    <td style={{ ...tdStyle, whiteSpace:'nowrap' }}>
+                      {o.contactNumber || '—'}
                     </td>
+
+                    {/* 6. Site Address */}
                     <td style={tdStyle}>
-                      <div style={{ fontWeight:600, fontSize:13 }}>{firstName}</div>
-                      {extra && (
-                        <div style={{ fontSize:11, color:'var(--color-primary)', fontWeight:600, marginTop:2 }}>{extra}</div>
-                      )}
-                      <div style={{ fontSize:11, color:'var(--color-text-subtle)', marginTop:1 }}>
-                        {gens.length} generator{gens.length !== 1 ? 's' : ''}
+                      <div
+                        style={{ maxWidth:160, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}
+                        title={o.siteAddress || '—'}
+                      >
+                        {o.siteAddress || '—'}
                       </div>
                     </td>
-                    <td style={{ ...tdStyle, textAlign:'center', fontSize:13, fontWeight: 500, color:'var(--color-text-muted)' }}>
-                      {o.functionDate || '—'}
+
+                    {/* 7. Diesel Type [PD / WD] */}
+                    <td style={{ ...tdStyle, textAlign:'center', whiteSpace:'nowrap' }}>
+                      <span
+                        title={isWithDiesel ? 'WD (With Diesel)' : 'PD (Party Diesel)'}
+                        style={{
+                          display:'inline-block',
+                          padding:'3px 10px',
+                          borderRadius:'6px',
+                          fontSize:'11.5px',
+                          fontWeight:'800',
+                          background: isWithDiesel ? '#DBEAFE' : '#FEF3C7',
+                          color: isWithDiesel ? '#1E40AF' : '#92400E',
+                          letterSpacing:'.5px',
+                          whiteSpace:'nowrap'
+                        }}
+                      >
+                        {isWithDiesel ? 'WD' : 'PD'}
+                      </span>
                     </td>
+
+                    {/* 8. Cable (Yes/No) */}
+                    <td style={{ ...tdStyle, textAlign:'center', whiteSpace:'nowrap' }}>
+                      <span style={{
+                        display:'inline-block',
+                        padding:'2px 8px',
+                        borderRadius:'6px',
+                        fontSize:'11.5px',
+                        fontWeight:'700',
+                        background: hasCable ? '#D1FAE5' : '#FEE2E2',
+                        color: hasCable ? '#065F46' : '#991B1B',
+                      }}>
+                        {hasCable ? 'Yes' : 'No'}
+                      </span>
+                    </td>
+
+                    {/* 9. Operator Name */}
+                    <td style={{ ...tdStyle, whiteSpace:'nowrap' }}>
+                      {o.operatorName || '—'}
+                    </td>
+
+                    {/* 10. Function Date */}
+                    <td style={{ ...tdStyle, textAlign:'center', fontSize:13, fontWeight:500, color:'var(--color-text-muted)', whiteSpace:'nowrap' }}>
+                      {formatRangeToDMY(o.functionDate || (o.functionDateFrom && o.functionDateTo ? `${o.functionDateFrom} to ${o.functionDateTo}` : o.functionDateFrom))}
+                    </td>
+
+                    {/* 11. Booking Status */}
                     <td style={{ ...tdStyle, textAlign:'center' }}>
                       <StatusChip
                         bg={orderBookingStatus === 'Confirmed' ? '#D1FAE5' : '#DBEAFE'}
@@ -649,6 +876,8 @@ export default function GeneratorOrderList() {
                         label={orderBookingStatus}
                       />
                     </td>
+
+                    {/* 12. Billing Status */}
                     <td style={{ ...tdStyle, textAlign:'center' }}>
                       <StatusChip
                         bg={isBilled ? '#E0F2FE' : '#FEF3C7'}
@@ -656,7 +885,24 @@ export default function GeneratorOrderList() {
                         label={isBilled ? 'Completed' : 'Pending'}
                       />
                     </td>
-                    <td style={{ ...tdStyle, textAlign:'center' }}>
+
+                    {/* 13. Billing Number (empty/dash until Billing Status is Completed) */}
+                    <td style={{ ...tdStyle, textAlign:'center', whiteSpace:'nowrap' }}>
+                      {isBilled && billNum ? (
+                        <span style={{
+                          fontFamily:'monospace', fontWeight:700, fontSize:12.5,
+                          background:'#E0F2FE', color:'#0369A1',
+                          padding:'2px 8px', borderRadius:6,
+                        }}>
+                          {billNum}
+                        </span>
+                      ) : (
+                        <span style={{ color:'var(--color-text-subtle)' }}>—</span>
+                      )}
+                    </td>
+
+                    {/* 14. Actions (Sticky Right) */}
+                    <td className="go-td-sticky-right" style={{ ...tdStyle, textAlign:'center', width:140, background: rowBg }}>
                       <div style={{ display:'flex', gap:6, justifyContent:'center' }}>
                         <button
                           className="go-action-btn"
@@ -683,7 +929,7 @@ export default function GeneratorOrderList() {
                           id={`btn-billing-${o.id}`}
                           onClick={() => navigate(ROUTES.GENERATOR_ORDER_BILLING.replace(':id', o.id))}
                         >
-                          <Icon.DollarSign />
+                          <Icon.Receipt />
                         </button>
                         <button
                           className="go-action-btn"
@@ -719,38 +965,82 @@ export default function GeneratorOrderList() {
                 <div style={{ marginTop:10, fontWeight:600 }}>No orders found</div>
               </div>
             ) : paged.map(o => {
+              const gens = o.generators || [];
+              const firstName = gens[0]?.generatorName || '—';
               const isBilled = o.billingStatus === 'COMPLETED';
               const orderBookingStatus = o.orderStatus === 'CONFIRMED' ? 'Confirmed' : (o.bookingStatus || 'Booked');
+              const isWithDiesel = o.withDiesel !== false && o.dieselType !== 'PARTY';
+              const hasCable = o.cableRequired !== false;
+              const billNum = o.billNumber || o.billingNumber;
 
               return (
               <div key={o.id} className="go-mobile-card">
                 <div className="go-mc-header">
                   <div>
-                    <div className="go-mc-title">{o.clientName}</div>
-                    <div className="go-mc-sub">{o.id}</div>
+                    <div className="go-mc-title">{o.clientName || '—'}</div>
+                    <div className="go-mc-sub">{o.orderNumber || `#${o.id}`}</div>
                   </div>
                 </div>
                 <div className="go-mc-grid">
                   <div className="go-mc-field">
-                    <label>Generators</label>
-                    <span style={{ fontWeight:600 }}>
-                      {(o.generators || [])[0]?.generatorName || '—'}
-                    </span>
-                    {(o.generators || []).length > 1 && (
+                    <label>Generator Name</label>
+                    <span style={{ fontWeight:600 }}>{firstName}</span>
+                    {gens.length > 1 && (
                       <span style={{ fontSize:11, color:'var(--color-primary)', fontWeight:600, display:'block' }}>
-                        +{(o.generators || []).length - 1} more
+                        +{gens.length - 1} more
                       </span>
                     )}
                   </div>
                   <div className="go-mc-field">
-                    <label>Total Booked</label>
-                    <span style={{ color:'var(--color-primary)', fontWeight:700 }}>
-                      {(o.generators || []).length}
+                    <label>Contact</label>
+                    <span>{o.contactNumber || '—'}</span>
+                  </div>
+                  <div className="go-mc-field" style={{ gridColumn:'span 2' }}>
+                    <label>Site Address</label>
+                    <span>{o.siteAddress || '—'}</span>
+                  </div>
+                  <div className="go-mc-field">
+                    <label>Diesel Type</label>
+                    <span
+                      title={isWithDiesel ? 'WD (With Diesel)' : 'PD (Party Diesel)'}
+                      style={{
+                        display:'inline-block',
+                        padding:'2px 8px',
+                        borderRadius:'4px',
+                        fontSize:'11.5px',
+                        fontWeight:'800',
+                        background: isWithDiesel ? '#DBEAFE' : '#FEF3C7',
+                        color: isWithDiesel ? '#1E40AF' : '#92400E',
+                        marginTop:2
+                      }}
+                    >
+                      {isWithDiesel ? 'WD' : 'PD'}
                     </span>
                   </div>
                   <div className="go-mc-field">
+                    <label>Cable</label>
+                    <span style={{
+                      display:'inline-block',
+                      padding:'2px 6px',
+                      borderRadius:'4px',
+                      fontSize:'11px',
+                      fontWeight:'700',
+                      background: hasCable ? '#D1FAE5' : '#FEE2E2',
+                      color: hasCable ? '#065F46' : '#991B1B',
+                      marginTop:2
+                    }}>
+                      {hasCable ? 'Yes' : 'No'}
+                    </span>
+                  </div>
+                  <div className="go-mc-field">
+                    <label>Operator Name</label>
+                    <span>{o.operatorName || '—'}</span>
+                  </div>
+                  <div className="go-mc-field">
                     <label>Function Date</label>
-                    <span style={{ fontSize: 12, fontWeight: 500 }}>{o.functionDate || '—'}</span>
+                    <span style={{ fontSize:12, fontWeight:500 }}>
+                      {formatRangeToDMY(o.functionDate || (o.functionDateFrom && o.functionDateTo ? `${o.functionDateFrom} to ${o.functionDateTo}` : o.functionDateFrom))}
+                    </span>
                   </div>
                   <div className="go-mc-field">
                     <label>Booking Status</label>
@@ -768,6 +1058,20 @@ export default function GeneratorOrderList() {
                       label={isBilled ? 'Completed' : 'Pending'}
                     />
                   </div>
+                  <div className="go-mc-field" style={{ gridColumn:'span 2' }}>
+                    <label>Billing Number</label>
+                    {isBilled && billNum ? (
+                      <span style={{
+                        fontFamily:'monospace', fontWeight:700, fontSize:12.5,
+                        background:'#E0F2FE', color:'#0369A1',
+                        padding:'2px 8px', borderRadius:6, display:'inline-block', marginTop:2
+                      }}>
+                        {billNum}
+                      </span>
+                    ) : (
+                      <span style={{ color:'var(--color-text-subtle)' }}>—</span>
+                    )}
+                  </div>
                 </div>
                 <div className="go-mc-actions">
                   <button className="go-action-btn" style={actionBtn('blue')} title="View"
@@ -780,7 +1084,7 @@ export default function GeneratorOrderList() {
                   </button>
                   <button className="go-action-btn" style={actionBtn('emerald')} title="Billing"
                     onClick={() => navigate(ROUTES.GENERATOR_ORDER_BILLING.replace(':id', o.id))}>
-                    <Icon.DollarSign />
+                    <Icon.Receipt />
                   </button>
                   <button className="go-action-btn" style={actionBtn('red')} title="Delete"
                     onClick={() => setDeleteTarget(o)}>
@@ -844,7 +1148,7 @@ export default function GeneratorOrderList() {
             </div>
             <h2 className="go-modal-title">Delete Order</h2>
             <p className="go-modal-body">
-              Are you sure you want to delete order <strong>{deleteTarget.id}</strong> for{' '}
+              Are you sure you want to delete order for{' '}
               <strong>{deleteTarget.clientName}</strong>? This action cannot be undone.
             </p>
             <div className="go-modal-actions">

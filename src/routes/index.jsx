@@ -6,6 +6,7 @@ import ProtectedRoute from '@/routes/ProtectedRoute'
 import PublicRoute    from '@/routes/PublicRoute'
 import RoleRoute      from '@/routes/RoleRoute'
 import AppShell       from '@/components/layout/AppShell'
+import ErrorBoundary  from '@/components/shared/ErrorBoundary'
 
 // ── Auth ──────────────────────────────────────────────────────────────────
 const LoginPage      = lazy(() => import('@/pages/auth/LoginPage'))
@@ -59,6 +60,7 @@ const rr = (route, Component) => ({
       <Suspense fallback={<Loader />}><Component /></Suspense>
     </RoleRoute>
   ),
+  errorElement: <ErrorBoundary />,
 })
 
 // ── Router ────────────────────────────────────────────────────────────────
@@ -67,6 +69,7 @@ export const router = createBrowserRouter([
   {
     path: ROUTES.LOGIN,
     element: <PublicRoute>{s(LoginPage)}</PublicRoute>,
+    errorElement: <ErrorBoundary />,
   },
 
   // ── Protected app shell ─────────────────────────────────────────────────
@@ -77,6 +80,7 @@ export const router = createBrowserRouter([
         <AppShell />
       </ProtectedRoute>
     ),
+    errorElement: <ErrorBoundary />,
     children: [
       { index: true, element: <Navigate to={ROUTES.DASHBOARD} replace /> },
 
@@ -110,10 +114,10 @@ export const router = createBrowserRouter([
       rr(ROUTES.STAFF_ORDER_DETAIL, StaffOrderDetail),
 
       // Profile (no role gate — any authenticated user)
-      { path: ROUTES.PROFILE, element: s(ProfilePage) },
+      { path: ROUTES.PROFILE, errorElement: <ErrorBoundary />, element: s(ProfilePage) },
 
       // Unauthorized
-      { path: ROUTES.UNAUTHORIZED, element: s(Unauthorized) },
+      { path: ROUTES.UNAUTHORIZED, errorElement: <ErrorBoundary />, element: s(Unauthorized) },
     ],
   },
 

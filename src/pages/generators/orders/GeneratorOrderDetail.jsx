@@ -1,17 +1,101 @@
 // src/pages/generators/orders/GeneratorOrderDetail.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ROUTES } from '@/constants/routes';
-import {
-  STATUS_CONFIG,
-  DIESEL_TYPES,
-  fmtDate,
-  calcDuration,
-} from './mockData';
 import { generatorOrderService } from '@/services/generatorOrderService';
+import {
+  formatToDMY,
+  formatRangeToDMY,
+  parseDateStr,
+} from './mockData';
 
-/* ─── Shared in-memory store (same reference as form) ───────────────────── */
-let LOCAL_ORDERS = [];
+/* ─── Pure utility functions (no mock data dependency) ───────────────────── */
+
+/** Cable sizes with per-day rates — these are business-rule constants, not mock data */
+const CABLE_SIZES = [
+  { size: '10',        rate: 10  },
+  { size: '16',        rate: 10  },
+  { size: '25',        rate: 10  },
+  { size: '35',        rate: 15  },
+  { size: '50',        rate: 15  },
+  { size: '70',        rate: 15  },
+  { size: '95',        rate: 20  },
+  { size: '120',       rate: 20  },
+  { size: '150',       rate: 20  },
+  { size: '185',       rate: 30  },
+  { size: '240',       rate: 30  },
+  { size: '300',       rate: 30  },
+  { size: 'Earth Rod', rate: 500 },
+];
+
+/** Returns the per-day rate for a given cable size string */
+function getCableRate(size) {
+  const found = CABLE_SIZES.find(c => c.size === size);
+  return found ? found.rate : 0;
+}
+
+/** Calculate HH:MM duration between two HH:MM time strings (handles next-day wrap) */
+function calcDuration(start, end) {
+  if (!start || !end) return '00:00';
+  const [sh, sm] = String(start).split(':').map(Number);
+  const [eh, em] = String(end).split(':').map(Number);
+  let totalMins = (eh * 60 + em) - (sh * 60 + sm);
+  if (totalMins < 0) totalMins += 24 * 60;
+  const h = Math.floor(totalMins / 60);
+  const m = totalMins % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
+/** Converts a number to Indian Rupees in words (for invoice amount-in-words display) */
+function numberToWords(num) {
+  if (!num || num === 0) return 'ZERO ONLY';
+  const ones = ['', 'ONE', 'TWO', 'THREE', 'FOUR', 'FIVE', 'SIX', 'SEVEN', 'EIGHT', 'NINE',
+                'TEN', 'ELEVEN', 'TWELVE', 'THIRTEEN', 'FOURTEEN', 'FIFTEEN', 'SIXTEEN',
+                'SEVENTEEN', 'EIGHTEEN', 'NINETEEN'];
+  const tens = ['', '', 'TWENTY', 'THIRTY', 'FORTY', 'FIFTY', 'SIXTY', 'SEVENTY', 'EIGHTY', 'NINETY'];
+
+  function convertHundreds(n) {
+    let str = '';
+    if (n >= 100) {
+      str += ones[Math.floor(n / 100)] + ' HUNDRED ';
+      n %= 100;
+      if (n > 0) str += 'AND ';
+    }
+    if (n >= 20)  { str += tens[Math.floor(n / 10)] + ' '; n %= 10; }
+    if (n > 0)    { str += ones[n] + ' '; }
+    return str;
+  }
+
+  const intPart = Math.floor(num);
+  const decPart = Math.round((num - intPart) * 100);
+  let result = '';
+  if (intPart >= 10000000) result += convertHundreds(Math.floor(intPart / 10000000)) + 'CRORE ';
+  if (intPart >= 100000)   result += convertHundreds(Math.floor((intPart % 10000000) / 100000)) + 'LAKH ';
+  if (intPart >= 1000)     result += convertHundreds(Math.floor((intPart % 100000) / 1000)) + 'THOUSAND ';
+  result += convertHundreds(intPart % 1000);
+  if (decPart > 0) result = result.trim() + ' AND PAISE ' + convertHundreds(decPart);
+  return 'RUPEES ' + result.trim() + ' ONLY.';
+}
+
+/* ─── Date / currency helpers ────────────────────────────────────────────── */
+const parseRentalDays = (functionDate) => {
+  if (!functionDate) return 1;
+  const parts = functionDate.split(' to ');
+  if (parts.length !== 2) return 1;
+  try {
+    const from = parseDateStr(parts[0].trim());
+    const to   = parseDateStr(parts[1].trim());
+    if (!from || !to) return 1;
+    const diffMs = to - from;
+    if (diffMs < 0) return 1;
+    return Math.max(1, Math.round(diffMs / (1000 * 60 * 60 * 24)) + 1);
+  } catch { return 1; }
+};
+
+const fmtDate = (d) => formatToDMY(d);
+
+const fmtCur = (n) =>
+  `₹${(parseFloat(n) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 /* ─── Icons ─────────────────────────────────────────────────────────────── */
 const Icon = {
@@ -26,6 +110,12 @@ const Icon = {
       <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
     </svg>
   ),
+  Invoice: () => (
+    <svg width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+      <path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1-2-1z"/>
+      <path d="M16 8H8m8 4H8"/>
+    </svg>
+  ),
   User: () => (
     <svg width="17" height="17" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
       <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
@@ -34,6 +124,12 @@ const Icon = {
   Zap: () => (
     <svg width="17" height="17" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
       <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+    </svg>
+  ),
+  Calculator: () => (
+    <svg width="17" height="17" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+      <rect x="4" y="2" width="16" height="20" rx="2"/>
+      <path d="M8 6h8M8 10h2m4 0h2M8 14h2m4 0h2M8 18h2m4 0h2"/>
     </svg>
   ),
   MapPin: () => (
@@ -71,11 +167,28 @@ const Icon = {
       <rect x="6" y="14" width="12" height="8"/>
     </svg>
   ),
+  Fuel: () => (
+    <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+      <path d="M3 22h12M4 9h10M4 2h10a1 1 0 0 1 1 1v18H3V3a1 1 0 0 1 1-1z"/>
+      <path d="M19 2l2 2v10l-2 2"/>
+    </svg>
+  ),
+  Cable: () => (
+    <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+      <path d="M5 9l-3 3 3 3M9 5l3-3 3 3M20 9l-3 3 3 3"/>
+      <path d="M6 12h12M12 6v12"/>
+    </svg>
+  ),
   NotFound: () => (
     <svg width="56" height="56" fill="none" stroke="currentColor" strokeWidth="1.2" viewBox="0 0 24 24">
       <circle cx="12" cy="12" r="10"/>
       <line x1="12" y1="8" x2="12" y2="12"/>
       <line x1="12" y1="16" x2="12.01" y2="16"/>
+    </svg>
+  ),
+  ChevronDown: () => (
+    <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+      <polyline points="6 9 12 15 18 9"/>
     </svg>
   ),
 };
@@ -116,6 +229,14 @@ const STYLES = `
     box-shadow:var(--shadow-md); transition:all .2s; font-family:inherit;
   }
   .gd2-edit-btn:hover { transform:translateY(-1px); box-shadow:0 8px 24px rgba(37,99,235,.35); }
+  .gd2-invoice-btn {
+    display:inline-flex; align-items:center; gap:7px;
+    background:var(--color-surface); color:var(--color-primary);
+    border:1.5px solid var(--color-primary); border-radius:var(--radius-md);
+    padding:9px 16px; font-size:14px; font-weight:600; cursor:pointer;
+    transition:all .2s; font-family:inherit;
+  }
+  .gd2-invoice-btn:hover { background:var(--color-primary-50); }
 
   /* ── Banner ── */
   .gd2-banner {
@@ -129,6 +250,7 @@ const STYLES = `
   .gd2-banner-id { font-size:24px; font-weight:800; color:#fff; letter-spacing:.5px; font-family:monospace; }
   .gd2-banner-sub { font-size:11px; font-weight:600; color:rgba(255,255,255,.6); text-transform:uppercase; letter-spacing:.6px; margin-bottom:4px; }
   .gd2-banner-meta { font-size:13px; color:rgba(255,255,255,.7); display:flex; align-items:center; gap:6px; }
+  .gd2-banner-statuses { display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; }
 
   /* ── Cards ── */
   .gd2-card {
@@ -145,7 +267,7 @@ const STYLES = `
   .gd2-card-title { font-size:14px; font-weight:700; color:var(--color-text); margin:0; }
   .gd2-card-body { padding:24px; }
 
-  /* ── Detail field ── */
+  /* ── Detail fields ── */
   .gd2-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:20px 24px; }
   .gd2-grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:20px 24px; }
   .gd2-field label { font-size:11px; font-weight:700; color:var(--color-text-subtle); text-transform:uppercase; letter-spacing:.5px; display:block; }
@@ -171,6 +293,61 @@ const STYLES = `
     padding:5px 12px; font-size:14px; font-weight:800; color:var(--color-primary-dark);
   }
 
+  /* ── Rent calculation section ── */
+  .gd2-calc-table { width:100%; border-collapse:collapse; }
+  .gd2-calc-th {
+    padding:10px 14px; text-align:left; font-size:11px; font-weight:700;
+    color:var(--color-text-muted); text-transform:uppercase; letter-spacing:.5px;
+    background:var(--color-surface-2); border-bottom:1.5px solid var(--color-border);
+  }
+  .gd2-calc-th:last-child, .gd2-calc-td:last-child { text-align:right; }
+  .gd2-calc-td { padding:11px 14px; font-size:13.5px; color:var(--color-text); border-bottom:1px solid var(--color-surface-2); vertical-align:middle; }
+  .gd2-calc-tr-diesel .gd2-calc-td { background:#fffbeb; color:#78350f; font-size:13px; }
+  .gd2-calc-tr-cable  .gd2-calc-td { background:#eff6ff; color:#1e3a8a; font-size:13px; }
+  .gd2-calc-tr-gen > .gd2-calc-td { font-weight:600; }
+
+  /* ── Summary panel ── */
+  .gd2-summary-panel {
+    background:var(--color-surface-2); border-radius:var(--radius-lg);
+    border:1.5px solid var(--color-border); overflow:hidden;
+  }
+  .gd2-summary-row {
+    display:flex; align-items:center; justify-content:space-between;
+    padding:12px 20px; border-bottom:1px solid var(--color-border);
+    font-size:14px; color:var(--color-text-muted);
+  }
+  .gd2-summary-row:last-child { border-bottom:none; }
+  .gd2-summary-row.total {
+    background:linear-gradient(135deg,var(--color-primary),var(--color-primary-dark));
+    color:#fff; font-weight:800; font-size:16px; padding:16px 20px;
+  }
+  .gd2-summary-val { font-weight:700; color:var(--color-text); font-family:monospace; }
+  .gd2-summary-row.total .gd2-summary-val { color:#fff; font-size:18px; }
+
+  /* ── Diesel entries sub-table ── */
+  .gd2-diesel-block {
+    margin-top:10px; border:1px solid #fde68a; border-radius:8px; overflow:hidden;
+  }
+  .gd2-diesel-hdr {
+    background:#fef3c7; padding:7px 12px; font-size:11px; font-weight:700;
+    color:#78350f; text-transform:uppercase; letter-spacing:.4px;
+    display:flex; align-items:center; gap:6px;
+  }
+  .gd2-diesel-row {
+    display:grid; grid-template-columns:1fr 1fr 1fr 1fr 1fr; gap:0;
+    border-bottom:1px solid #fde68a; font-size:12px; color:#78350f;
+  }
+  .gd2-diesel-row:last-child { border-bottom:none; }
+  .gd2-diesel-row > div { padding:7px 10px; border-right:1px solid #fde68a; }
+  .gd2-diesel-row > div:last-child { border-right:none; font-weight:700; font-family:monospace; }
+  .gd2-diesel-hdr-row {
+    display:grid; grid-template-columns:1fr 1fr 1fr 1fr 1fr; gap:0;
+    background:#fef9c3; font-size:10.5px; font-weight:700; color:#92400e;
+    text-transform:uppercase; letter-spacing:.4px; border-bottom:1px solid #fde68a;
+  }
+  .gd2-diesel-hdr-row > div { padding:5px 10px; border-right:1px solid #fde68a; }
+  .gd2-diesel-hdr-row > div:last-child { border-right:none; }
+
   /* ── Mobile generator cards ── */
   .gd2-gen-cards { display:none; }
   .gd2-gen-mc {
@@ -192,11 +369,34 @@ const STYLES = `
     min-height:70px;
   }
 
+  /* ── Amount in words ── */
+  .gd2-words {
+    background:linear-gradient(135deg,#f0fdf4,#dcfce7);
+    border:1.5px solid #86efac; border-radius:10px;
+    padding:12px 18px; font-size:13px; font-style:italic;
+    color:#166534; font-weight:600; margin-top:12px;
+  }
+
+  /* ── Date badge ── */
+  .gd2-date-range {
+    display:inline-flex; align-items:center; gap:7px;
+    background:var(--color-primary-50); border:1.5px solid var(--color-primary-100);
+    border-radius:8px; padding:6px 14px; font-size:13px; font-weight:700; color:var(--color-primary-dark);
+  }
+  .gd2-days-badge {
+    display:inline-flex; align-items:center; gap:4px;
+    background:#dbeafe; border-radius:6px; padding:3px 10px;
+    font-size:13px; font-weight:800; color:#1e40af;
+  }
+
   /* ── Skeleton ── */
   .gd2-skel { height:14px; border-radius:6px; background:var(--color-border); animation:gd2-pulse 1.5s ease-in-out infinite; }
 
   /* ── Not-found ── */
   .gd2-notfound { display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:50vh; gap:16px; color:var(--color-text-subtle); text-align:center; }
+
+  /* ── Divider ── */
+  .gd2-divider { border:none; border-top:1px dashed var(--color-border); margin:18px 0; }
 
   /* ── Responsive ── */
   @media (max-width:1023px) {
@@ -206,15 +406,48 @@ const STYLES = `
   @media (max-width:767px) {
     .gd2-gen-table-wrap { display:none; }
     .gd2-gen-cards { display:block; }
+    .gd2-calc-table-wrap { display:none; }
   }
   @media (max-width:639px) {
     .gd2-page { padding:16px; }
     .gd2-grid, .gd2-grid-2 { grid-template-columns:1fr; }
     .gd2-card-body { padding:16px; }
+    .gd2-diesel-row, .gd2-diesel-hdr-row { grid-template-columns:1fr 1fr 1fr; }
+    .gd2-diesel-row > div:nth-child(4),
+    .gd2-diesel-row > div:nth-child(5),
+    .gd2-diesel-hdr-row > div:nth-child(4),
+    .gd2-diesel-hdr-row > div:nth-child(5) { display:none; }
   }
 `;
 
-/* ─── Helpers ────────────────────────────────────────────────────────────── */
+/* ─── Status configs ──────────────────────────────────────────────────────── */
+const ORDER_STATUS_CFG = {
+  PENDING:    { label: 'Pending',    bg: '#FEF3C7', color: '#92400E' },
+  CONFIRMED:  { label: 'Confirmed',  bg: '#E0F2FE', color: '#0369A1' },
+  PROCESSING: { label: 'Processing', bg: '#E0F2FE', color: '#0369A1' },
+  COMPLETED:  { label: 'Completed',  bg: '#D1FAE5', color: '#065F46' },
+  CANCELLED:  { label: 'Cancelled',  bg: '#FEE2E2', color: '#991B1B' },
+};
+const BILLING_STATUS_CFG = {
+  COMPLETED: { label: 'Billed',   bg: '#D1FAE5', color: '#065F46' },
+  PENDING:   { label: 'Pending',  bg: '#FEF3C7', color: '#92400E' },
+};
+
+/* ─── Micro components ────────────────────────────────────────────────────── */
+function StatusPill({ status, map }) {
+  const cfg = map[status] || { label: status, bg: '#F1F5F9', color: '#64748B' };
+  return (
+    <span style={{
+      display:'inline-flex', alignItems:'center', gap:5,
+      padding:'4px 12px', borderRadius:20, fontSize:12, fontWeight:700,
+      background:cfg.bg, color:cfg.color,
+    }}>
+      <span style={{ width:6, height:6, borderRadius:'50%', background:cfg.color, flexShrink:0 }} />
+      {cfg.label}
+    </span>
+  );
+}
+
 function Field({ label, children, muted }) {
   return (
     <div className="gd2-field">
@@ -239,34 +472,7 @@ function CardSection({ icon: Ic, title, badge, children }) {
   );
 }
 
-function StatusBadge({ status }) {
-  const cfg = STATUS_CONFIG[status] || { label: status, bg:'#F1F5F9', color:'#64748B' };
-  return (
-    <span style={{
-      display:'inline-flex', alignItems:'center', gap:5,
-      padding:'4px 12px', borderRadius:20, fontSize:12, fontWeight:700,
-      background:cfg.bg, color:cfg.color,
-    }}>
-      <span style={{ width:7, height:7, borderRadius:'50%', background:cfg.color, flexShrink:0 }} />
-      {cfg.label}
-    </span>
-  );
-}
-
-function DieselBadge({ type }) {
-  const isOwner = type === DIESEL_TYPES.WITH_OWNER;
-  return (
-    <span style={{
-      padding:'3px 10px', borderRadius:20, fontSize:11.5, fontWeight:700,
-      background: isOwner ? '#DBEAFE' : '#F0FDF4',
-      color:      isOwner ? '#1E40AF' : '#166534',
-    }}>
-      {isOwner ? 'With Owner' : 'Party Diesel'}
-    </span>
-  );
-}
-
-/* ─── Skeleton Loader ────────────────────────────────────────────────────── */
+/* ─── Skeleton Loader ─────────────────────────────────────────────────────── */
 function SkeletonDetail() {
   return (
     <div className="gd2-page">
@@ -280,7 +486,7 @@ function SkeletonDetail() {
         </div>
       </div>
       <div className="gd2-skel" style={{ height:76, borderRadius:16, marginBottom:20 }} />
-      {[1,2,3].map(i => (
+      {[1,2,3,4].map(i => (
         <div key={i} className="gd2-card" style={{ marginBottom:20 }}>
           <div style={{ height:52, background:'var(--color-surface-2)' }} />
           <div style={{ padding:24 }}>
@@ -304,31 +510,77 @@ export default function GeneratorOrderDetail() {
   const navigate = useNavigate();
   const { id }   = useParams();
 
-  const [order, setOrder]     = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [order,    setOrder]    = useState(null);
+  const [loading,  setLoading]  = useState(true);
   const [notFound, setNotFound] = useState(false);
 
   useEffect(() => {
     setLoading(true);
     generatorOrderService.getById(id)
-      .then(found => {
-        setOrder(found);
-      })
-      .catch(err => {
-        console.error('Failed to load order detail', err);
-        setNotFound(true);
-      })
+      .then(found => setOrder(found))
+      .catch(() => setNotFound(true))
       .finally(() => setLoading(false));
   }, [id]);
 
-  if (loading) {
-    return (
-      <>
-        <style>{STYLES}</style>
-        <SkeletonDetail />
-      </>
-    );
-  }
+  /* ── Derived calculations (mirrors billing form logic exactly) ── */
+  const rentalDays   = useMemo(() => parseRentalDays(order?.functionDate), [order]);
+  const withDiesel   = order?.dieselType !== 'PARTY';
+  const cableRequired = order?.cableRequired ?? true;
+
+  const calculations = useMemo(() => {
+    if (!order) return { items: [], totalAmount: 0 };
+    let totalAmount = 0;
+
+    const items = (order.generators || []).map(g => {
+      const gKey = g.id ?? g._id;
+
+      // ── Generator Rent ──────────────────────────────────────────
+      const rentDay   = parseFloat(g.rate) || 0;
+      const genAmount = parseFloat((rentDay * rentalDays).toFixed(2));
+
+      // ── Diesel Charge ───────────────────────────────────────────
+      const dPrice = parseFloat(g.dieselRate) || 0;
+      let dieselAmount = 0;
+      let totalDieselHours = 0;
+      const entries = (g.dieselEntries || []).map(e => {
+        const dur = e.duration || (e.startTime && e.endTime ? (() => {
+          const [h1,m1] = e.startTime.split(':').map(Number);
+          const [h2,m2] = e.endTime.split(':').map(Number);
+          let diffMins = (h2*60+m2)-(h1*60+m1);
+          if(diffMins<0) diffMins+=24*60;
+          return diffMins/60;
+        })() : 0);
+        return { ...e, durHours: dur };
+      });
+      if (withDiesel) {
+        entries.forEach(e => { totalDieselHours += e.durHours; });
+        dieselAmount = parseFloat((dPrice * totalDieselHours).toFixed(2));
+      }
+
+      // ── Cable Charge ────────────────────────────────────────────
+      const cableSize   = g.cableSize || '';
+      const cableRate   = (cableRequired && cableSize)
+        ? (g.cableRate != null ? parseFloat(g.cableRate) : getCableRate(cableSize))
+        : 0;
+      const cableAmount = parseFloat((cableRate * rentalDays).toFixed(2));
+
+      // ── Row Total ───────────────────────────────────────────────
+      const rowTotal = genAmount + dieselAmount + cableAmount;
+      totalAmount += rowTotal;
+
+      return { ...g, _key: gKey, rentDay, genAmount, entries, totalDieselHours, dPrice, dieselAmount, cableSize, cableRate, cableAmount, rowTotal };
+    });
+
+    return { items, totalAmount: parseFloat(totalAmount.toFixed(2)) };
+  }, [order, rentalDays, withDiesel, cableRequired]);
+
+  const discountVal = order ? (parseFloat(order.discountAmount) || 0) : 0;
+  const taxAmount   = order ? (parseFloat(order.taxAmount) || 0) : 0;
+  const netTotal    = order ? Math.max(0, parseFloat((calculations.totalAmount - discountVal).toFixed(2))) : 0;
+  const amountWords = numberToWords(netTotal);
+
+  /* ── Render guards ── */
+  if (loading) return (<><style>{STYLES}</style><SkeletonDetail /></>);
 
   if (notFound) {
     return (
@@ -344,11 +596,7 @@ export default function GeneratorOrderDetail() {
               </div>
             </div>
             <button
-              style={{
-                marginTop:8, padding:'10px 22px', borderRadius:10, border:'none',
-                background:'var(--color-primary)', color:'#fff',
-                fontWeight:600, fontSize:14, cursor:'pointer', fontFamily:'inherit',
-              }}
+              style={{ marginTop:8, padding:'10px 22px', borderRadius:10, border:'none', background:'var(--color-primary)', color:'#fff', fontWeight:600, fontSize:14, cursor:'pointer', fontFamily:'inherit' }}
               onClick={() => navigate(ROUTES.GENERATOR_ORDERS)}
             >
               Back to Orders
@@ -359,7 +607,7 @@ export default function GeneratorOrderDetail() {
     );
   }
 
-  const gens = order.generators || [];
+  const gens = calculations.items;
 
   return (
     <>
@@ -383,8 +631,14 @@ export default function GeneratorOrderDetail() {
               </p>
             </div>
           </div>
-          <div style={{ display:'flex', gap:10, alignItems:'center' }}>
-            <StatusBadge status={order.status} />
+          <div style={{ display:'flex', gap:10, alignItems:'center', flexWrap:'wrap' }}>
+            <button
+              id="btn-invoice"
+              className="gd2-invoice-btn"
+              onClick={() => navigate(ROUTES.GENERATOR_ORDER_BILLING.replace(':id', order.id))}
+            >
+              <Icon.Invoice /> Invoice
+            </button>
             <button
               id="btn-edit-order"
               className="gd2-edit-btn"
@@ -395,149 +649,311 @@ export default function GeneratorOrderDetail() {
           </div>
         </div>
 
-        {/* ── Order ID Banner ─────────────────────────────────────── */}
+        {/* ── Order Banner ─────────────────────────────────────────── */}
         <div className="gd2-banner">
           <div>
             <div className="gd2-banner-sub">Generator Order</div>
             <div className="gd2-banner-id">{order.orderNumber || order.id}</div>
+            <div className="gd2-banner-statuses">
+              <StatusPill status={order.orderStatus} map={ORDER_STATUS_CFG} />
+              <StatusPill status={order.billingStatus || 'PENDING'} map={BILLING_STATUS_CFG} />
+              {withDiesel && (
+                <span style={{ padding:'4px 12px', borderRadius:20, fontSize:12, fontWeight:700, background:'rgba(255,255,255,.2)', color:'#fff' }}>
+                  With Diesel
+                </span>
+              )}
+              {cableRequired && (
+                <span style={{ padding:'4px 12px', borderRadius:20, fontSize:12, fontWeight:700, background:'rgba(255,255,255,.15)', color:'#fff' }}>
+                  Cable Required
+                </span>
+              )}
+            </div>
           </div>
           <div style={{ textAlign:'right' }}>
             <div className="gd2-banner-meta"><Icon.Calendar /> Created: {fmtDate(order.createdAt)}</div>
             <div className="gd2-banner-meta" style={{ marginTop:4 }}><Icon.Clock /> Updated: {fmtDate(order.updatedAt)}</div>
+            {order.functionDate && (
+              <div className="gd2-banner-meta" style={{ marginTop:8 }}>
+                <Icon.Calendar />
+                <span style={{ color:'#fff', fontWeight:700 }}>
+                  {order.functionDate.includes(' to ')
+                    ? order.functionDate.split(' to ').map(fmtDate).join(' → ')
+                    : fmtDate(order.functionDate)}
+                  {' '}
+                  <span style={{ background:'rgba(255,255,255,.2)', borderRadius:6, padding:'1px 8px', fontSize:11 }}>
+                    {rentalDays} day{rentalDays !== 1 ? 's' : ''}
+                  </span>
+                </span>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* ── Section 1 — Order Details ───────────────────────────── */}
+        {/* ── Section 1 — Order Details ────────────────────────────── */}
         <CardSection icon={Icon.User} title="Order Details">
+          {/* Client info */}
           <div className="gd2-grid" style={{ marginBottom: 20 }}>
             <Field label="Client Name">
-              <Icon.User />{order.clientName}
+              <Icon.User />{order.clientName || '—'}
             </Field>
             <Field label="Order Number" muted>
               <Icon.Receipt />{order.orderNumber || order.id}
             </Field>
             <Field label="Contact Number" muted>
-              <Icon.Phone />{order.contactNumber}
+              <Icon.Phone />{order.contactNumber || '—'}
             </Field>
           </div>
-          <div className="gd2-grid" style={{ borderTop: '1px dashed var(--color-border)', paddingTop: 20, marginBottom: 16 }}>
+          <hr className="gd2-divider" />
+          {/* Operator info */}
+          <div className="gd2-grid" style={{ marginBottom: 20 }}>
+            <Field label="Alternate Mobile" muted>
+              <Icon.Phone />{order.alternateMobile || '—'}
+            </Field>
             <Field label="Operator Name" muted>
               {order.operatorName || '—'}
             </Field>
             <Field label="Operator Mobile" muted>
               <Icon.Phone />{order.operatorMobile || '—'}
             </Field>
-            <Field label="Alternate Mobile" muted>
-              <Icon.Phone />{order.alternateMobile || '—'}
-            </Field>
           </div>
-          <div className="gd2-grid" style={{ borderTop: '1px dashed var(--color-border)', paddingTop: 20 }}>
+          <hr className="gd2-divider" />
+          {/* Function dates & diesel */}
+          <div className="gd2-grid">
+            <Field label="Function Date">
+              <span className="gd2-date-range">
+                <Icon.Calendar />
+                {order.functionDate
+                  ? (order.functionDate.includes(' to ')
+                      ? order.functionDate.split(' to ').map(fmtDate).join(' → ')
+                      : fmtDate(order.functionDate))
+                  : '—'}
+              </span>
+            </Field>
+            <Field label="Rental Days">
+              <span className="gd2-days-badge">
+                <Icon.Calendar /> {rentalDays} day{rentalDays !== 1 ? 's' : ''}
+              </span>
+            </Field>
+            <Field label="Diesel Type" muted>
+              <span style={{
+                padding:'3px 10px', borderRadius:20, fontSize:11.5, fontWeight:700,
+                background: withDiesel ? '#DBEAFE' : '#F0FDF4',
+                color:      withDiesel ? '#1E40AF' : '#166534',
+              }}>
+                {withDiesel ? '⛽ With Owner Diesel' : '🟢 Party Diesel'}
+              </span>
+            </Field>
             <Field label="Cable Required" muted>
               <span style={{
                 padding:'3px 10px', borderRadius:20, fontSize:11.5, fontWeight:700,
-                background: order.cableRequired ? '#D1FAE5' : '#FEE2E2',
-                color:       order.cableRequired ? '#065F46' : '#991B1B',
+                background: cableRequired ? '#D1FAE5' : '#FEE2E2',
+                color:      cableRequired ? '#065F46' : '#991B1B',
               }}>
-                {order.cableRequired ? '✓ Yes' : '✗ No'}
+                {cableRequired ? '✓ Yes' : '✗ No'}
               </span>
             </Field>
-            <Field label="With Diesel" muted>
-              <DieselBadge type={order.dieselType} />
+          </div>
+        </CardSection>
+
+   
+        {/* ── Section 3 — Rent Calculation ─────────────────────────── */}
+        <CardSection icon={Icon.Calculator} title="Rent Calculation">
+          {/* Summary info row */}
+          <div style={{ display:'flex', gap:16, flexWrap:'wrap', marginBottom:18 }}>
+            <div style={{ background:'var(--color-surface-2)', border:'1px solid var(--color-border)', borderRadius:8, padding:'10px 16px', minWidth:160 }}>
+              <div style={{ fontSize:11, fontWeight:700, color:'var(--color-text-subtle)', textTransform:'uppercase', letterSpacing:'.4px', marginBottom:4 }}>Rental Period</div>
+              <div style={{ fontSize:13, fontWeight:700, color:'var(--color-text)' }}>
+                {order.functionDate
+                  ? (order.functionDate.includes(' to ')
+                      ? order.functionDate.split(' to ').map(fmtDate).join(' → ')
+                      : fmtDate(order.functionDate))
+                  : '—'}
+              </div>
+            </div>
+            <div style={{ background:'#dbeafe', border:'1px solid #bfdbfe', borderRadius:8, padding:'10px 16px', minWidth:120 }}>
+              <div style={{ fontSize:11, fontWeight:700, color:'#1e3a8a', textTransform:'uppercase', letterSpacing:'.4px', marginBottom:4 }}>Total Days</div>
+              <div style={{ fontSize:22, fontWeight:800, color:'#1e40af', fontFamily:'monospace' }}>{rentalDays}</div>
+            </div>
+            <div style={{ background:'var(--color-surface-2)', border:'1px solid var(--color-border)', borderRadius:8, padding:'10px 16px', minWidth:120 }}>
+              <div style={{ fontSize:11, fontWeight:700, color:'var(--color-text-subtle)', textTransform:'uppercase', letterSpacing:'.4px', marginBottom:4 }}>Generators</div>
+              <div style={{ fontSize:22, fontWeight:800, color:'var(--color-text)', fontFamily:'monospace' }}>{gens.length}</div>
+            </div>
+            <div style={{ background: withDiesel ? '#fef3c7' : '#f0fdf4', border:`1px solid ${withDiesel ? '#fde68a' : '#86efac'}`, borderRadius:8, padding:'10px 16px', minWidth:140 }}>
+              <div style={{ fontSize:11, fontWeight:700, color: withDiesel ? '#78350f' : '#166534', textTransform:'uppercase', letterSpacing:'.4px', marginBottom:4 }}>Diesel</div>
+              <div style={{ fontSize:13, fontWeight:700, color: withDiesel ? '#92400e' : '#15803d' }}>
+                {withDiesel ? '⛽ With Owner' : '🟢 Party Diesel'}
+              </div>
+            </div>
+          </div>
+
+          {/* Per-generator calculation breakdown */}
+          {gens.map((g, gi) => (
+            <div key={g._key || gi} style={{ marginBottom: gi < gens.length - 1 ? 24 : 0 }}>
+              {/* Generator header */}
+              <div style={{
+                display:'flex', alignItems:'center', gap:10, marginBottom:10,
+                padding:'10px 14px', background:'linear-gradient(135deg,var(--color-primary-50),var(--color-primary-100))',
+                borderRadius:10, border:'1.5px solid var(--color-primary-100)',
+              }}>
+                <span style={{ width:24, height:24, borderRadius:'50%', background:'var(--color-primary)', color:'#fff', fontSize:12, fontWeight:800, display:'inline-flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>{gi+1}</span>
+                <span style={{ fontWeight:800, color:'var(--color-primary-dark)', fontSize:14 }}>{g.generatorName}</span>
+                {g.generatorCode && <span style={{ fontSize:11, color:'var(--color-primary)', fontFamily:'monospace' }}>({g.generatorCode})</span>}
+                <span style={{ marginLeft:'auto', fontWeight:800, color:'var(--color-primary-dark)', fontSize:15, fontFamily:'monospace' }}>
+                  {fmtCur(g.rowTotal)}
+                </span>
+              </div>
+
+              {/* Calculation table */}
+              <div style={{ overflowX:'auto' }}>
+                <table className="gd2-calc-table">
+                  <thead>
+                    <tr>
+                      <th className="gd2-calc-th">Description</th>
+                      <th className="gd2-calc-th" style={{ textAlign:'right' }}>Rate</th>
+                      <th className="gd2-calc-th" style={{ textAlign:'center' }}>Qty / Days / Hrs</th>
+                      <th className="gd2-calc-th" style={{ textAlign:'right' }}>Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {/* Generator Rent row */}
+                    <tr className="gd2-calc-tr-gen">
+                      <td className="gd2-calc-td">
+                        <span style={{ color:'var(--color-primary-dark)' }}>⚡ Generator Rent</span>
+                      </td>
+                      <td className="gd2-calc-td" style={{ textAlign:'right', fontFamily:'monospace' }}>{fmtCur(g.rentDay)} / day</td>
+                      <td className="gd2-calc-td" style={{ textAlign:'center' }}>{rentalDays} day{rentalDays !== 1 ? 's' : ''}</td>
+                      <td className="gd2-calc-td" style={{ textAlign:'right', fontFamily:'monospace', color:'var(--color-primary-dark)' }}>{fmtCur(g.genAmount)}</td>
+                    </tr>
+
+                    {/* Diesel entries */}
+                    {withDiesel && g.entries && g.entries.length > 0 && g.entries.map((de, di) => (
+                      <tr key={di} className="gd2-calc-tr-diesel">
+                        <td className="gd2-calc-td" style={{ paddingLeft:24 }}>
+                          {di === 0 && <span style={{ fontWeight:700 }}>⛽ Diesel Charge</span>}
+                          {di > 0 && '↳'}
+                          <span style={{ marginLeft:di > 0 ? 0 : 8, fontSize:12 }}>
+                            {de.entryDate ? fmtDate(de.entryDate) : (de.date ? fmtDate(de.date) : '—')}
+                            {de.startTime && de.endTime && (
+                              <span style={{ marginLeft:6, fontFamily:'monospace' }}>
+                                {de.startTime}–{de.endTime}
+                              </span>
+                            )}
+                          </span>
+                        </td>
+                        <td className="gd2-calc-td" style={{ textAlign:'right', fontFamily:'monospace' }}>
+                          {di === 0 ? `${fmtCur(g.dPrice)} / hr` : ''}
+                        </td>
+                        <td className="gd2-calc-td" style={{ textAlign:'center', fontFamily:'monospace' }}>
+                          {de.durHours ? `${de.durHours.toFixed(2)} hrs` : (de.duration ? `${Number(de.duration).toFixed(2)} hrs` : '—')}
+                        </td>
+                        <td className="gd2-calc-td" style={{ textAlign:'right', fontFamily:'monospace', fontWeight:700 }}>
+                          {di === g.entries.length - 1 ? fmtCur(g.dieselAmount) : ''}
+                        </td>
+                      </tr>
+                    ))}
+                    {withDiesel && g.entries && g.entries.length === 0 && (
+                      <tr className="gd2-calc-tr-diesel">
+                        <td className="gd2-calc-td" style={{ paddingLeft:24 }}>⛽ Diesel Charge</td>
+                        <td className="gd2-calc-td" style={{ textAlign:'right', fontFamily:'monospace' }}>{fmtCur(g.dPrice)} / hr</td>
+                        <td className="gd2-calc-td" style={{ textAlign:'center' }}>0.00 hrs</td>
+                        <td className="gd2-calc-td" style={{ textAlign:'right', fontFamily:'monospace', fontWeight:700 }}>₹0.00</td>
+                      </tr>
+                    )}
+
+                    {/* Cable row */}
+                    {g.cableSize && cableRequired && (
+                      <tr className="gd2-calc-tr-cable">
+                        <td className="gd2-calc-td" style={{ paddingLeft:24 }}>
+                          🔌 Cable {g.cableSize}{g.cableSize !== 'Earth Rod' ? ' mm²' : ''}
+                        </td>
+                        <td className="gd2-calc-td" style={{ textAlign:'right', fontFamily:'monospace' }}>{fmtCur(g.cableRate)} / day</td>
+                        <td className="gd2-calc-td" style={{ textAlign:'center' }}>{rentalDays} day{rentalDays !== 1 ? 's' : ''}</td>
+                        <td className="gd2-calc-td" style={{ textAlign:'right', fontFamily:'monospace', fontWeight:700 }}>{fmtCur(g.cableAmount)}</td>
+                      </tr>
+                    )}
+
+                    {/* Sub-total for this generator */}
+                    <tr>
+                      <td colSpan={3} className="gd2-calc-td" style={{ textAlign:'right', fontWeight:700, color:'var(--color-text-muted)', fontSize:12, textTransform:'uppercase', letterSpacing:'.4px' }}>
+                        Generator Sub-Total
+                      </td>
+                      <td className="gd2-calc-td" style={{ textAlign:'right', fontWeight:800, color:'var(--color-primary-dark)', fontFamily:'monospace', fontSize:15, background:'var(--color-primary-50)' }}>
+                        {fmtCur(g.rowTotal)}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ))}
+
+          {/* ── Overall Summary ── */}
+          <div style={{ marginTop:24 }}>
+            <div className="gd2-summary-panel">
+              <div className="gd2-summary-row">
+                <span>Gross Total (all generators)</span>
+                <span className="gd2-summary-val">{fmtCur(calculations.totalAmount)}</span>
+              </div>
+              {discountVal > 0 && (
+                <div className="gd2-summary-row" style={{ color:'#dc2626' }}>
+                  <span>Discount</span>
+                  <span style={{ fontWeight:700, color:'#dc2626', fontFamily:'monospace' }}>- {fmtCur(discountVal)}</span>
+                </div>
+              )}
+              {taxAmount > 0 && (
+                <div className="gd2-summary-row">
+                  <span>Tax / GST</span>
+                  <span className="gd2-summary-val">{fmtCur(taxAmount)}</span>
+                </div>
+              )}
+              <div className="gd2-summary-row total">
+                <span>Net Payable Amount</span>
+                <span className="gd2-summary-val">{fmtCur(netTotal)}</span>
+              </div>
+            </div>
+            {amountWords && (
+              <div className="gd2-words">
+                Amount in Words: <em>{amountWords}</em>
+              </div>
+            )}
+          </div>
+        </CardSection>
+
+        {/* ── Section 4 — Billing Status ───────────────────────────── */}
+        <CardSection icon={Icon.Receipt} title="Billing Details">
+          <div className="gd2-grid" style={{ marginBottom:20 }}>
+            <Field label="Order Status">
+              <StatusPill status={order.orderStatus} map={ORDER_STATUS_CFG} />
+            </Field>
+            <Field label="Billing Status">
+              <StatusPill status={order.billingStatus || 'PENDING'} map={BILLING_STATUS_CFG} />
+            </Field>
+            <Field label="Bill Number" muted>
+              <Icon.Receipt />{order.billNumber || '—'}
+            </Field>
+          </div>
+          <hr className="gd2-divider" />
+          <div className="gd2-grid">
+            <Field label="Subtotal / Gross Total">
+              <span style={{ fontFamily:'monospace', fontWeight:700 }}>{fmtCur(calculations.totalAmount)}</span>
+            </Field>
+            <Field label="Discount">
+              <span style={{ fontFamily:'monospace', fontWeight:700, color: discountVal > 0 ? '#dc2626' : undefined }}>
+                {fmtCur(discountVal)}
+              </span>
+            </Field>
+            <Field label="Tax / GST">
+              <span style={{ fontFamily:'monospace', fontWeight:700 }}>{fmtCur(taxAmount)}</span>
+            </Field>
+            <Field label="Final / Net Amount">
+              <span style={{ color:'var(--color-primary-dark)', fontWeight:800, fontSize:17, fontFamily:'monospace' }}>
+                {fmtCur(netTotal)}
+              </span>
             </Field>
           </div>
         </CardSection>
 
-        {/* ── Section 2 — Generators ──────────────────────────────── */}
-        <CardSection
-          icon={Icon.Zap}
-          title="Generator Details"
-          badge={
-            <span style={{
-              fontSize:12, fontWeight:700, padding:'3px 10px', borderRadius:20,
-              background:'var(--color-primary-100)', color:'var(--color-primary-dark)',
-            }}>
-              {gens.length} Generator{gens.length !== 1 ? 's' : ''}
-            </span>
-          }
-        >
-          {/* Desktop table */}
-          <div className="gd2-gen-table-wrap" style={{ overflowX:'auto' }}>
-            <table className="gd2-gen-table">
-              <thead>
-                <tr>
-                  <th className="gd2-gen-th" style={{ width:40 }}>#</th>
-                  <th className="gd2-gen-th">Generator</th>
-                  <th className="gd2-gen-th" style={{ textAlign:'center' }}>Cable</th>
-                  <th className="gd2-gen-th" style={{ textAlign:'center' }}>Start</th>
-                  <th className="gd2-gen-th" style={{ textAlign:'center' }}>End</th>
-                  <th className="gd2-gen-th" style={{ textAlign:'center' }}>Duration</th>
-                </tr>
-              </thead>
-              <tbody>
-                {gens.map((g, i) => (
-                  <tr key={g._id || i} className="gd2-gen-tr">
-                    <td className="gd2-gen-td" style={{ color:'var(--color-text-subtle)', fontSize:12 }}>{i+1}</td>
-                    <td className="gd2-gen-td">
-                      <div style={{ fontWeight:700, color:'var(--color-primary-dark)' }}>{g.generatorName}</div>
-                    </td>
-                    <td className="gd2-gen-td" style={{ textAlign:'center' }}>
-                      {g.cableSize ? (
-                        <span style={{ fontSize:12, background:'#f1f5f9', border:'1px solid #e2e8f0', borderRadius:4, padding:'2px 8px', color:'#475569', fontWeight:600 }}>
-                          {g.cableSize}{g.cableSize !== 'Earth Rod' ? ' mm²' : ''}
-                        </span>
-                      ) : <span style={{ color:'var(--color-text-subtle)', fontSize:12 }}>—</span>}
-                    </td>
-                    <td className="gd2-gen-td" style={{ textAlign:'center', fontFamily:'monospace', fontSize:13, fontWeight:600 }}>
-                      {g.startTime}
-                    </td>
-                    <td className="gd2-gen-td" style={{ textAlign:'center', fontFamily:'monospace', fontSize:13, fontWeight:600 }}>
-                      {g.endTime}
-                    </td>
-                    <td className="gd2-gen-td" style={{ textAlign:'center' }}>
-                      <div className="gd2-dur-chip">
-                        <Icon.Clock />
-                        {g.duration || calcDuration(g.startTime, g.endTime)}
-                        <span style={{ fontSize:11, color:'var(--color-primary)', fontWeight:600 }}>hrs</span>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Mobile generator cards */}
-          <div className="gd2-gen-cards">
-            {gens.map((g, i) => (
-              <div key={g._id || i} className="gd2-gen-mc">
-                <div className="gd2-gen-mc-hdr">
-                  <span className="gd2-gen-num">{i+1}</span>
-                  <div>
-                    <div style={{ fontWeight:700, color:'var(--color-primary-dark)', fontSize:14 }}>{g.generatorName}</div>
-                  </div>
-                </div>
-                <div className="gd2-gen-mc-grid">
-                  <div className="gd2-gen-mc-f">
-                    <label>Start Time</label>
-                    <span style={{ fontFamily:'monospace', fontWeight:700 }}>{g.startTime}</span>
-                  </div>
-                  <div className="gd2-gen-mc-f">
-                    <label>End Time</label>
-                    <span style={{ fontFamily:'monospace', fontWeight:700 }}>{g.endTime}</span>
-                  </div>
-                  <div className="gd2-gen-mc-f" style={{ gridColumn:'1/-1' }}>
-                    <label>Duration</label>
-                    <span style={{ color:'var(--color-primary)', fontWeight:700 }}>
-                      {g.duration || calcDuration(g.startTime, g.endTime)} hrs
-                    </span>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </CardSection>
-
-        {/* ── Section 3 — Additional Information ─────────────────── */}
+        {/* ── Section 5 — Additional Info ──────────────────────────── */}
         <CardSection icon={Icon.MapPin} title="Additional Information">
           <div style={{ display:'flex', flexDirection:'column', gap:20 }}>
             <div className="gd2-field">
@@ -565,15 +981,15 @@ export default function GeneratorOrderDetail() {
           </div>
         </CardSection>
 
-        {/* ── Section 4 — Remarks ────────────────────────────────── */}
+        {/* ── Section 6 — Remarks ──────────────────────────────────── */}
         <CardSection icon={Icon.FileText} title="Remarks">
           <div className="gd2-remarks">
-            {order.remarks || <span style={{ fontStyle:'italic', opacity:.5 }}>No remarks added.</span>}
+            {order.remarks || order.notes || <span style={{ fontStyle:'italic', opacity:.5 }}>No remarks added.</span>}
           </div>
         </CardSection>
 
-        {/* ── Bottom Actions ──────────────────────────────────────── */}
-        <div style={{ display:'flex', justifyContent:'flex-end', gap:10 }}>
+        {/* ── Bottom Actions ───────────────────────────────────────── */}
+        <div style={{ display:'flex', justifyContent:'flex-end', gap:10, flexWrap:'wrap' }}>
           <button
             style={{
               padding:'10px 20px', borderRadius:8, border:'1.5px solid var(--color-border)',
@@ -583,6 +999,13 @@ export default function GeneratorOrderDetail() {
             onClick={() => navigate(ROUTES.GENERATOR_ORDERS)}
           >
             Back to Orders
+          </button>
+          <button
+            id="btn-invoice-bottom"
+            className="gd2-invoice-btn"
+            onClick={() => navigate(ROUTES.GENERATOR_ORDER_BILLING.replace(':id', order.id))}
+          >
+            <Icon.Invoice /> View Invoice
           </button>
           <button
             id="btn-edit-bottom"

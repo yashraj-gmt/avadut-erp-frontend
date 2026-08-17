@@ -10,6 +10,21 @@ const MONTH_NAMES = [
 
 const parseDateStr = (str) => {
   if (!str) return null;
+  if (str instanceof Date) return isNaN(str.getTime()) ? null : str;
+  if (typeof str === 'string') {
+    const parts = str.trim().split(/[-/]/);
+    if (parts.length === 3) {
+      if (parts[0].length === 4) {
+        // yyyy-mm-dd
+        const d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+        return isNaN(d.getTime()) ? null : d;
+      } else if (parts[2].length === 4) {
+        // dd-mm-yyyy or dd/mm/yyyy
+        const d = new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]));
+        return isNaN(d.getTime()) ? null : d;
+      }
+    }
+  }
   const d = new Date(str);
   return isNaN(d.getTime()) ? null : d;
 };
@@ -19,13 +34,13 @@ const formatDate = (date) => {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, '0');
   const d = String(date.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
+  return `${d}-${m}-${y}`;
 };
 
 const getDaysInMonth = (year, month) => new Date(year, month + 1, 0).getDate();
 const getFirstDayOfMonth = (year, month) => new Date(year, month, 1).getDay();
 
-export default function DateRangePicker({ value, onChange, placeholder = 'Select Date Range', minDate = new Date(), align = 'left' }) {
+export default function DateRangePicker({ value, onChange, placeholder = 'Select Date Range', minDate = new Date(), align = 'left', disabled = false }) {
   const [isOpen, setIsOpen] = useState(false);
   
   // Left calendar month representation
@@ -36,10 +51,14 @@ export default function DateRangePicker({ value, onChange, placeholder = 'Select
 
   const [tempFrom, setTempFrom] = useState(null);
   const [tempTo, setTempTo] = useState(null);
+  const [hoverDate, setHoverDate] = useState(null);
+  // Track whether we are mid-selection (first date picked, waiting for second)
+  const [selecting, setSelecting] = useState(false);
 
   const containerRef = useRef(null);
 
-  // Sync initial values
+  // Sync state from external value — only when value changes, NOT when isOpen toggles.
+  // Including isOpen caused the month to reset every time the popup opened.
   useEffect(() => {
     if (value && value.includes(' to ')) {
       const [fromStr, toStr] = value.split(' to ');
@@ -47,14 +66,16 @@ export default function DateRangePicker({ value, onChange, placeholder = 'Select
       const to = parseDateStr(toStr);
       setTempFrom(from);
       setTempTo(to);
+      setSelecting(false);
+      // Only jump the calendar to the from-month when NOT mid-selection
       if (from) {
         setCurrentMonth(new Date(from.getFullYear(), from.getMonth(), 1));
       }
-    } else {
+    } else if (!selecting) {
       setTempFrom(null);
       setTempTo(null);
     }
-  }, [value, isOpen]);
+  }, [value]); // ← isOpen intentionally removed
 
   // Click outside listener
   useEffect(() => {
@@ -114,15 +135,30 @@ export default function DateRangePicker({ value, onChange, placeholder = 'Select
 
   const handleDayClick = (year, month, day) => {
     const clickedDate = new Date(year, month, day);
-    
-    if (!tempFrom || (tempFrom && tempTo)) {
+
+    if (!selecting) {
+      // ── First click: pick the start date; stay open for second pick ──
       setTempFrom(clickedDate);
       setTempTo(null);
-    } else if (tempFrom && !tempTo) {
+      setSelecting(true);
+      // Don't call onChange yet — wait for the second date
+    } else {
+      // ── Second click: pick the end date ──
       if (clickedDate < tempFrom) {
+        // Clicked before start → treat it as the new start
         setTempFrom(clickedDate);
-      } else {
+        setTempTo(null);
+        // Stay in selecting mode so user can pick end
+      } else if (clickedDate.getTime() === tempFrom.getTime()) {
+        // Same day → single-day range; confirm and close
         setTempTo(clickedDate);
+        setSelecting(false);
+        onChange(`${formatDate(clickedDate)} to ${formatDate(clickedDate)}`);
+        setIsOpen(false);
+      } else {
+        // Valid end date
+        setTempTo(clickedDate);
+        setSelecting(false);
         onChange(`${formatDate(tempFrom)} to ${formatDate(clickedDate)}`);
         setIsOpen(false);
       }
@@ -135,9 +171,19 @@ export default function DateRangePicker({ value, onChange, placeholder = 'Select
   };
 
   const isInRange = (year, month, day) => {
-    if (!tempFrom || !tempTo) return false;
     const d = new Date(year, month, day);
-    return d > tempFrom && d < tempTo;
+    if (tempFrom && tempTo) return d > tempFrom && d < tempTo;
+    // Show preview range while mid-selection
+    if (selecting && tempFrom && hoverDate && hoverDate > tempFrom) {
+      return d > tempFrom && d < hoverDate;
+    }
+    return false;
+  };
+
+  const isHoverEnd = (year, month, day) => {
+    if (!selecting || !hoverDate || !tempFrom) return false;
+    const d = new Date(year, month, day);
+    return hoverDate > tempFrom && d.getTime() === hoverDate.getTime();
   };
 
   const renderMonthCalendar = (dateObj) => {
@@ -158,7 +204,7 @@ export default function DateRangePicker({ value, onChange, placeholder = 'Select
       const selected = isSelected(y, m, d);
       const inRange = isInRange(y, m, d);
       const isStart = tempFrom && new Date(y, m, d).getTime() === tempFrom.getTime();
-      const isEnd = tempTo && new Date(y, m, d).getTime() === tempTo.getTime();
+      const isEnd = (tempTo && new Date(y, m, d).getTime() === tempTo.getTime()) || isHoverEnd(y, m, d);
 
       let cellClass = 'drp-day';
       if (disabled) cellClass += ' disabled';
@@ -174,6 +220,8 @@ export default function DateRangePicker({ value, onChange, placeholder = 'Select
           disabled={disabled}
           className={cellClass}
           onClick={() => handleDayClick(y, m, d)}
+          onMouseEnter={() => selecting && setHoverDate(new Date(y, m, d))}
+          onMouseLeave={() => selecting && setHoverDate(null)}
         >
           {d}
         </button>
@@ -256,7 +304,7 @@ export default function DateRangePicker({ value, onChange, placeholder = 'Select
         }
       `}</style>
 
-      <div className="drp-input-wrap" onClick={() => setIsOpen(!isOpen)}>
+      <div className="drp-input-wrap" onClick={() => !disabled && setIsOpen(!isOpen)} style={disabled ? { cursor: 'not-allowed', background: 'var(--color-surface-2)', opacity: 0.7 } : {}}>
         <span className={`drp-input-value${!value ? ' placeholder' : ''}`}>
           {value || placeholder}
         </span>
@@ -276,8 +324,8 @@ export default function DateRangePicker({ value, onChange, placeholder = 'Select
             <button className="drp-nav-btn" type="button" onClick={handlePrevMonth}>
               ‹
             </button>
-            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-muted)' }}>
-              Select Range
+            <span style={{ fontSize: 13, fontWeight: 600, color: selecting ? 'var(--color-primary)' : 'var(--color-text-muted)' }}>
+              {selecting ? '📅 Now select end date' : 'Select date range'}
             </span>
             <button className="drp-nav-btn" type="button" onClick={handleNextMonth}>
               ›

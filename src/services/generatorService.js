@@ -41,7 +41,37 @@ export const generatorService = {
       || (Array.isArray(body?.data) ? body.data : null) // { data: [...] }
       || (Array.isArray(body) ? body : []);             // [...] bare array
     return Array.isArray(content)
-      ? content.map(g => ({ id: g.id, name: g.name, generatorCode: g.generatorCode, code: g.generatorCode }))
+      ? content.map(g => ({
+          id: g.id,
+          name: g.name,
+          generatorCode: g.generatorCode,
+          code: g.generatorCode,
+          withDieselRentPrice: g.withDieselRentPrice,
+          partyDieselRentPrice: g.partyDieselRentPrice
+        }))
       : [];
+  },
+
+  /**
+   * Fetch all generators with availability based on dates.
+   */
+  getForDropdownWithAvailability: async (startDate, endDate, excludeOrderId) => {
+    const params = {};
+    if (startDate) params.startDate = startDate;
+    if (endDate) params.endDate = endDate;
+    if (excludeOrderId) params.excludeOrderId = excludeOrderId;
+
+    const body = await api.get('/admin/generators/availability', { params });
+    const content = Array.isArray(body?.data) ? body.data : (Array.isArray(body) ? body : []);
+    return content.map(g => ({
+      id: g.id,
+      name: g.name,
+      generatorCode: g.generatorCode,
+      code: g.generatorCode,
+      withDieselRentPrice: g.withDieselRentPrice,
+      partyDieselRentPrice: g.partyDieselRentPrice,
+      totalStock: g.stockQuantity,
+      availableStock: g.availableStock != null ? g.availableStock : g.stockQuantity
+    }));
   },
 }

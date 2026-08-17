@@ -6,6 +6,7 @@ import { useToast }                                from '@/components/shared/toa
 import ConfirmModal                                from '@/components/shared/modal/ConfirmModal'
 import { SpinnerInline }                           from '@/components/shared'
 import { getImageUrl }                             from '@/utils/imageUrl'
+import { formatToDMY }                            from '@/utils/helpers'
 import { ROUTES }                                  from '@/constants/routes'
 
 /* ── Default placeholder image (inline SVG data URI) ─────────────────────── */
@@ -52,7 +53,7 @@ const statusColor = (status) => {
 /* ── Formatters ───────────────────────────────────────────────────────────── */
 const fmt     = (n) => n != null ? '₹' + Number(n).toLocaleString('en-IN', { maximumFractionDigits: 2 }) : '—'
 const imgSrc  = (url) => getImageUrl(url) || DEFAULT_IMG
-const fmtDate = (dt) => dt ? new Date(dt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'
+const fmtDate = (dt) => formatToDMY(dt)
 
 /* ── Info Row ─────────────────────────────────────────────────────────────── */
 function InfoRow({ label, value }) {
@@ -284,7 +285,7 @@ export default function GeneratorDetail() {
                 {[
                   { label: 'Purchase Price',        value: fmt(generator.purchasePrice),        color: 'var(--color-text)' },
                   { label: 'Party Diesel Rent ₹',   value: fmt(generator.partyDieselRentPrice), color: 'var(--color-primary)' },
-                  { label: 'With Diesel Rent ₹',    value: fmt(generator.withDieselRentPrice),  color: 'var(--color-primary)' },
+                  { label: 'Diesel Price(with diesel)', value: fmt(generator.withDieselRentPrice), color: 'var(--color-primary)' },
                   { label: 'Stock Qty',              value: String(stock),                       color: isOutOfStock ? 'var(--color-danger)' : isLowStock ? 'var(--color-warning)' : 'var(--color-text)' },
                 ].map((item, i, arr) => (
                   <React.Fragment key={item.label}>

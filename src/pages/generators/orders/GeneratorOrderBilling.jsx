@@ -6,10 +6,14 @@ import {
   calcDuration,
   getCableRate,
   numberToWords,
+  formatToDMY,
+  formatRangeToDMY,
+  parseDateStr,
 } from './mockData';
 import { generatorOrderService } from '@/services/generatorOrderService';
 import { ChevronDown, AlertCircle, Trash2 } from 'lucide-react';
 import { generatorService } from '@/services/generatorService';
+import InvoiceShareModal from '@/components/shared/InvoiceShareModal';
 
 /* ─── Global Mock Bills State ────────────────────────────────────────────── */
 
@@ -33,15 +37,15 @@ const MOCK_GEN_PRICING = {
 
 /* ─── Calculation helpers ─────────────────────────────────────────────────── */
 
-/** Parse "2026-07-01 to 2026-07-03" → 3 (inclusive days) */
+/** Parse "2026-07-01 to 2026-07-03" or "01-07-2026 to 03-07-2026" → 3 (inclusive days) */
 const parseRentalDays = (functionDate) => {
   if (!functionDate) return 1;
   const parts = functionDate.split(' to ');
   if (parts.length !== 2) return 1;
   try {
-    const from = new Date(parts[0].trim());
-    const to   = new Date(parts[1].trim());
-    if (isNaN(from) || isNaN(to)) return 1;
+    const from = parseDateStr(parts[0].trim());
+    const to   = parseDateStr(parts[1].trim());
+    if (!from || !to) return 1;
     const diffMs = to - from;
     if (diffMs < 0) return 1;
     return Math.max(1, Math.round(diffMs / (1000 * 60 * 60 * 24)) + 1); // inclusive
@@ -230,7 +234,7 @@ const STYLES = `
   /* Action bar */
   .gb2-action-bar-card {
     background:var(--color-surface); border:1px solid var(--color-border);
-    border-radius:var(--radius-lg); box-shadow:var(--shadow-sm); overflow:hidden; margin-top:28px;
+    border-radius:var(--radius-lg); box-shadow:var(--shadow-sm); overflow:hidden; margin-top:28px; margin-bottom:50px;
   }
   .gb2-action-bar {
     display:flex; justify-content:flex-end; gap:10px;
@@ -246,7 +250,7 @@ const STYLES = `
   .gb2-btn-cancel:hover { background:#fee2e2; }
   .gb2-btn-save   { background:linear-gradient(135deg,var(--color-primary),var(--color-primary-dark)); color:#fff; box-shadow:var(--shadow-md); }
   .gb2-btn-save:hover   { transform:translateY(-1px); box-shadow:0 8px 24px rgba(37,99,235,.35); }
-  .gb2-btn-save:disabled { opacity:.6; cursor:not-allowed; transform:none; }
+  .gb2-btn:disabled { opacity:.4; cursor:not-allowed; transform:none; pointer-events:none; }
   .gb2-btn-print  { background:#1e293b; color:#fff; border:1.5px solid #334155; }
   .gb2-btn-print:hover  { background:#0f172a; }
   .gb2-btn-share  { background:#0d9488; color:#fff; }
@@ -309,7 +313,7 @@ function SkeletonForm() {
 }
 
 /* ─── Inline editable number input ──────────────────────────────────────── */
-function NumInput({ id, value, onChange, onBlur, width = 110, placeholder = '0', error }) {
+function NumInput({ id, value, onChange, onBlur, width = 110, placeholder = '0', error, disabled }) {
   return (
     <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end' }}>
       <input
@@ -322,6 +326,7 @@ function NumInput({ id, value, onChange, onBlur, width = 110, placeholder = '0',
         value={value}
         onChange={e => onChange(numOnly(e.target.value))}
         onBlur={onBlur}
+        disabled={disabled}
         onKeyDown={e => {
           const ok = ['Backspace','Delete','Tab','ArrowLeft','ArrowRight','Home','End','.'];
           if (!ok.includes(e.key) && !/^\d$/.test(e.key)) e.preventDefault();
@@ -345,8 +350,32 @@ export default function GeneratorOrderBilling() {
   const [toast, setToast]           = useState(null);
   const [isCompleted, setIsCompleted] = useState(false);
   const [showCompleteModal, setShowCompleteModal] = useState(false);
-  const [shareOpen, setShareOpen] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
   const [generatorsList, setGeneratorsList] = useState([]);
+
+  /* ── Disable Browser Inspect (F12, Right-Click, Ctrl+Shift+I, etc.) ── */
+  useEffect(() => {
+    const handleContextMenu = (e) => e.preventDefault();
+    const handleKeyDown = (e) => {
+      // F12
+      if (e.keyCode === 123) e.preventDefault();
+      // Ctrl+Shift+I
+      if (e.ctrlKey && e.shiftKey && e.keyCode === 73) e.preventDefault();
+      // Ctrl+Shift+J
+      if (e.ctrlKey && e.shiftKey && e.keyCode === 74) e.preventDefault();
+      // Ctrl+U
+      if (e.ctrlKey && e.keyCode === 85) e.preventDefault();
+      // Ctrl+Shift+C
+      if (e.ctrlKey && e.shiftKey && e.keyCode === 67) e.preventDefault();
+    };
+
+    document.addEventListener('contextmenu', handleContextMenu);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('contextmenu', handleContextMenu);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
 
   /* ── Load generators catalog for fallback rates ── */
   useEffect(() => {
@@ -358,6 +387,7 @@ export default function GeneratorOrderBilling() {
   /* ── Per-generator editable billing fields ── */
   const [rentPerDay,       setRentPerDay]       = useState({});
   const [dieselPerHour,    setDieselPerHour]    = useState({});
+  const [cableRatePerDay,  setCableRatePerDay]  = useState({});
   const [dieselEntries,    setDieselEntries]    = useState({}); // { [gId]: [{ date, startTime, endTime, duration }] }
 
   /* ── Errors ── */
@@ -376,6 +406,7 @@ export default function GeneratorOrderBilling() {
         // Try to pre-fill pricing from backend; fall back to mock table
         const initRentPerDay    = {};
         const initDieselPerHour = {};
+        const initCableRate     = {};
         const initDieselStart   = {};
         const initDieselEnd     = {};
         const initDate          = {};
@@ -385,9 +416,11 @@ export default function GeneratorOrderBilling() {
             const gPricing = genData.find
               ? genData.find(d => d.name === g.generatorName || d.id === g.generatorId)
               : null;
-            const mockPricing = MOCK_GEN_PRICING[g.generatorId] || { rentPerDay: 1000, dieselPerHour: 500 };
-            initRentPerDay[g.id || g._id]    = gPricing?.partyDieselRentPrice ?? mockPricing.rentPerDay;
-            initDieselPerHour[g.id || g._id] = gPricing?.withDieselRentPrice  ?? mockPricing.dieselPerHour;
+            // Rent/day = partyDieselRentPrice (base generator rent, no diesel component)
+            initRentPerDay[g.id || g._id] = gPricing?.partyDieselRentPrice ?? '';
+            // Diesel/hr = withDieselRentPrice (diesel charge rate, only applied with WITH_OWNER diesel)
+            initDieselPerHour[g.id || g._id] = gPricing?.withDieselRentPrice ?? '';
+            initCableRate[g.id || g._id]     = gPricing?.cableRate ?? '';
             initDieselStart[g.id || g._id]   = '08:00';
             initDieselEnd[g.id || g._id]     = '10:00';
             initDate[g.id || g._id]          = today();
@@ -399,6 +432,7 @@ export default function GeneratorOrderBilling() {
         
         let existingRent = {};
         let existingDiesel = {};
+        let existingCable = {};
         let existingEntries = {};
 
         // Generate dates from functionDate
@@ -417,8 +451,10 @@ export default function GeneratorOrderBilling() {
         if (foundOrder.generators) {
             foundOrder.generators.forEach(g => {
                 const gId = g.id || g._id;
-                existingRent[gId] = g.rate || '';
-                existingDiesel[gId] = g.dieselRate || '';
+                // Keep as the API value (may be null for new orders — auto-populate will fill it)
+                existingRent[gId] = g.rate != null ? g.rate : '';
+                existingDiesel[gId] = g.dieselRate != null ? g.dieselRate : null;
+                existingCable[gId] = g.cableRate != null ? g.cableRate : (g.cableSize ? getCableRate(g.cableSize) : 0);
                 
                 if (g.dieselEntries && g.dieselEntries.length > 0) {
                     existingEntries[gId] = g.dieselEntries.map(e => ({
@@ -440,9 +476,10 @@ export default function GeneratorOrderBilling() {
         
         setRentPerDay(existingRent);
         setDieselPerHour(existingDiesel);
+        setCableRatePerDay(existingCable);
         setDieselEntries(existingEntries);
         setDiscount(foundOrder.discountAmount || 0);
-        setBillNo(foundOrder.orderNumber || id);
+        setBillNo(foundOrder.billNumber || '—');
         setIsEditBill(true); // Always edit existing order in DB
         setLoading(false);
       })
@@ -462,23 +499,44 @@ export default function GeneratorOrderBilling() {
 
     (order.generators || []).forEach(g => {
       const gId = g.id || g._id;
-      
-      // 1. If rent price per day is empty, try to populate it
+      const isWithDiesel = order.withDiesel || (order.dieselType && order.dieselType !== 'PARTY');
+
+      // 1. Rent price per day = partyDieselRentPrice (base generator rent WITHOUT diesel component)
+      //    This is always the base rent regardless of which party provides diesel.
       if (!nextRent[gId]) {
-        nextRent[gId] = g.rate || '';
+        const genObj = generatorsList.find(item => String(item.id) === String(g.generatorId));
+        
+
+        const isLikelyBugged = isWithDiesel && genObj && g.rate === genObj.withDieselRentPrice && g.rate !== genObj.partyDieselRentPrice;
+
+        if (g.rate && !isLikelyBugged) {
+          nextRent[gId] = g.rate;
+        } else {
+          if (genObj && genObj.partyDieselRentPrice != null) {
+            nextRent[gId] = genObj.partyDieselRentPrice;
+          } else {
+            nextRent[gId] = '';
+          }
+        }
         updated = true;
       }
-      
-      // 2. If diesel price per hour is empty, try to populate it
-      if (!nextDiesel[gId]) {
+
+      // 2. Diesel price per hour — use the saved dieselRate from the order item.
+      //    For new orders (dieselRate not yet saved), fall back to the generator's
+      //    withDieselRentPrice from the inventory catalog as a sensible default.
+      //    Check falsy (covers: null, undefined, '', 0) to decide whether to auto-fill.
+      if (!nextDiesel[gId] && nextDiesel[gId] !== 0) {
         if (g.dieselRate) {
           nextDiesel[gId] = g.dieselRate;
         } else {
-          // Find generator code to look up MOCK_GEN_PRICING
           const genObj = generatorsList.find(item => String(item.id) === String(g.generatorId));
-          const genCode = genObj ? (genObj.generatorCode || genObj.code) : '';
-          const defaultPricing = MOCK_GEN_PRICING[genCode] || { rentPerDay: 1000, dieselPerHour: 500 };
-          nextDiesel[gId] = defaultPricing.dieselPerHour;
+          if (genObj && genObj.withDieselRentPrice != null) {
+            // withDieselRentPrice is the per-day rent WITH diesel — use it as the diesel charge default
+            nextDiesel[gId] = genObj.withDieselRentPrice;
+          } else {
+            // No catalog data available; leave blank so user can enter manually
+            nextDiesel[gId] = '';
+          }
         }
         updated = true;
       }
@@ -504,6 +562,9 @@ export default function GeneratorOrderBilling() {
   const handleDieselPriceChange = (gId, val) => {
     setField(setDieselPerHour, gId, val);
     if (dieselErrors[gId]) setDieselErrors(p => ({ ...p, [gId]: '' }));
+  };
+  const handleCableRateChange = (gId, val) => {
+    setField(setCableRatePerDay, gId, val);
   };
   const handleDieselEntryChange = (gId, idx, field, val) => {
     setDieselEntries(prev => {
@@ -560,7 +621,10 @@ export default function GeneratorOrderBilling() {
 
       // ── Cable Charge (only when cableRequired AND cable selected) ────────
       const cableSize   = g.cableSize || '';
-      const cableRate   = (cableRequired && cableSize) ? getCableRate(cableSize) : 0;
+      const rawCableRate = cableRatePerDay[gKey];
+      const cableRate   = (cableRequired && cableSize)
+        ? (rawCableRate !== undefined && rawCableRate !== '' ? (parseFloat(rawCableRate) || 0) : getCableRate(cableSize))
+        : 0;
       const cableAmount = parseFloat((cableRate * rentalDays).toFixed(2));
 
       // ── Row Total ────────────────────────────────────────────────────────
@@ -578,13 +642,12 @@ export default function GeneratorOrderBilling() {
     });
 
     return { items, totalAmount: parseFloat(totalAmount.toFixed(2)) };
-  }, [order, rentPerDay, dieselPerHour, dieselEntries, rentalDays, withDiesel, cableRequired]);
+  }, [order, rentPerDay, dieselPerHour, cableRatePerDay, dieselEntries, rentalDays, withDiesel, cableRequired]);
 
   const discountVal = parseFloat(discount) || 0;
   const netTotal    = Math.max(0, parseFloat((calculations.totalAmount - discountVal).toFixed(2)));
   const amountWords = numberToWords(netTotal);
 
-  /* ── Save Bill ── */
   const handleSaveBill = (isCompleteCall = false) => {
     // Validate rent prices
     const newRentErrors = {};
@@ -606,28 +669,46 @@ export default function GeneratorOrderBilling() {
        discountAmount: discountVal,
        generators: (order?.generators || []).map(g => {
            const gKey = g.id || g._id;
+           const rawCableRate = cableRatePerDay[gKey];
+           const cRate = (cableRequired && g.cableSize)
+             ? (rawCableRate !== undefined && rawCableRate !== '' ? (parseFloat(rawCableRate) || 0) : getCableRate(g.cableSize))
+             : 0;
            return {
                orderItemId: g.id,
                rentPerDay: parseFloat(rentPerDay[gKey]) || 0,
                dieselPerHour: parseFloat(dieselPerHour[gKey]) || 0,
-               dieselEntries: (dieselEntries[gKey] || []).map(e => ({
-                   entryDate: e.date,
-                   startTime: e.startTime,
-                   endTime: e.endTime,
-                   duration: e.duration
-               }))
+               cableRate: cRate,
+               dieselEntries: (dieselEntries[gKey] || []).map(e => {
+                   const parsed = parseDateStr(e.date);
+                   const ymd = parsed ? `${parsed.getFullYear()}-${String(parsed.getMonth()+1).padStart(2,'0')}-${String(parsed.getDate()).padStart(2,'0')}` : e.date;
+                   return {
+                       entryDate: ymd,
+                       startTime: e.startTime,
+                       endTime: e.endTime,
+                       duration: e.duration
+                   };
+               })
            };
        })
     };
     
     generatorOrderService.updateBilling(id, req)
-       .then(() => {
+       .then((res) => {
+           setOrder(res);
+           // Bill number is only assigned after completeBilling — keep whatever is already shown
+           if (res.billNumber) setBillNo(res.billNumber);
            setToast({ title: 'Bill Saved!', msg: `Billing data saved successfully.` });
            if (showCompleteModal) {
-               generatorOrderService.completeBilling(id).then(() => {
+               generatorOrderService.completeBilling(id).then((completeRes) => {
+                   setOrder(completeRes);
+                   // Bill number is now assigned — update state
+                   setBillNo(completeRes.billNumber || '—');
                    setIsCompleted(true);
                    setShowCompleteModal(false);
-                   setToast({ title: 'Bill Completed!', msg: `Bill has been locked.` });
+                   setToast({ title: 'Bill Completed!', msg: `Bill No: ${completeRes.billNumber || '—'} has been locked.` });
+               }).catch(e => {
+                   console.error('completeBilling failed', e);
+                   alert('Failed to complete bill. Please try again.');
                });
            }
        })
@@ -644,9 +725,10 @@ export default function GeneratorOrderBilling() {
     const printWin = window.open('', '_blank', 'width=920,height=1060');
     if (!printWin) { alert('Please allow popups to print invoices.'); return; }
 
-    const billingDate = new Date().toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' });
+    const billingDate = formatToDMY(new Date());
     const fmtCurrency = (n) => `₹${(parseFloat(n)||0).toLocaleString('en-IN', { minimumFractionDigits:2 })}`;
-    const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-IN', { day:'2-digit', month:'2-digit', year:'2-digit' }).replace(/\//g,'-') : '—';
+    const fmtDate = (d) => formatToDMY(d);
+    const fmtFuncDate = (str) => formatRangeToDMY(str);
 
     const rows = calculations.items.map((g, idx) => `
       <tr>
@@ -679,12 +761,16 @@ export default function GeneratorOrderBilling() {
     `).join('');
 
     const html = `<!DOCTYPE html>
-      <html><head><meta charset="utf-8"><title>TAX INVOICE - Bill #${billNo}</title>
+      <html><head><meta charset="utf-8"><title>Invoice</title>
       <style>
+        @page{margin:0;size:A4} @media print{body{padding:10mm !important} html{-webkit-print-color-adjust:exact}}
         *{box-sizing:border-box} body{font-family:Arial,sans-serif;color:#1e293b;margin:0;padding:24px;background:#fff;font-size:13px}
         .box{max-width:860px;margin:auto}
-        .hdr{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #0f172a;padding-bottom:16px;margin-bottom:18px}
-        .meta table td{padding:3px 4px;font-size:13px} .meta table td:first-child{color:#64748b;padding-right:10px} .meta table td:last-child{font-weight:700}
+        .hdr{border-bottom:2px solid #1e40af;padding-bottom:14px;margin-bottom:18px}
+        .hdr-title{text-align:center;font-size:24px;font-weight:900;color:#0f172a;letter-spacing:2px;text-transform:uppercase;margin-bottom:12px}
+        .hdr-row{display:flex;justify-content:space-between;align-items:center;gap:15px}
+        .hdr-left{display:flex;align-items:center;gap:12px;flex:1;min-width:0}
+        .meta{flex-shrink:0} .meta table{border-collapse:collapse} .meta table td{padding:3px 6px;font-size:12.5px;white-space:nowrap} .meta table td:first-child{color:#64748b;min-width:95px;font-weight:600} .meta table td:last-child{font-weight:700}
         .sec{display:flex;border:1px solid #e2e8f0;margin-bottom:12px}
         .half{flex:1;padding:12px 14px} .half:first-child{border-right:1px solid #e2e8f0}
         .slabel{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#64748b;border-bottom:1px solid #f1f5f9;padding-bottom:3px;margin-bottom:6px}
@@ -702,12 +788,15 @@ export default function GeneratorOrderBilling() {
       </style></head><body>
       <div class="box">
         <div class="hdr">
-          <div>
-            <img src="/images/avadhut-logo.png" alt="Avadhut" style="height:52px;object-fit:contain;display:block;margin-bottom:4px;" onerror="this.style.display='none'"/>
-            <div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.5px;">TAX INVOICE</div>
-          </div>
-          <div class="meta">
-            <table><tr><td>Bill Number</td><td>: #${billNo}</td></tr><tr><td>Order Number</td><td>: ${order.id}</td></tr><tr><td>Billing Date</td><td>: ${billingDate}</td></tr><tr><td>Rental Days</td><td>: ${rentalDays} day${rentalDays!==1?'s':''}</td></tr></table>
+          <div class="hdr-title">TAX INVOICE</div>
+          <div class="hdr-row">
+            <div class="hdr-left">
+              <img src="/images/avadhut-logo.png" alt="Avadhut" style="height:100px;object-fit:contain;display:block;flex-shrink:0;" onerror="this.style.display='none'"/>
+              <div style="font-size:22px;font-weight:800;color:#cc0000;line-height:1.3;white-space:nowrap;">Avadhut Light Decoration &amp; Sound</div>
+            </div>
+            <div class="meta">
+              <table><tr><td>Bill Number</td><td>: #${billNo}</td></tr><tr><td>Order Number</td><td>: ${order.orderNumber || order.id}</td></tr><tr><td>Billing Date</td><td>: ${billingDate}</td></tr><tr><td>Rental Days</td><td>: ${rentalDays} day${rentalDays!==1?'s':''}</td></tr></table>
+            </div>
           </div>
         </div>
 
@@ -718,11 +807,7 @@ export default function GeneratorOrderBilling() {
             ${order.alternateMobile?`<div class="dr"><span class="dk">Alt. Mobile</span><span class="dv">: ${order.alternateMobile}</span></div>`:''}
           </div>
           <div class="half"><div class="slabel">Service Details</div>
-            <div class="dr"><span class="dk">Function Date</span><span class="dv">: ${order.functionDate||'—'}</span></div>
-            <div class="dr"><span class="dk">Operator</span><span class="dv">: ${order.operatorName||'—'}</span></div>
-            ${order.operatorMobile?`<div class="dr"><span class="dk">Operator Mo.</span><span class="dv">: ${order.operatorMobile}</span></div>`:''}
-            <div class="dr"><span class="dk">Cable Required</span><span class="dv">: ${order.cableRequired?'Yes':'No'}</span></div>
-            <div class="dr"><span class="dk">Diesel</span><span class="dv">: ${withDiesel?'With Owner':'Party Diesel'}</span></div>
+            <div class="dr"><span class="dk">Function Date</span><span class="dv">: ${fmtFuncDate(order.functionDate)}</span></div>
           </div>
         </div>
         <div class="site">
@@ -771,7 +856,40 @@ export default function GeneratorOrderBilling() {
     printWin.document.close();
   };
 
-  const handleSharePDF = (e) => { e.preventDefault(); alert('Preparing invoice PDF for sharing…'); handlePrintPDF(e); };
+  const getWhatsAppShareUrl = () => {
+    if (!order) return '';
+    const formattedPhone = order.contactNumber 
+      ? (order.contactNumber.startsWith('91') || order.contactNumber.startsWith('+91') 
+          ? order.contactNumber 
+          : '91' + order.contactNumber) 
+      : '';
+    const cleanPhone = formattedPhone.replace(/\D/g, '');
+    
+    const message = `Hello *${order.clientName || 'Valued Client'}*,\n\nYour invoice for generator order *${order.orderNumber || ''}* (Bill No: *${billNo}*) has been completed.\n\n*Net Total:* ₹${netTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}\n\nPlease find the attached invoice PDF.\n\nThank you for choosing Avadhut Lights & Decoration!\n\nBest regards,\n*Avadhut Lights & Decoration*`;
+    
+    return `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(message)}`;
+  };
+
+  const getEmailShareUrl = () => {
+    if (!order) return '';
+    const subject = `Invoice from Avadhut Lights & Decoration - Bill #${billNo}`;
+    
+    const message = `Dear ${order.clientName || 'Client'},\n\nYour invoice for generator order ${order.orderNumber} (Bill No: ${billNo}) has been completed.\n\nHere are the billing details:\n- Invoice Number: #${billNo}\n- Order Number: ${order.orderNumber}\n- Net Total Amount: Rs. ${netTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}\n\nPlease find the attached invoice PDF for your records.\n\nThank you for choosing Avadhut Lights & Decoration!\n\nBest regards,\nAvadhut Lights & Decoration`;
+    
+    return `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(message)}`;
+  };
+
+  const handleSharePDF = (e) => {
+    e.preventDefault();
+    setShowShareModal(true);
+  };
+
+  /* ── Build share-compatible order object for InvoiceShareModal ── */
+  const shareOrderData = order ? {
+    ...order,
+    orderNumber: order.orderNumber || order.id,
+    contactNumber: order.contactNumber,
+  } : null;
 
   /* ── Render ── */
   if (loading) return <><style>{STYLES}</style><SkeletonForm /></>;
@@ -818,7 +936,9 @@ export default function GeneratorOrderBilling() {
           </div>
           <div className="gb2-grid-3" style={{ marginBottom:18 }}>
             <div className="gb2-field"><Label>Alternate Mobile</Label><input className="gb2-input" value={order.alternateMobile || '—'} disabled readOnly /></div>
-            <div className="gb2-field"><Label>Function Date</Label><input className="gb2-input" value={order.functionDate || '—'} disabled readOnly /></div>
+            <div className="gb2-field"><Label>Function Date</Label>
+              <input className="gb2-input" value={formatRangeToDMY(order.functionDate || (order.functionDateFrom && order.functionDateTo ? `${order.functionDateFrom} to ${order.functionDateTo}` : ''))} disabled readOnly />
+            </div>
             <div className="gb2-field"><Label>Rental Days</Label>
               <input className="gb2-input" style={{ fontWeight:700, color:'var(--color-primary-dark)' }}
                 value={`${rentalDays} day${rentalDays!==1?'s':''}`} disabled readOnly />
@@ -859,7 +979,7 @@ export default function GeneratorOrderBilling() {
             </div>
             <div className="gb2-field"><Label>Billing Date</Label>
               <input className="gb2-input" style={{ background:'var(--color-surface-2)' }}
-                value={new Date().toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' })}
+                value={formatToDMY(new Date())}
                 disabled readOnly />
             </div>
           </div>
@@ -929,6 +1049,7 @@ export default function GeneratorOrderBilling() {
                           onBlur={() => handleRentBlur(g._key, rentPerDay[g._key])}
                           placeholder="₹/day"
                           error={rentErrors[g._key]}
+                          disabled={isCompleted}
                         />
                         <div style={{ fontSize:10.5, color:'var(--color-text-subtle)', marginTop:3, textAlign:'right' }}>₹/day</div>
                       </td>
@@ -974,7 +1095,7 @@ export default function GeneratorOrderBilling() {
                           —
                         </td>
                         <td className="gb2-td" style={{ textAlign:'center', color:'#92400e', fontWeight:600 }}>
-                          {de.date}
+                          {formatToDMY(de.date)}
                         </td>
                         {/* Diesel Start */}
                         <td className="gb2-td" style={{ textAlign:'center' }}>
@@ -1009,8 +1130,15 @@ export default function GeneratorOrderBilling() {
                             {fmtCurrency(g.cableRate)}/day × {rentalDays} day{rentalDays!==1?'s':''}
                           </div>
                         </td>
-                        <td className="gb2-td" style={{ textAlign:'right', fontFamily:'monospace', color:'#1e40af', fontSize:13 }}>
-                          {fmtCurrency(g.cableRate)}<span style={{ fontSize:11 }}>/day</span>
+                        <td className="gb2-td" style={{ textAlign:'right' }}>
+                          <NumInput
+                            id={`inp-cable-rate-${idx}`}
+                            value={cableRatePerDay[g._key] ?? (g.cableSize ? getCableRate(g.cableSize) : '')}
+                            onChange={val => handleCableRateChange(g._key, val)}
+                            placeholder="₹/day"
+                            disabled={isCompleted}
+                          />
+                          <div style={{ fontSize:10.5, color:'var(--color-text-subtle)', marginTop:3, textAlign:'right' }}>₹/day</div>
                         </td>
                         <td className="gb2-td" style={{ textAlign:'center', fontWeight:700, color:'#1e40af' }}>
                           {rentalDays}
@@ -1066,6 +1194,7 @@ export default function GeneratorOrderBilling() {
                     placeholder="0.00"
                     value={discount === 0 ? '' : discount}
                     onChange={e => handleDiscountChange(e.target.value, calculations.totalAmount)}
+                    disabled={isCompleted}
                     onKeyDown={e => {
                       const ok = ['Backspace','Delete','Tab','ArrowLeft','ArrowRight','Home','End','.'];
                       if (!ok.includes(e.key) && !/^\d$/.test(e.key)) e.preventDefault();
@@ -1089,10 +1218,10 @@ export default function GeneratorOrderBilling() {
             <button id="btn-cancel" className="gb2-btn gb2-btn-cancel" type="button" onClick={() => navigate(ROUTES.GENERATOR_ORDERS)}>
               Cancel
             </button>
-            <button id="btn-print" className="gb2-btn gb2-btn-print" type="button" onClick={handlePrintPDF}>
+            <button id="btn-print" className="gb2-btn gb2-btn-print" type="button" onClick={handlePrintPDF} disabled={!isCompleted}>
               <Icon.Printer /> Print Invoice
             </button>
-            <button id="btn-share" className="gb2-btn gb2-btn-share" type="button" onClick={handleSharePDF}>
+            <button id="btn-share" className="gb2-btn gb2-btn-share" type="button" onClick={handleSharePDF} disabled={!isCompleted}>
               <Icon.Share /> Share Invoice
             </button>
             {!isCompleted && <button id="btn-save-bill" className="gb2-btn gb2-btn-save" type="button" style={{ background: '#475569', boxShadow: 'none' }} onClick={() => handleSaveBill(false)} disabled={saving}>
@@ -1108,6 +1237,17 @@ export default function GeneratorOrderBilling() {
         </div>
 
       </div>
+
+      {/* ── Invoice Share Modal (replaces inline share modal) ── */}
+      <InvoiceShareModal
+        isOpen={showShareModal}
+        onClose={() => setShowShareModal(false)}
+        type="billing"
+        order={shareOrderData}
+        billNo={billNo}
+        netTotal={netTotal}
+        onPrintPdf={handlePrintPDF}
+      />
 
 
       {showCompleteModal && (

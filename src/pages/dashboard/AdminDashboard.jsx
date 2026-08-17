@@ -40,7 +40,7 @@ const formatCurrency = (val) => {
   return "₹" + Number(val).toLocaleString("en-IN", { maximumFractionDigits: 0 })
 }
 
-// ─── Sub-components ───────────────────────────────────────────────────────────
+// ─── Sub-components
 function StatCard({ label, value, change, up, icon: Icon, bg, iconColor, sub }) {
   return (
     <div

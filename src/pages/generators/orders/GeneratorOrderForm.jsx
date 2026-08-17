@@ -7,10 +7,13 @@ import {
   DIESEL_TYPES,
   CABLE_SIZES,
   newGeneratorEntry,
+  formatToDMY,
+  formatRangeToDMY,
 } from './mockData';
 import { generatorOrderService } from '@/services/generatorOrderService';
 import { generatorService } from '@/services/generatorService';
 import { userService } from '@/services/userService';
+import InvoiceShareModal from '@/components/shared/InvoiceShareModal';
 
 /* ─── Icons ─────────────────────────────────────────────────────────────── */
 const Icon = {
@@ -251,7 +254,7 @@ const STYLES = `
   .gf2-btn-share:hover  { background:#0f766e; }
   .gf2-btn-save   { background:var(--color-primary); color:#fff; }
   .gf2-btn-save:hover   { background:var(--color-primary-dark); }
-  .gf2-btn-save:disabled { opacity:.65; cursor:not-allowed; }
+  .gf2-btn:disabled { opacity:.4; cursor:not-allowed; transform:none; pointer-events:none; }
 
   /* ── Share dropdown ── */
   .gf2-share-wrap { position: relative; display: inline-flex; }
@@ -304,7 +307,17 @@ function CardSection({ icon: Ic, title, children }) {
 }
 
 /* ─── Single Generator Entry Row ─────────────────────────────────────────── */
-function GeneratorEntry({ entry, index, total, errors, onChange, onRemove, onAdd, generatorOptions, showCable }) {
+function GeneratorEntry({ entry, index, total, errors, onChange, onRemove, onAdd, generatorOptions, showCable, disabled, allGenerators = [] }) {
+  // Helper to calculate stock availability adjusted for selections in OTHER rows of the form
+  const getAdjustedStock = (g) => {
+    const originalStock = g.availableStock !== undefined ? g.availableStock : (g.totalStock != null ? g.totalStock : 0);
+    if (typeof originalStock !== 'number') return originalStock;
+    
+    // Count selections of this generator in other rows of the form
+    const countInOthers = allGenerators.filter((item, idx) => idx !== index && String(item.generatorId) === String(g.id)).length;
+    return Math.max(0, originalStock - countInOthers);
+  };
+
   return (
     <div className="gf2-gen-row">
       {/* Generator select */}
@@ -319,14 +332,29 @@ function GeneratorEntry({ entry, index, total, errors, onChange, onRemove, onAdd
             onChange(index, 'generatorId', e.target.value);
             onChange(index, 'generatorName', found ? (found.name || '') : '');
           }}
+          disabled={disabled}
         >
           <option value="">— Select Generator —</option>
-          {generatorOptions.map(g => (
-            <option key={g.id} value={String(g.id)}>
-              {g.name}{g.generatorCode ? ` (${g.generatorCode})` : g.code ? ` (${g.code})` : ''}
-            </option>
-          ))}
+          {generatorOptions.map(g => {
+            const avail = getAdjustedStock(g);
+            const isSelectable = typeof avail === 'number' ? avail > 0 : true;
+            return (
+              <option key={g.id} value={String(g.id)} disabled={!isSelectable && String(entry.generatorId) !== String(g.id)}>
+                {g.name} (Available: {avail})
+              </option>
+            );
+          })}
         </select>
+        {entry.generatorId && (() => {
+          const opt = generatorOptions.find(o => String(o.id) === String(entry.generatorId));
+          if (!opt) return null;
+          const avail = getAdjustedStock(opt);
+          return (
+            <div style={{ fontSize: '12px', color: avail > 0 ? '#10b981' : '#ef4444', marginTop: '4px', fontWeight: '500' }}>
+              Available Stock: {avail}
+            </div>
+          );
+        })()}
         <ErrMsg msg={errors?.generatorId} />
       </div>
 
@@ -339,6 +367,7 @@ function GeneratorEntry({ entry, index, total, errors, onChange, onRemove, onAdd
             className={`gf2-select${errors?.cableSize ? ' err' : ''}`}
             value={entry.cableSize || ''}
             onChange={e => onChange(index, 'cableSize', e.target.value)}
+            disabled={disabled}
           >
             <option value="">— Select Cable —</option>
             {CABLE_SIZES.map(c => (
@@ -360,11 +389,13 @@ function GeneratorEntry({ entry, index, total, errors, onChange, onRemove, onAdd
         <button
           type="button"
           onClick={onAdd}
+          disabled={disabled}
           style={{
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             width: 42, height: 42, borderRadius: 'var(--radius-md)',
             border: '1.5px solid var(--color-primary-100)', background: 'var(--color-primary-50)',
             color: 'var(--color-primary)', fontSize: 20, cursor: 'pointer', transition: 'all 0.15s',
+            ...(disabled ? { cursor: 'not-allowed', opacity: 0.5 } : {})
           }}
           title="Add Generator"
         >+</button>
@@ -373,8 +404,9 @@ function GeneratorEntry({ entry, index, total, errors, onChange, onRemove, onAdd
           <button
             type="button"
             className="gf2-remove-btn"
-            style={{ width: 42, height: 42, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            style={{ width: 42, height: 42, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', ...(disabled ? { cursor: 'not-allowed', opacity: 0.5 } : {}) }}
             onClick={() => onRemove(index)}
+            disabled={disabled}
             id={`btn-remove-gen-${index}`}
             title="Remove Generator"
           >
@@ -409,6 +441,24 @@ function SkeletonForm() {
   );
 }
 
+/* ─── Helper Functions ───────────────────────────────────────────────────── */
+const parseFunctionDate = str => {
+  if (!str) return { from: null, to: null };
+  const parts = str.split(' to ');
+  const toYMD = (s) => {
+    if (!s) return null;
+    s = s.trim();
+    const dmy = s.match(/^(\d{2})[-/](\d{2})[-/](\d{4})$/);
+    if (dmy) return `${dmy[3]}-${dmy[2]}-${dmy[1]}`;
+    const ymd = s.match(/^(\d{4})[-/](\d{2})[-/](\d{2})$/);
+    if (ymd) return `${ymd[1]}-${ymd[2]}-${ymd[3]}`;
+    return s;
+  };
+  return parts.length === 2
+    ? { from: toYMD(parts[0]), to: toYMD(parts[1]) }
+    : { from: toYMD(str), to: toYMD(str) };
+};
+
 /* ─── Initial state ──────────────────────────────────────────────────────── */
 const INITIAL_ORDER = {
   orderNumber:            '',
@@ -423,6 +473,7 @@ const INITIAL_ORDER = {
   siteAddressLink:        '',
   remarks:                '',
   functionDate:           '',
+  billingStatus:          '',
 };
 const INITIAL_GENERATORS = () => [newGeneratorEntry()];
 
@@ -442,6 +493,32 @@ export default function GeneratorOrderForm() {
   const [operatorOptions, setOperatorOptions]   = useState([]);
   const [generatorOptions, setGeneratorOptions] = useState([]);
   const [shareOpen, setShareOpen]               = useState(false);
+  const [showShareModal, setShowShareModal]     = useState(false);
+  const isDisabled = isEdit && order.billingStatus === 'COMPLETED';
+
+  /* ── Disable Browser Inspect (F12, Right-Click, Ctrl+Shift+I, etc.) ── */
+  useEffect(() => {
+    const handleContextMenu = (e) => e.preventDefault();
+    const handleKeyDown = (e) => {
+      // F12
+      if (e.keyCode === 123) e.preventDefault();
+      // Ctrl+Shift+I
+      if (e.ctrlKey && e.shiftKey && e.keyCode === 73) e.preventDefault();
+      // Ctrl+Shift+J
+      if (e.ctrlKey && e.shiftKey && e.keyCode === 74) e.preventDefault();
+      // Ctrl+U
+      if (e.ctrlKey && e.keyCode === 85) e.preventDefault();
+      // Ctrl+Shift+C
+      if (e.ctrlKey && e.shiftKey && e.keyCode === 67) e.preventDefault();
+    };
+
+    document.addEventListener('contextmenu', handleContextMenu);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('contextmenu', handleContextMenu);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
 
   /* ── Load operators from Users API ── */
   useEffect(() => {
@@ -459,12 +536,13 @@ export default function GeneratorOrderForm() {
       .catch(() => { /* silent – user can type name manually */ });
   }, []);
 
-  /* ── Load generators from Inventory API ── */
+  /* ── Load generators from Inventory API with Stock Availability ── */
   useEffect(() => {
-    generatorService.getForDropdown()
+    const { from, to } = parseFunctionDate(order.functionDate);
+    generatorService.getForDropdownWithAvailability(from, to, isEdit ? id : null)
       .then(gens => setGeneratorOptions(Array.isArray(gens) ? gens : []))
-      .catch(() => { /* silent */ });
-  }, []);
+      .catch(() => { /* silent fallback */ });
+  }, [order.functionDate, isEdit, id]);
 
   /* ── Load existing order in edit mode ── */
   useEffect(() => {
@@ -486,8 +564,9 @@ export default function GeneratorOrderForm() {
           siteAddressLink:        o.siteAddressLink || '',
           remarks:                o.notes           || o.remarks || '',
           functionDate:           o.functionDateFrom && o.functionDateTo
-            ? `${o.functionDateFrom} to ${o.functionDateTo}`
-            : (o.functionDate || ''),
+            ? `${formatToDMY(o.functionDateFrom)} to ${formatToDMY(o.functionDateTo)}`
+            : (formatRangeToDMY(o.functionDate) || ''),
+          billingStatus:          o.billingStatus   || '',
         });
         if (o.generators?.length) {
           setGens(o.generators.map(item => ({
@@ -548,13 +627,23 @@ export default function GeneratorOrderForm() {
     const oe  = {};
 
     if (!order.clientName.trim())    { oe.clientName    = 'Client name is required';    valid = false; }
-    if (!order.contactNumber.trim()) { oe.contactNumber = 'Contact number is required'; valid = false; }
-    if (
-      order.alternateContactNumber.trim() &&
-      order.alternateContactNumber.trim() === order.contactNumber.trim()
-    ) {
-      oe.alternateContactNumber = 'Alternate number must differ from contact number';
+    
+    if (!order.contactNumber.trim()) {
+      oe.contactNumber = 'Contact number is required';
       valid = false;
+    } else if (order.contactNumber.trim().length !== 10) {
+      oe.contactNumber = 'Contact number must be exactly 10 digits';
+      valid = false;
+    }
+
+    if (order.alternateContactNumber.trim()) {
+      if (order.alternateContactNumber.trim().length !== 10) {
+        oe.alternateContactNumber = 'Alternate contact number must be exactly 10 digits';
+        valid = false;
+      } else if (order.alternateContactNumber.trim() === order.contactNumber.trim()) {
+        oe.alternateContactNumber = 'Alternate number must differ from contact number';
+        valid = false;
+      }
     }
     if (!order.operatorName.trim())  { oe.operatorName  = 'Operator name is required';  valid = false; }
     if (!order.siteAddress.trim())   { oe.siteAddress   = 'Site address is required';   valid = false; }
@@ -564,8 +653,22 @@ export default function GeneratorOrderForm() {
 
     const ge = generators.map(g => {
       const e = {};
-      if (!g.generatorId)                      { e.generatorId = 'Select a generator';  valid = false; }
-      if (order.cableRequired && !g.cableSize) { e.cableSize   = 'Select a cable size'; valid = false; }
+      if (!g.generatorId) {
+        e.generatorId = 'Select a generator';
+        valid = false;
+      } else {
+        const selectedCount = generators.filter(x => String(x.generatorId) === String(g.generatorId)).length;
+        const option = generatorOptions.find(opt => String(opt.id) === String(g.generatorId));
+        const avail = option ? (option.availableStock !== undefined ? option.availableStock : option.totalStock) : 0;
+        if (selectedCount > avail) {
+          e.generatorId = `Exceeds available stock (${avail} available)`;
+          valid = false;
+        }
+      }
+      if (order.cableRequired && !g.cableSize) {
+        e.cableSize   = 'Select a cable size';
+        valid = false;
+      }
       return e;
     });
     setGErr(ge);
@@ -577,15 +680,6 @@ export default function GeneratorOrderForm() {
       }, 80);
     }
     return valid;
-  };
-
-  /* ── Parse "YYYY-MM-DD to YYYY-MM-DD" ── */
-  const parseFunctionDate = str => {
-    if (!str) return { from: null, to: null };
-    const parts = str.split(' to ');
-    return parts.length === 2
-      ? { from: parts[0].trim(), to: parts[1].trim() }
-      : { from: str.trim(), to: str.trim() };
   };
 
   /* ── Save to API ── */
@@ -612,8 +706,6 @@ export default function GeneratorOrderForm() {
       generators: generators.map(g => ({
         generatorId: g.generatorId,
         cableSize:   order.cableRequired ? (g.cableSize || null) : null,
-        startTime:   g.startTime || '09:00',
-        endTime:     g.endTime   || '18:00',
       })),
     };
 
@@ -639,8 +731,9 @@ export default function GeneratorOrderForm() {
     const printWindow = window.open('', '_blank', 'width=860,height=900');
     if (!printWindow) { alert('Please allow popups to print the order sheet.'); return; }
 
-    const orderRef = id || 'New Order';
-    const dateStr  = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+    // Use the real order number (e.g. GO20261) — fall back to id only as last resort
+    const orderRef = order.orderNumber || id || 'New Order';
+    const dateStr  = formatToDMY(new Date());
 
     const gensRows = generators.map((g, idx) => {
       const found = generatorOptions.find(item => String(item.id) === String(g.generatorId));
@@ -659,21 +752,16 @@ export default function GeneratorOrderForm() {
       <!DOCTYPE html><html>
       <head>
         <meta charset="utf-8">
-        <title>Order Sheet - ${order.clientName || 'Client'}</title>
+        <title>Order Sheet</title>
         <style>
-          body { font-family: Arial, sans-serif; color: #1e293b; margin: 0; padding: 32px; background: #fff; }
+          @page{margin:0;size:A4} @media print{body{padding:10mm !important} html{-webkit-print-color-adjust:exact}}
+          body { font-family: Arial, sans-serif; color: #1e293b; margin: 0; padding: 24px; background: #fff; font-size:13px; }
           .box { max-width: 800px; margin: auto; }
-          .header-row {
-            display: flex; justify-content: space-between; align-items: flex-start;
-            padding-bottom: 16px; margin-bottom: 24px; border-bottom: 2.5px solid #2563eb;
-          }
-          .logo-side { display: flex; flex-direction: column; align-items: flex-start; }
-          .logo-side img { height: 56px; object-fit: contain; }
-          .co-name  { font-size: 15px; font-weight: 800; color: #2563eb; letter-spacing: 1px; margin-top: 4px; }
-          .doc-type { font-size: 12px; color: #475569; margin-top: 1px; }
-          .order-meta { text-align: right; }
-          .order-meta p { margin: 5px 0; font-size: 13px; color: #475569; }
-          .order-meta strong { color: #0f172a; min-width: 110px; display: inline-block; text-align: left; }
+          .hdr { border-bottom: 2.5px solid #1e40af; padding-bottom: 14px; margin-bottom: 24px; }
+          .hdr-title { text-align: center; font-size: 24px; font-weight: 900; color: #0f172a; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 12px; }
+          .hdr-row { display: flex; justify-content: space-between; align-items: center; gap: 15px; }
+          .hdr-left { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; }
+          .meta { flex-shrink: 0; } .meta table { border-collapse: collapse; } .meta table td { padding: 3px 6px; font-size: 12.5px; white-space: nowrap; } .meta table td:first-child { color: #64748b; min-width: 95px; font-weight: 600; } .meta table td:last-child { font-weight: 700; }
           .details-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-bottom: 22px; }
           .section-label {
             font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px;
@@ -687,20 +775,23 @@ export default function GeneratorOrderForm() {
           th { background:#f8fafc; border:1px solid #cbd5e1; padding:10px; font-size:11px;
                font-weight:700; text-transform:uppercase; color:#475569; text-align:left; }
           .footer { border-top: 1px solid #e2e8f0; padding-top: 14px; text-align: center; font-size: 11px; color: #94a3b8; margin-top: 8px; }
-          @media print { body { padding: 0; } }
         </style>
       </head>
       <body>
         <div class="box">
-          <div class="header-row">
-            <div class="logo-side">
-              <img src="/images/avadhut-logo.png" alt="Avadhut Logo" />
-              <span class="co-name">AVADHUT</span>
-              <span class="doc-type">ORDER SHEET</span>
-            </div>
-            <div class="order-meta">
-              <p><strong>Order Number</strong> : ${orderRef}</p>
-              <p><strong>Date</strong>         : ${dateStr}</p>
+          <div class="hdr">
+            <div class="hdr-title">ORDER SHEET</div>
+            <div class="hdr-row">
+              <div class="hdr-left">
+                <img src="/images/avadhut-logo.png" alt="Avadhut" style="height:100px;object-fit:contain;display:block;flex-shrink:0;" onerror="this.style.display='none'"/>
+                <div style="font-size:22px;font-weight:800;color:#cc0000;line-height:1.3;white-space:nowrap;">Avadhut Light Decoration &amp; Sound</div>
+              </div>
+              <div class="meta">
+                <table>
+                  <tr><td>Order Number</td><td>: ${orderRef}</td></tr>
+                  <tr><td>Date</td><td>: ${dateStr}</td></tr>
+                </table>
+              </div>
             </div>
           </div>
 
@@ -713,7 +804,7 @@ export default function GeneratorOrderForm() {
             </div>
             <div>
               <div class="section-label">Service Details</div>
-              <div class="info-row"><span class="info-key">Function Date</span><span class="info-val">: ${order.functionDate || '—'}</span></div>
+              <div class="info-row"><span class="info-key">Function Date</span><span class="info-val">: ${formatRangeToDMY(order.functionDate)}</span></div>
               <div class="info-row"><span class="info-key">Operator</span><span class="info-val">: ${order.operatorName || '—'}</span></div>
               ${order.operatorMobile ? `<div class="info-row"><span class="info-key">Operator Mo. No.</span><span class="info-val">: ${order.operatorMobile}</span></div>` : ''}
               <div class="info-row"><span class="info-key">Cable Required</span><span class="info-val">: ${order.cableRequired ? 'Yes' : 'No'}</span></div>
@@ -737,12 +828,6 @@ export default function GeneratorOrderForm() {
             <tbody>${gensRows}</tbody>
           </table>
 
-          ${order.remarks ? `
-            <div class="section-label">Remarks / Instructions</div>
-            <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px;font-size:13px;line-height:1.6;margin-bottom:24px;color:#475569;">
-              ${order.remarks.replace(/\n/g, '<br>')}
-            </div>` : ''}
-
           <div class="footer">
             <p>This is a computer-generated order document. No signature required.</p>
             <p>© ${new Date().getFullYear()} Avadhut ERP Systems. All rights reserved.</p>
@@ -757,7 +842,7 @@ export default function GeneratorOrderForm() {
   const handleShareOption = channel => {
     const orderRef   = id || 'New Order';
     const clientName = order.clientName || 'Client';
-    const funcDate   = order.functionDate || '—';
+    const funcDate   = formatRangeToDMY(order.functionDate) || '—';
     const rawMsg =
       `Generator Order Details:\nOrder Ref: ${orderRef}\nClient: ${clientName}\n` +
       `Function Date: ${funcDate}\nFor full order sheet, use the Print option.`;
@@ -770,6 +855,14 @@ export default function GeneratorOrderForm() {
       window.location.href = `mailto:?subject=${subject}&body=${body}`;
     }
     setShareOpen(false);
+  };
+
+  /* ── Build order object compatible with InvoiceShareModal ── */
+  const shareOrderData = {
+    ...order,
+    orderNumber: order.orderNumber || id,
+    contactNumber: order.contactNumber,
+    generators,
   };
 
   /* ── Reset form ── */
@@ -811,6 +904,28 @@ export default function GeneratorOrderForm() {
           </div>
         </div>
 
+        {isDisabled && (
+          <div style={{
+            background: '#FEF3C7',
+            border: '1.5px solid #FCD34D',
+            color: '#92400E',
+            borderRadius: 'var(--radius-lg)',
+            padding: '12px 16px',
+            marginBottom: '20px',
+            fontSize: '14px',
+            fontWeight: '600',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px'
+          }}>
+            <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+              <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+            This order's billing is completed. All fields are read-only and cannot be modified.
+          </div>
+        )}
+
         {/* ── SECTION 1: ORDER DETAILS ── */}
         <CardSection icon={Icon.User} title="Order Details">
 
@@ -824,6 +939,7 @@ export default function GeneratorOrderForm() {
                 placeholder="e.g. Rajesh Construction Co."
                 value={order.clientName}
                 onChange={e => handleOrderChange('clientName', e.target.value)}
+                disabled={isDisabled}
               />
               <ErrMsg msg={orderErrors.clientName} />
             </div>
@@ -846,6 +962,8 @@ export default function GeneratorOrderForm() {
                 onChange={val => handleOrderChange('functionDate', val)}
                 placeholder="From Date - To Date"
                 align="right"
+                minDate={null}
+                disabled={isDisabled}
               />
               <ErrMsg msg={orderErrors.functionDate} />
             </div>
@@ -858,12 +976,13 @@ export default function GeneratorOrderForm() {
               <input
                 id="inp-contact"
                 type="tel"
-                maxLength={15}
+                maxLength={10}
                 inputMode="numeric"
                 className={`gf2-input${orderErrors.contactNumber ? ' err' : ''}`}
                 placeholder="e.g. 9876543210"
                 value={order.contactNumber}
                 onChange={e => handlePhoneChange('contactNumber', e.target.value)}
+                disabled={isDisabled}
               />
               <ErrMsg msg={orderErrors.contactNumber} />
             </div>
@@ -873,12 +992,13 @@ export default function GeneratorOrderForm() {
               <input
                 id="inp-alt-contact"
                 type="tel"
-                maxLength={15}
+                maxLength={10}
                 inputMode="numeric"
                 className={`gf2-input${orderErrors.alternateContactNumber ? ' err' : ''}`}
                 placeholder="e.g. 9876543210"
                 value={order.alternateContactNumber}
                 onChange={e => handlePhoneChange('alternateContactNumber', e.target.value)}
+                disabled={isDisabled}
               />
               <ErrMsg msg={orderErrors.alternateContactNumber} />
             </div>
@@ -899,6 +1019,7 @@ export default function GeneratorOrderForm() {
                     if (found) handleOrderChange('operatorMobile', found.mobile || '');
                   }}
                   autoComplete="off"
+                  disabled={isDisabled}
                 />
                 <span className="gf2-combo-icon"><Icon.ChevronDown /></span>
               </div>
@@ -916,10 +1037,14 @@ export default function GeneratorOrderForm() {
               <div className="gf2-toggle-grp">
                 <button id="btn-cable-yes" type="button"
                   className={`gf2-toggle-btn${order.cableRequired ? ' on' : ''}`}
-                  onClick={() => handleOrderChange('cableRequired', true)}>Yes</button>
+                  onClick={() => !isDisabled && handleOrderChange('cableRequired', true)}
+                  disabled={isDisabled}
+                  style={isDisabled ? { cursor: 'not-allowed', opacity: 0.7 } : {}}>Yes</button>
                 <button id="btn-cable-no" type="button"
                   className={`gf2-toggle-btn${!order.cableRequired ? ' on' : ''}`}
-                  onClick={() => handleOrderChange('cableRequired', false)}>No</button>
+                  onClick={() => !isDisabled && handleOrderChange('cableRequired', false)}
+                  disabled={isDisabled}
+                  style={isDisabled ? { cursor: 'not-allowed', opacity: 0.7 } : {}}>No</button>
               </div>
             </div>
 
@@ -934,7 +1059,9 @@ export default function GeneratorOrderForm() {
                   return (
                     <button key={opt.value} id={`btn-diesel-${opt.value}`} type="button"
                       className={`gf2-chip${active ? ' on' : ''}`}
-                      onClick={() => handleOrderChange('dieselType', opt.value)}>
+                      onClick={() => !isDisabled && handleOrderChange('dieselType', opt.value)}
+                      disabled={isDisabled}
+                      style={isDisabled ? { cursor: 'not-allowed', opacity: 0.7 } : {}}>
                       <span className={`gf2-chip-box${active ? ' on' : ''}`}>
                         {active && (
                           <svg width="9" height="9" fill="none" stroke="#fff" strokeWidth="3" viewBox="0 0 24 24">
@@ -979,6 +1106,8 @@ export default function GeneratorOrderForm() {
                 onAdd={addGenerator}
                 generatorOptions={generatorOptions}
                 showCable={order.cableRequired}
+                disabled={isDisabled}
+                allGenerators={generators}
               />
             ))}
           </div>
@@ -996,6 +1125,7 @@ export default function GeneratorOrderForm() {
                 value={order.siteAddress}
                 onChange={e => handleOrderChange('siteAddress', e.target.value)}
                 rows={3}
+                disabled={isDisabled}
               />
               <ErrMsg msg={orderErrors.siteAddress} />
             </div>
@@ -1009,6 +1139,7 @@ export default function GeneratorOrderForm() {
                 placeholder="e.g. https://maps.google.com/..."
                 value={order.siteAddressLink}
                 onChange={e => handleOrderChange('siteAddressLink', e.target.value)}
+                disabled={isDisabled}
               />
             </div>
 
@@ -1021,6 +1152,7 @@ export default function GeneratorOrderForm() {
                 value={order.remarks}
                 onChange={e => handleOrderChange('remarks', e.target.value)}
                 rows={4}
+                disabled={isDisabled}
               />
             </div>
           </div>
@@ -1038,37 +1170,18 @@ export default function GeneratorOrderForm() {
               </button>
             )}
 
-            <button id="btn-print" className="gf2-btn gf2-btn-print" type="button" onClick={handlePrintPDF}>
+            <button id="btn-print" className="gf2-btn gf2-btn-print" type="button" onClick={handlePrintPDF} disabled={!isEdit}>
               <Icon.Printer /> Print
             </button>
 
-            {/* Share dropdown */}
-            <div className="gf2-share-wrap">
-              <button id="btn-share" className="gf2-btn gf2-btn-share" type="button"
-                onClick={() => setShareOpen(prev => !prev)}>
-                <Icon.Share /> Share <Icon.ChevronDown />
-              </button>
-              {shareOpen && (
-                <div className="gf2-share-dropdown">
-                  <button type="button" className="gf2-share-item" onClick={() => handleShareOption('whatsapp')}>
-                    <svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24" style={{ color: '#25d366', flexShrink: 0 }}>
-                      <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51h-.57c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
-                    </svg>
-                    WhatsApp
-                  </button>
-                  <button type="button" className="gf2-share-item" onClick={() => handleShareOption('email')}>
-                    <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" style={{ color: '#ea4335', flexShrink: 0 }}>
-                      <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
-                      <polyline points="22,6 12,13 2,6"/>
-                    </svg>
-                    Email
-                  </button>
-                </div>
-              )}
-            </div>
+            {/* Share button — opens InvoiceShareModal */}
+            <button id="btn-share" className="gf2-btn gf2-btn-share" type="button"
+              onClick={() => setShowShareModal(true)} disabled={!isEdit}>
+              <Icon.Share /> Share
+            </button>
 
             <button id="btn-save" className="gf2-btn gf2-btn-save" type="button"
-              onClick={handleSave} disabled={saving}>
+              onClick={handleSave} disabled={saving || isDisabled}>
               <Icon.Save />
               {saving ? 'Saving…' : isEdit ? 'Update Order' : 'Save Order'}
             </button>
@@ -1076,6 +1189,15 @@ export default function GeneratorOrderForm() {
         </div>
 
       </div>
+
+      {/* ── Invoice Share Modal ── */}
+      <InvoiceShareModal
+        isOpen={showShareModal}
+        onClose={() => setShowShareModal(false)}
+        type="order-sheet"
+        order={shareOrderData}
+        onPrintPdf={handlePrintPDF}
+      />
 
       {/* ── Toast ── */}
       {toast && (

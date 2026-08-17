@@ -409,7 +409,7 @@ export default function ProductForm() {
 
             {/* Card 2: Pricing & Stock */}
             <div className="pf-card">
-              <CardHeader icon={Icon.Dollar}>Pricing &amp; Stock</CardHeader>
+              <CardHeader>Pricing &amp; Stock</CardHeader>
               <div className="pf-grid-2">
                 {/* Purchase Price */}
                 <div>

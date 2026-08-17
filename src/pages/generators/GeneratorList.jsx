@@ -213,13 +213,14 @@ export default function GeneratorList() {
   const [togglingId, setTogglingId]     = useState(null);
 
   // ── UI state ──────────────────────────────────────────────────
-  const [search, setSearch]       = useState("");
+  const [search, setSearch]             = useState("");
   const [activeFilter, setActiveFilter] = useState("all");
-  const [page, setPage]           = useState(1);
-  const [deleteId, setDeleteId]   = useState(null);
-  const [deleting, setDeleting]   = useState(false);
+  const [tabFilter, setTabFilter]       = useState("all"); // "all" | "active" | "inactive" | "noStock"
+  const [page, setPage]                 = useState(1);
+  const [deleteId, setDeleteId]         = useState(null);
+  const [deleting, setDeleting]         = useState(false);
 
-  const PAGE_SIZE = 8;
+  const PAGE_SIZE = 20;
 
   /* ── Fetch generators ──────────────────────────────────────── */
   const fetchGenerators = useCallback(async (silent = false) => {
@@ -247,14 +248,24 @@ export default function GeneratorList() {
   const filtered = generators.filter((g) => {
     const q = search.toLowerCase();
     const matchSearch =
+      !q ||
       g.name.toLowerCase().includes(q) ||
       g.generatorCode.toLowerCase().includes(q) ||
       (g.productBy || "").toLowerCase().includes(q);
+
+    // Tab filter
+    let matchTab = true;
+    if (tabFilter === "active") matchTab = !!g.isActive;
+    else if (tabFilter === "inactive") matchTab = !g.isActive;
+    else if (tabFilter === "noStock") matchTab = (g.stockQuantity ?? 0) === 0;
+
+    // Dropdown filter
     const matchActive =
       activeFilter === "all" ? true
       : activeFilter === "active" ? g.isActive
       : !g.isActive;
-    return matchSearch && matchActive;
+
+    return matchSearch && matchTab && matchActive;
   });
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
@@ -409,6 +420,17 @@ export default function GeneratorList() {
           border-radius: var(--radius-lg);
           padding: 16px 20px;
           box-shadow: var(--shadow-sm);
+          cursor: pointer;
+          transition: all 0.2s ease;
+          user-select: none;
+          position: relative;
+        }
+        .gl-stat-card:hover {
+          transform: translateY(-2px);
+          box-shadow: var(--shadow-md);
+        }
+        .gl-stat-card.active {
+          transform: translateY(-1px);
         }
         .gl-stat-value {
           font-size: 26px;
@@ -636,18 +658,40 @@ export default function GeneratorList() {
         {/* Stats */}
         <div className="gl-stats-row">
           {[
-            { color: "var(--color-primary)", value: loading ? "—" : totals.all,      label: "Total Generators" },
-            { color: "#059669", value: loading ? "—" : totals.active,   label: "Active" },
-            { color: "#64748b", value: loading ? "—" : totals.inactive,  label: "Inactive" },
-            { color: "#d97706", value: loading ? "—" : totals.noStock,   label: "Zero Stock" },
-          ].map(({ color, value, label }) => (
-            <div key={label} className="gl-stat-card" style={{ borderLeft: `4px solid ${color}` }}>
-              <div className="gl-stat-value" style={{ color: loading ? "var(--color-border-strong)" : undefined }}>
-                {value}
+            { id: "all",      color: "var(--color-primary)", value: loading ? "—" : totals.all,      label: "Total Generators" },
+            { id: "active",   color: "#059669",             value: loading ? "—" : totals.active,   label: "Active" },
+            { id: "inactive", color: "#64748b",             value: loading ? "—" : totals.inactive, label: "Inactive" },
+            { id: "noStock",  color: "#d97706",             value: loading ? "—" : totals.noStock,  label: "Zero Stock" },
+          ].map(({ id, color, value, label }) => {
+            const isActive = tabFilter === id;
+            return (
+              <div
+                key={label}
+                className={`gl-stat-card ${isActive ? "active" : ""}`}
+                style={{
+                  borderLeft: `4px solid ${color}`,
+                  background: isActive ? `${color}14` : undefined,
+                  boxShadow: isActive ? `0 4px 16px ${color}30` : undefined,
+                }}
+                onClick={() => {
+                  if (loading) return;
+                  setTabFilter((prev) => (prev === id ? "all" : id));
+                  setPage(1);
+                }}
+                role="button"
+                tabIndex={0}
+                title={`Click to filter by ${label}`}
+              >
+                <div
+                  className="gl-stat-value"
+                  style={{ color: loading ? "var(--color-border-strong)" : (isActive ? color : undefined) }}
+                >
+                  {value}
+                </div>
+                <div className="gl-stat-label">{label}</div>
               </div>
-              <div className="gl-stat-label">{label}</div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         {/* Toolbar */}
@@ -672,6 +716,32 @@ export default function GeneratorList() {
             <option value="active">Active</option>
             <option value="inactive">Inactive</option>
           </select>
+          {(search || activeFilter !== "all" || tabFilter !== "all") && (
+            <button
+              onClick={() => {
+                setSearch("");
+                setActiveFilter("all");
+                setTabFilter("all");
+                setPage(1);
+              }}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px",
+                padding: "9px 14px",
+                background: "var(--color-surface)",
+                border: "1.5px solid var(--color-border)",
+                borderRadius: "var(--radius-md)",
+                color: "var(--color-text-muted)",
+                fontSize: "13.5px",
+                fontWeight: "600",
+                cursor: "pointer",
+                transition: "all 0.15s",
+              }}
+            >
+              <Icon.Refresh /> Reset Filters
+            </button>
+          )}
           <span className="gl-result-count">
             {loading ? "Loading…" : `${filtered.length} result${filtered.length !== 1 ? "s" : ""}`}
           </span>
