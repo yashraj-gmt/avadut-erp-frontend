@@ -195,6 +195,18 @@ const STYLES = `
   .gb2-inp-date:focus { border-color:var(--color-primary); }
   .gb2-err-text { font-size:10.5px; color:#ef4444; font-weight:600; margin-top:2px; display:block; }
 
+  /* Diesel slot add/remove buttons */
+  .gb2-slot-btn {
+    display:inline-flex; align-items:center; justify-content:center;
+    width:22px; height:22px; border-radius:50%; border:1.5px solid;
+    cursor:pointer; font-size:15px; line-height:1; font-weight:700;
+    transition:all .15s; padding:0; font-family:inherit; flex-shrink:0;
+  }
+  .gb2-slot-btn-add { color:#16a34a; border-color:#86efac; background:#f0fdf4; }
+  .gb2-slot-btn-add:hover { background:#dcfce7; border-color:#16a34a; transform:scale(1.1); }
+  .gb2-slot-btn-remove { color:#dc2626; border-color:#fca5a5; background:#fff5f5; }
+  .gb2-slot-btn-remove:hover { background:#fee2e2; border-color:#dc2626; transform:scale(1.1); }
+
   /* Tag badge */
   .gb2-badge {
     display:inline-flex; align-items:center; gap:4px;
@@ -352,6 +364,7 @@ export default function GeneratorOrderBilling() {
   const [showCompleteModal, setShowCompleteModal] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
   const [generatorsList, setGeneratorsList] = useState([]);
+  const [paymentDueDate, setPaymentDueDate] = useState(''); // YYYY-MM-DD for date input
 
   /* ── Disable Browser Inspect (F12, Right-Click, Ctrl+Shift+I, etc.) ── */
   useEffect(() => {
@@ -421,8 +434,8 @@ export default function GeneratorOrderBilling() {
             // Diesel/hr = withDieselRentPrice (diesel charge rate, only applied with WITH_OWNER diesel)
             initDieselPerHour[g.id || g._id] = gPricing?.withDieselRentPrice ?? '';
             initCableRate[g.id || g._id]     = gPricing?.cableRate ?? '';
-            initDieselStart[g.id || g._id]   = '08:00';
-            initDieselEnd[g.id || g._id]     = '10:00';
+            initDieselStart[g.id || g._id]   = '00:00';
+            initDieselEnd[g.id || g._id]     = '00:00';
             initDate[g.id || g._id]          = today();
           });
         };
@@ -466,9 +479,9 @@ export default function GeneratorOrderBilling() {
                 } else {
                     existingEntries[gId] = dates.map(d => ({
                         date: d,
-                        startTime: '08:00',
-                        endTime: '10:00',
-                        duration: 2
+                        startTime: '00:00',
+                        endTime: '00:00',
+                        duration: 0
                     }));
                 }
             });
@@ -480,6 +493,13 @@ export default function GeneratorOrderBilling() {
         setDieselEntries(existingEntries);
         setDiscount(foundOrder.discountAmount || 0);
         setBillNo(foundOrder.billNumber || '—');
+        // Load paymentDueDate: if saved use it, else default to today + 7 days
+        if (foundOrder.paymentDueDate) {
+          setPaymentDueDate(foundOrder.paymentDueDate);
+        } else {
+          const d = new Date(); d.setDate(d.getDate() + 7);
+          setPaymentDueDate(d.toISOString().split('T')[0]);
+        }
         setIsEditBill(true); // Always edit existing order in DB
         setLoading(false);
       })
@@ -578,6 +598,30 @@ export default function GeneratorOrderBilling() {
     });
   };
 
+  /** Add a new time slot for the given date (inserted right after the last existing slot for that date) */
+  const handleAddSlotForDate = (gId, date) => {
+    setDieselEntries(prev => {
+      const arr = [...(prev[gId] || [])];
+      const lastIdx = arr.reduce((acc, e, i) => (e.date === date ? i : acc), -1);
+      const newSlot = { date, startTime: '00:00', endTime: '00:00', duration: 0 };
+      if (lastIdx === -1) {
+        arr.push(newSlot);
+      } else {
+        arr.splice(lastIdx + 1, 0, newSlot);
+      }
+      return { ...prev, [gId]: arr };
+    });
+  };
+
+  /** Remove the time slot at absolute index idx for the given generator */
+  const handleRemoveSlot = (gId, idx) => {
+    setDieselEntries(prev => {
+      const arr = [...(prev[gId] || [])];
+      arr.splice(idx, 1);
+      return { ...prev, [gId]: arr };
+    });
+  };
+
   const handleDiscountChange = (val, totalAmt) => {
     const cleaned = numOnly(val);
     const numeric = cleaned === '' ? 0 : Math.max(0, parseFloat(cleaned) || 0);
@@ -631,11 +675,19 @@ export default function GeneratorOrderBilling() {
       const rowTotal = genAmount + dieselAmount + cableAmount;
       totalAmount += rowTotal;
 
+      // Build per-date group map: { dateStr -> [indices into entries array] }
+      const dateGroupMap = {};
+      entries.forEach((e, i) => {
+        if (!dateGroupMap[e.date]) dateGroupMap[e.date] = [];
+        dateGroupMap[e.date].push(i);
+      });
+
       return {
         ...g,
         _key: gKey, // stable key for state lookups
         rentDay, genAmount,
         entries, totalDieselHours, dPrice, dieselAmount,
+        dateGroupMap,
         cableSize, cableRate, cableAmount,
         rowTotal,
       };
@@ -647,6 +699,51 @@ export default function GeneratorOrderBilling() {
   const discountVal = parseFloat(discount) || 0;
   const netTotal    = Math.max(0, parseFloat((calculations.totalAmount - discountVal).toFixed(2)));
   const amountWords = numberToWords(netTotal);
+
+  /**
+   * Detect overlapping or identical time slots within the same date for each generator.
+   * Returns: { [gId]: { [slotIdx]: 'error message' } }
+   */
+  const dieselConflicts = useMemo(() => {
+    const toMin = (t) => {
+      if (!t) return 0;
+      const [h, m] = t.split(':').map(Number);
+      return (h || 0) * 60 + (m || 0);
+    };
+    const result = {};
+    Object.entries(dieselEntries).forEach(([gId, entries]) => {
+      // Group indices by date
+      const byDate = {};
+      entries.forEach((e, i) => {
+        if (!byDate[e.date]) byDate[e.date] = [];
+        byDate[e.date].push(i);
+      });
+      const gConflicts = {};
+      Object.values(byDate).forEach(idxGroup => {
+        if (idxGroup.length < 2) return;
+        for (let a = 0; a < idxGroup.length; a++) {
+          for (let b = a + 1; b < idxGroup.length; b++) {
+            const slotA = entries[idxGroup[a]];
+            const slotB = entries[idxGroup[b]];
+            const aS = toMin(slotA.startTime), aE = toMin(slotA.endTime);
+            const bS = toMin(slotB.startTime), bE = toMin(slotB.endTime);
+            // Two slots overlap when one starts before the other ends
+            if (aS < bE && bS < aE) {
+              const msg = (aS === bS && aE === bE)
+                ? 'Identical time as another slot on this date'
+                : 'Overlaps with another slot on this date';
+              gConflicts[idxGroup[a]] = msg;
+              gConflicts[idxGroup[b]] = msg;
+            }
+          }
+        }
+      });
+      if (Object.keys(gConflicts).length > 0) result[gId] = gConflicts;
+    });
+    return result;
+  }, [dieselEntries]);
+
+  const hasDieselConflicts = Object.keys(dieselConflicts).length > 0;
 
   const handleSaveBill = (isCompleteCall = false) => {
     // Validate rent prices
@@ -662,11 +759,14 @@ export default function GeneratorOrderBilling() {
     });
     setRentErrors(newRentErrors);
     if (discountError) hasError = true;
+    // Block save if any diesel slots overlap on the same date
+    if (hasDieselConflicts) hasError = true;
     if (hasError) return;
 
     setSaving(true);
     const req = {
        discountAmount: discountVal,
+       paymentDueDate: paymentDueDate || null,
        generators: (order?.generators || []).map(g => {
            const gKey = g.id || g._id;
            const rawCableRate = cableRatePerDay[gKey];
@@ -740,16 +840,19 @@ export default function GeneratorOrderBilling() {
         ${withDiesel ? `<td style="border:1px solid #cbd5e1;"></td><td style="border:1px solid #cbd5e1;"></td><td style="border:1px solid #cbd5e1;"></td>` : ''}
         <td style="border:1px solid #cbd5e1;padding:9px 10px;text-align:right;font-size:13px;font-weight:800;color:#1e40af;font-family:monospace;">${fmtCurrency(g.genAmount)}</td>
       </tr>
-      ${withDiesel && g.entries ? g.entries.map((de, dIdx) => `<tr style="background:#fffbeb;">
+      ${withDiesel && g.entries ? g.entries.map((de, dIdx) => {
+        const isFirstForDate = dIdx === 0 || g.entries[dIdx - 1].date !== de.date;
+        return `<tr style="background:#fffbeb;">
         ${dIdx === 0 ? `<td rowspan="${g.entries.length}" style="border:1px solid #cbd5e1;padding:8px 10px;font-size:12.5px;color:#92400e;padding-left:18px;">⛽ Diesel Charge</td>` : ''}
         ${dIdx === 0 ? `<td rowspan="${g.entries.length}" style="border:1px solid #cbd5e1;padding:8px 10px;text-align:right;font-size:12px;font-family:monospace;color:#92400e;">${fmtCurrency(g.dPrice)}/hr</td>` : ''}
         <td style="border:1px solid #cbd5e1;padding:8px 10px;text-align:center;font-size:12px;color:#92400e;">—</td>
-        <td style="border:1px solid #cbd5e1;padding:8px 10px;text-align:center;font-size:12px;color:#92400e;">${fmtDate(de.date)}</td>
+        <td style="border:1px solid #cbd5e1;padding:8px 10px;text-align:center;font-size:12px;color:${isFirstForDate ? '#92400e' : '#b45309'};font-weight:${isFirstForDate ? '600' : '400'}">${isFirstForDate ? fmtDate(de.date) : '&#8627;'}</td>
         <td style="border:1px solid #cbd5e1;padding:8px 10px;text-align:center;font-size:12px;color:#92400e;">${de.startTime}</td>
         <td style="border:1px solid #cbd5e1;padding:8px 10px;text-align:center;font-size:12px;color:#92400e;">${de.endTime}</td>
         <td style="border:1px solid #cbd5e1;padding:8px 10px;text-align:center;font-size:12px;color:#92400e;">${de.duration.toFixed(2)} hrs</td>
         ${dIdx === 0 ? `<td rowspan="${g.entries.length}" style="border:1px solid #cbd5e1;padding:8px 10px;text-align:right;font-size:13px;font-weight:700;color:#92400e;font-family:monospace;">${fmtCurrency(g.dieselAmount)}</td>` : ''}
-      </tr>`).join('') : ''}
+      </tr>`;
+      }).join('') : ''}
       ${(g.cableSize && cableRequired) ? `<tr style="background:#eff6ff;">
         <td style="border:1px solid #cbd5e1;padding:8px 10px;font-size:12.5px;color:#1e40af;padding-left:18px;">🔌 Cable ${g.cableSize}${g.cableSize!=='Earth Rod'?' mm²':''}</td>
         <td style="border:1px solid #cbd5e1;padding:8px 10px;text-align:right;font-size:12px;font-family:monospace;color:#1e40af;">${fmtCurrency(g.cableRate)}/day</td>
@@ -795,7 +898,7 @@ export default function GeneratorOrderBilling() {
               <div style="font-size:22px;font-weight:800;color:#cc0000;line-height:1.3;white-space:nowrap;">Avadhut Light Decoration &amp; Sound</div>
             </div>
             <div class="meta">
-              <table><tr><td>Bill Number</td><td>: #${billNo}</td></tr><tr><td>Order Number</td><td>: ${order.orderNumber || order.id}</td></tr><tr><td>Billing Date</td><td>: ${billingDate}</td></tr><tr><td>Rental Days</td><td>: ${rentalDays} day${rentalDays!==1?'s':''}</td></tr></table>
+              <table><tr><td>Bill Number</td><td>: #${billNo}</td></tr><tr><td>Order Number</td><td>: ${order.orderNumber || order.id}</td></tr><tr><td>Billing Date</td><td>: ${billingDate}</td></tr><tr><td>Due Date</td><td>: ${paymentDueDate ? fmtDate(new Date(paymentDueDate)) : '—'}</td></tr><tr><td>Rental Days</td><td>: ${rentalDays} day${rentalDays!==1?'s':''}</td></tr></table>
             </div>
           </div>
         </div>
@@ -952,7 +1055,7 @@ export default function GeneratorOrderBilling() {
             </div>
             <div className="gb2-field"><Label>Diesel</Label>
               <input className="gb2-input" style={{ fontWeight:700, color: withDiesel ? '#92400e' : '#475569' }}
-                value={withDiesel ? 'With Owner - Diesel charges apply' : 'Party Diesel — No diesel charges'} disabled readOnly />
+                value={withDiesel ? 'With Diesel - Diesel charges apply' : 'Party Diesel — No diesel charges'} disabled readOnly />
             </div>
           </div>
           <div className="gb2-field" style={{ marginBottom:18 }}>
@@ -982,7 +1085,31 @@ export default function GeneratorOrderBilling() {
                 value={formatToDMY(new Date())}
                 disabled readOnly />
             </div>
+            <div className="gb2-field">
+              <Label>Due Date</Label>
+              <input
+                className="gb2-input"
+                type="date"
+                value={paymentDueDate}
+                disabled={isCompleted}
+                onChange={e => setPaymentDueDate(e.target.value)}
+                style={{ fontWeight:600 }}
+              />
+            </div>
           </div>
+          {/* Payment Status badge */}
+          {order?.paymentStatus && (
+            <div style={{ marginTop:10 }}>
+              <Label>Payment Status</Label>
+              <span style={{
+                display:'inline-block', marginTop:4, padding:'4px 14px', borderRadius:20, fontWeight:700, fontSize:12,
+                background: order.paymentStatus === 'PAID' ? '#dcfce7' : order.paymentStatus === 'OVERDUE' ? '#fee2e2' : '#fef9c3',
+                color: order.paymentStatus === 'PAID' ? '#166534' : order.paymentStatus === 'OVERDUE' ? '#991b1b' : '#854d0e',
+              }}>
+                {order.paymentStatus === 'PAID' ? '✓ Paid' : order.paymentStatus === 'OVERDUE' ? '⚠ Overdue' : '⏳ Pending'}
+              </span>
+            </div>
+          )}
         </CardSection>
 
         {/* ── SECTION 3: RENT CALCULATION ── */}
@@ -999,6 +1126,23 @@ export default function GeneratorOrderBilling() {
             </span>
           </div>
 
+          {/* ── Conflict warning banner ── */}
+          {hasDieselConflicts && withDiesel && (
+            <div style={{
+              display:'flex', gap:10, alignItems:'flex-start', padding:'11px 16px',
+              background:'linear-gradient(135deg,#fff5f5,#fee2e2)',
+              border:'1.5px solid #fca5a5', borderRadius:10, marginBottom:16,
+              fontSize:13, color:'#991b1b', fontWeight:600,
+            }}>
+              <span style={{ fontSize:18, flexShrink:0 }}>⚠️</span>
+              <span>
+                <strong>Time slot conflict detected.</strong>{' '}
+                Two or more diesel slots on the same date have identical or overlapping times.
+                Please fix the highlighted rows before saving.
+              </span>
+            </div>
+          )}
+
           <div className="gb2-table-wrap">
             <table className="gb2-table">
               <colgroup>
@@ -1010,6 +1154,7 @@ export default function GeneratorOrderBilling() {
                 {withDiesel && <col style={{ width:90 }} />}  {/* Diesel Start */}
                 {withDiesel && <col style={{ width:90 }} />}  {/* Diesel End */}
                 {withDiesel && <col style={{ width:80 }} />}  {/* Diesel Hrs */}
+                {withDiesel && <col style={{ width:60 }} />}  {/* Slot Actions */}
                 <col style={{ width:140 }} />   {/* Amount */}
               </colgroup>
               <thead>
@@ -1022,6 +1167,7 @@ export default function GeneratorOrderBilling() {
                   {withDiesel && <th className="gb2-th" style={{ textAlign:'center' }}>Start Time</th>}
                   {withDiesel && <th className="gb2-th" style={{ textAlign:'center' }}>End Time</th>}
                   {withDiesel && <th className="gb2-th" style={{ textAlign:'center' }}>Diesel Hrs</th>}
+                  {withDiesel && <th className="gb2-th" style={{ textAlign:'center', width:60 }}></th>}
                   <th className="gb2-th" style={{ textAlign:'right' }}>Amount</th>
                 </tr>
               </thead>
@@ -1062,23 +1208,29 @@ export default function GeneratorOrderBilling() {
                       {withDiesel && <td className="gb2-td" />}
                       {withDiesel && <td className="gb2-td" />}
                       {withDiesel && <td className="gb2-td" />}
+                      {withDiesel && <td className="gb2-td" />}  {/* Actions placeholder */}
                       <td className="gb2-td" style={{ textAlign:'right', fontWeight:700, fontFamily:'monospace', color:'var(--color-primary-dark)' }}>
                         {fmtCurrency(g.genAmount)}
                       </td>
                     </tr>
 
-                    {/* ── Diesel Rows (only when withDiesel) ── */}
-                    {withDiesel && g.entries && g.entries.map((de, dIdx) => (
-                      <tr className="gb2-tr-diesel" key={`diesel-${g._key}-${dIdx}`}>
-                        {dIdx === 0 ? (
+                    {/* ── Diesel Rows (only when withDiesel) — supports multiple slots per date ── */}
+                    {withDiesel && g.entries && g.entries.map((de, dIdx) => {
+                      const slotsForDate = (g.dateGroupMap && g.dateGroupMap[de.date]) || [];
+                      const isFirstForDate = slotsForDate.length === 0 || slotsForDate[0] === dIdx;
+                      const isLastForDate  = slotsForDate.length === 0 || slotsForDate[slotsForDate.length - 1] === dIdx;
+                      const slotCount = slotsForDate.length;
+                      return (
+                        <tr className="gb2-tr-diesel" key={`diesel-${g._key}-${dIdx}`}>
+                          {dIdx === 0 ? (
                             <td className="gb2-td" style={{ paddingLeft:20 }} rowSpan={g.entries.length}>
                               <span className="gb2-badge gb2-badge-diesel">⛽ Diesel</span>
                               <div style={{ fontSize:11, color:'var(--color-text-subtle)', marginTop:2 }}>
                                 ₹/hr × {g.totalDieselHours.toFixed(2)} hrs
                               </div>
                             </td>
-                        ) : null}
-                        {dIdx === 0 ? (
+                          ) : null}
+                          {dIdx === 0 ? (
                             <td className="gb2-td" style={{ textAlign:'right' }} rowSpan={g.entries.length}>
                               <NumInput
                                 id={`inp-diesel-price-${idx}`}
@@ -1090,36 +1242,72 @@ export default function GeneratorOrderBilling() {
                               />
                               <div style={{ fontSize:10.5, color:'var(--color-text-subtle)', marginTop:3, textAlign:'right' }}>₹/hr</div>
                             </td>
-                        ) : null}
-                        <td className="gb2-td" style={{ textAlign:'center', color:'#92400e', fontWeight:600 }}>
-                          —
-                        </td>
-                        <td className="gb2-td" style={{ textAlign:'center', color:'#92400e', fontWeight:600 }}>
-                          {formatToDMY(de.date)}
-                        </td>
-                        {/* Diesel Start */}
-                        <td className="gb2-td" style={{ textAlign:'center' }}>
-                          <input type="time" className="gb2-inp-time" disabled={isCompleted}
-                            value={de.startTime || '08:00'}
-                            onChange={e => handleDieselEntryChange(g._key, dIdx, 'startTime', e.target.value)} />
-                        </td>
-                        {/* Diesel End */}
-                        <td className="gb2-td" style={{ textAlign:'center' }}>
-                          <input type="time" className="gb2-inp-time" disabled={isCompleted}
-                            value={de.endTime || '10:00'}
-                            onChange={e => handleDieselEntryChange(g._key, dIdx, 'endTime', e.target.value)} />
-                        </td>
-                        {/* Diesel Hours */}
-                        <td className="gb2-td" style={{ textAlign:'center', fontWeight:700, color:'#92400e' }}>
-                          {de.duration.toFixed(2)} hrs
-                        </td>
-                        {dIdx === 0 ? (
+                          ) : null}
+                          {/* Days column */}
+                          <td className="gb2-td" style={{ textAlign:'center', color:'#92400e', fontWeight:600 }}>—</td>
+                          {/* Date column — show date on first slot, continuation marker on subsequent slots */}
+                          <td className="gb2-td" style={{ textAlign:'center', color: isFirstForDate ? '#92400e' : '#b45309', fontWeight: isFirstForDate ? 600 : 400 }}>
+                            {isFirstForDate
+                              ? formatToDMY(de.date)
+                              : <span style={{ fontSize:11, color:'#d97706', fontStyle:'italic' }}>↳ same day</span>
+                            }
+                          </td>
+                          {/* Diesel Start */}
+                          <td className="gb2-td" style={{ textAlign:'center' }}>
+                            <input type="time" className="gb2-inp-time" disabled={isCompleted}
+                              style={{ borderColor: dieselConflicts[g._key]?.[dIdx] ? '#ef4444' : undefined }}
+                              value={de.startTime || '00:00'}
+                              onChange={e => handleDieselEntryChange(g._key, dIdx, 'startTime', e.target.value)} />
+                          </td>
+                          {/* Diesel End */}
+                          <td className="gb2-td" style={{ textAlign:'center' }}>
+                            <input type="time" className="gb2-inp-time" disabled={isCompleted}
+                              style={{ borderColor: dieselConflicts[g._key]?.[dIdx] ? '#ef4444' : undefined }}
+                              value={de.endTime || '00:00'}
+                              onChange={e => handleDieselEntryChange(g._key, dIdx, 'endTime', e.target.value)} />
+                          </td>
+                          {/* Diesel Hours — shows conflict warning inline when there's an overlap */}
+                          <td className="gb2-td" style={{ textAlign:'center' }}>
+                            <div style={{ fontWeight:700, color: dieselConflicts[g._key]?.[dIdx] ? '#dc2626' : '#92400e' }}>
+                              {de.duration.toFixed(2)} hrs
+                            </div>
+                            {dieselConflicts[g._key]?.[dIdx] && (
+                              <div style={{ fontSize:10, color:'#dc2626', marginTop:2, whiteSpace:'nowrap', fontWeight:600 }}>
+                                ⚠ {dieselConflicts[g._key][dIdx]}
+                              </div>
+                            )}
+                          </td>
+                          {/* Actions: remove slot (×) and/or add slot (+) */}
+                          <td className="gb2-td" style={{ textAlign:'center', padding:'6px 8px' }}>
+                            {!isCompleted && (
+                              <div style={{ display:'flex', gap:4, justifyContent:'center', alignItems:'center' }}>
+                                {slotCount > 1 && (
+                                  <button
+                                    className="gb2-slot-btn gb2-slot-btn-remove"
+                                    type="button"
+                                    onClick={() => handleRemoveSlot(g._key, dIdx)}
+                                    title="Remove this time slot"
+                                  >×</button>
+                                )}
+                                {isLastForDate && (
+                                  <button
+                                    className="gb2-slot-btn gb2-slot-btn-add"
+                                    type="button"
+                                    onClick={() => handleAddSlotForDate(g._key, de.date)}
+                                    title="Add another time slot for this date"
+                                  >+</button>
+                                )}
+                              </div>
+                            )}
+                          </td>
+                          {dIdx === 0 ? (
                             <td className="gb2-td" style={{ textAlign:'right', fontWeight:700, fontFamily:'monospace', color:'#92400e' }} rowSpan={g.entries.length}>
                               {fmtCurrency(g.dieselAmount)}
                             </td>
-                        ) : null}
-                      </tr>
-                    ))}
+                          ) : null}
+                        </tr>
+                      );
+                    })}
 
                     {/* ── Cable Row (only when cableRequired AND cableSize selected) ── */}
                     {g.cableSize && cableRequired && (
@@ -1147,6 +1335,7 @@ export default function GeneratorOrderBilling() {
                         {withDiesel && <td className="gb2-td" />}
                         {withDiesel && <td className="gb2-td" />}
                         {withDiesel && <td className="gb2-td" />}
+                        {withDiesel && <td className="gb2-td" />}  {/* Actions placeholder */}
                         <td className="gb2-td" style={{ textAlign:'right', fontWeight:700, fontFamily:'monospace', color:'#1e40af' }}>
                           {fmtCurrency(g.cableAmount)}
                         </td>
@@ -1155,7 +1344,7 @@ export default function GeneratorOrderBilling() {
 
                     {/* ── Generator subtotal row ── */}
                     <tr>
-                      <td colSpan={withDiesel ? 9 : 6}
+                      <td colSpan={withDiesel ? 10 : 6}
                         style={{ padding:'6px 12px', background:'var(--color-surface-2)', textAlign:'right', fontSize:12, borderBottom:'2px solid var(--color-border)' }}>
                         <span style={{ color:'var(--color-text-muted)' }}>{g.generatorName} Sub-total: </span>
                         <strong style={{ color:'var(--color-primary-dark)', fontFamily:'monospace', fontSize:13 }}>

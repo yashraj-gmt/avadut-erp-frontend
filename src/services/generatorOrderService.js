@@ -47,5 +47,10 @@ export const generatorOrderService = {
   completeBilling: async (id) => {
     const response = await api.post(`/admin/orders/${id}/billing/complete`);
     return response.data;
-  }
+  },
+
+  markPaymentDone: async (id) => {
+    const response = await api.post(`/admin/orders/${id}/payment/done`);
+    return response.data;
+  },
 };

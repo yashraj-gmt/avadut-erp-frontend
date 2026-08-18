@@ -3,7 +3,7 @@ import { NavLink, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Package, ShieldCheck,
   ChevronLeft, ChevronRight, ChevronDown, ChevronUp,
-  Zap, ClipboardList, Box,
+  Zap, ClipboardList, Box, Receipt,
 } from 'lucide-react';
 import { useState } from 'react';
 import { useUIStore }     from '@/store/uiStore';
@@ -169,8 +169,9 @@ export default function Sidebar() {
   const isStaffActive = location.pathname.startsWith('/staff');
 
   // Generator active states to prevent overlap
-  const isOrdersActive = location.pathname.startsWith('/generators/orders');
-  const isInventoryActive = location.pathname.startsWith('/generators') && !isOrdersActive;
+  const isBillingHistoryActive = location.pathname === ROUTES.GENERATOR_BILLING_HISTORY;
+  const isOrdersActive = location.pathname.startsWith('/generators/orders') && !isBillingHistoryActive;
+  const isInventoryActive = location.pathname.startsWith('/generators') && !isOrdersActive && !isBillingHistoryActive;
 
   return (
     <aside
@@ -275,6 +276,14 @@ export default function Sidebar() {
                     icon={ClipboardList}
                     route={ROUTES.GENERATOR_ORDERS}
                     isActive={isOrdersActive}
+                  />
+                )}
+                {canAccess(ROUTES.GENERATOR_ORDERS) && (
+                  <SubNavItem
+                    label="Billing History"
+                    icon={Receipt}
+                    route={ROUTES.GENERATOR_BILLING_HISTORY}
+                    isActive={isBillingHistoryActive}
                   />
                 )}
               </DropdownGroup>

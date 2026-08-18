@@ -29,6 +29,7 @@ const GeneratorOrderList   = lazy(() => import('@/pages/generators/orders/Genera
 const GeneratorOrderForm   = lazy(() => import('@/pages/generators/orders/GeneratorOrderForm'))
 const GeneratorOrderDetail = lazy(() => import('@/pages/generators/orders/GeneratorOrderDetail'))
 const GeneratorOrderBilling = lazy(() => import('@/pages/generators/orders/GeneratorOrderBilling'))
+const GeneratorBillingHistory = lazy(() => import('@/pages/generators/billing/GeneratorBillingHistory'))
 
 // ── Roles ─────────────────────────────────────────────────────────────────
 const RolesPermissions = lazy(() => import('@/pages/roles/RolesPermissions'))
@@ -108,6 +109,7 @@ export const router = createBrowserRouter([
       rr(ROUTES.GENERATOR_ORDER_EDIT,    GeneratorOrderForm),
       rr(ROUTES.GENERATOR_ORDER_DETAIL,  GeneratorOrderDetail),
       rr(ROUTES.GENERATOR_ORDER_BILLING, GeneratorOrderBilling),
+      rr(ROUTES.GENERATOR_BILLING_HISTORY, GeneratorBillingHistory),
 
       // Staff Portal
       rr(ROUTES.STAFF_ORDERS,       StaffOrderList),

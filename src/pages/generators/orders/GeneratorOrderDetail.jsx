@@ -740,7 +740,7 @@ export default function GeneratorOrderDetail() {
                 background: withDiesel ? '#DBEAFE' : '#F0FDF4',
                 color:      withDiesel ? '#1E40AF' : '#166534',
               }}>
-                {withDiesel ? '⛽ With Owner Diesel' : '🟢 Party Diesel'}
+                {withDiesel ? '⛽ With Diesel' : '🟢 Party Diesel'}
               </span>
             </Field>
             <Field label="Cable Required" muted>
@@ -781,7 +781,7 @@ export default function GeneratorOrderDetail() {
             <div style={{ background: withDiesel ? '#fef3c7' : '#f0fdf4', border:`1px solid ${withDiesel ? '#fde68a' : '#86efac'}`, borderRadius:8, padding:'10px 16px', minWidth:140 }}>
               <div style={{ fontSize:11, fontWeight:700, color: withDiesel ? '#78350f' : '#166534', textTransform:'uppercase', letterSpacing:'.4px', marginBottom:4 }}>Diesel</div>
               <div style={{ fontSize:13, fontWeight:700, color: withDiesel ? '#92400e' : '#15803d' }}>
-                {withDiesel ? '⛽ With Owner' : '🟢 Party Diesel'}
+                {withDiesel ? '⛽ With Diesel' : '🟢 Party Diesel'}
               </div>
             </div>
           </div>

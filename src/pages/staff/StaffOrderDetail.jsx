@@ -405,7 +405,7 @@ export default function StaffOrderDetail() {
                             color: g.dieselType === DIESEL_TYPES.WITH_OWNER ? '#1E40AF' : '#92400E',
                             padding: '2px 8px', borderRadius: 6, fontSize: 11, fontWeight: 700,
                           }}>
-                            {g.dieselType === DIESEL_TYPES.WITH_OWNER ? 'With Owner' : 'Party'}
+                            {g.dieselType === DIESEL_TYPES.WITH_OWNER ? 'With Diesel' : 'Party Diesel'}
                           </span>
                         </td>
                       </tr>

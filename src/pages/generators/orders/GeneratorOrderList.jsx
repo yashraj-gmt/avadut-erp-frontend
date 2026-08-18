@@ -120,6 +120,13 @@ const Icon = {
       <rect x="8" y="2" width="8" height="4" rx="1" ry="1"/>
     </svg>
   ),
+  Wallet: () => (
+    <svg width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/>
+      <path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/>
+      <path d="M18 12a2 2 0 0 0 0 4h4v-4z"/>
+    </svg>
+  ),
 };
 
 /* ─── Styles ─────────────────────────────────────────────────────────────── */
@@ -154,7 +161,7 @@ const STYLES = `
   .go-add-btn:hover { transform:translateY(-1px); box-shadow:0 8px 24px rgba(37,99,235,.35); }
 
   /* ── Stats ── */
-  .go-stats-row { display:grid; grid-template-columns:repeat(5,1fr); gap:16px; margin-bottom:24px; }
+  .go-stats-row { display:grid; grid-template-columns:repeat(6,1fr); gap:14px; margin-bottom:24px; }
   .go-stat-card {
     background:var(--color-surface);
     border:2px solid transparent;
@@ -186,7 +193,7 @@ const STYLES = `
   .go-stat-label { font-size:11px; color:var(--color-text-muted); margin-top:4px; font-weight:600; text-transform:uppercase; letter-spacing:.5px; }
 
   /* ── Toolbar ── */
-  .go-toolbar { display:grid; grid-template-columns:1.2fr 1fr 0.8fr 0.8fr auto; gap:12px; margin-bottom:18px; align-items:center; }
+  .go-toolbar { display:grid; grid-template-columns:1.2fr 1fr 0.8fr 0.8fr 0.8fr auto; gap:12px; margin-bottom:18px; align-items:center; }
   .go-search-wrap { position:relative; flex:1; min-width:180px; max-width:360px; }
   .go-search-icon { position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--color-text-subtle); pointer-events:none; display:flex; }
   .go-search-input {
@@ -424,6 +431,30 @@ const isTodayOrder = (o) => {
   return false;
 };
 
+/** Checks if the order's function date specifically matches / overlaps today's date */
+const isTodayFunctionDate = (o) => {
+  if (!o) return false;
+  const now = new Date();
+  const todayYMD = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  const todayDMY = `${String(now.getDate()).padStart(2, '0')}-${String(now.getMonth() + 1).padStart(2, '0')}-${now.getFullYear()}`;
+
+  // Exact function date match
+  if (o.functionDateFrom && (o.functionDateFrom.startsWith(todayYMD) || o.functionDateFrom.startsWith(todayDMY))) return true;
+  if (o.functionDate && (o.functionDate.includes(todayYMD) || o.functionDate.includes(todayDMY))) return true;
+
+  // Range contains today
+  const fFrom = o.functionDateFrom ? parseDateStr(o.functionDateFrom) : (o.functionDate ? parseDateStr(o.functionDate.split(' to ')[0]) : null);
+  const fTo   = o.functionDateTo   ? parseDateStr(o.functionDateTo)   : (o.functionDate ? parseDateStr(o.functionDate.split(' to ')[1] || o.functionDate) : null);
+
+  if (fFrom && fTo) {
+    const todayZero = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const fromZero  = new Date(fFrom.getFullYear(), fFrom.getMonth(), fFrom.getDate()).getTime();
+    const toZero    = new Date(fTo.getFullYear(), fTo.getMonth(), fTo.getDate()).getTime();
+    if (todayZero >= fromZero && todayZero <= toZero) return true;
+  }
+  return false;
+};
+
 /* ─── Main Component ─────────────────────────────────────────────────────── */
 const PAGE_SIZE = 50;
 
@@ -439,13 +470,16 @@ export default function GeneratorOrderList() {
   const [search, setSearch]             = useState('');
   const [page, setPage]                 = useState(1);
   const [deleteTarget, setDeleteTarget] = useState(null);
-  const [activeTab, setActiveTab]       = useState('all'); // 'all' | 'today' | 'pending_billing' | 'completed_billing' | 'generators_booked'
+  const [paymentModalTarget, setPaymentModalTarget] = useState(null);
+  const [markingPaid, setMarkingPaid]   = useState(false);
+  const [activeTab, setActiveTab]       = useState('today_bookings'); // 'today_bookings' | 'all' | 'today' | 'pending_billing' | 'completed_billing' | 'generators_booked'
 
   // Filters state
   const [filterDate, setFilterDate]                   = useState('');
   const [filterBillingStatus, setFilterBillingStatus] = useState('all');
   const [filterBookingStatus, setFilterBookingStatus] = useState('all');
-  const hasFilters = search !== '' || filterDate !== '' || filterBillingStatus !== 'all' || filterBookingStatus !== 'all' || activeTab !== 'all';
+  const [filterPaymentStatus, setFilterPaymentStatus] = useState('all');
+  const hasFilters = search !== '' || filterDate !== '' || filterBillingStatus !== 'all' || filterBookingStatus !== 'all' || filterPaymentStatus !== 'all' || activeTab !== 'today_bookings';
 
   // Fetch data
   React.useEffect(() => {
@@ -467,6 +501,7 @@ export default function GeneratorOrderList() {
     return orders.filter(o => {
       // Tab Filter
       if (activeTab === 'today' && !isTodayOrder(o)) return false;
+      if (activeTab === 'today_bookings' && !isTodayFunctionDate(o)) return false;
       if (activeTab === 'pending_billing' && o.billingStatus === 'COMPLETED') return false;
       if (activeTab === 'completed_billing' && o.billingStatus !== 'COMPLETED') return false;
       if (activeTab === 'generators_booked' && (!o.generators || o.generators.length === 0)) return false;
@@ -502,9 +537,15 @@ export default function GeneratorOrderList() {
         }
       }
 
+      // 3. Payment Status Match
+      const ps = o.paymentStatus || 'PENDING';
+      if (filterPaymentStatus === 'pending' && ps !== 'PENDING') return false;
+      if (filterPaymentStatus === 'paid' && ps !== 'PAID') return false;
+      if (filterPaymentStatus === 'overdue' && ps !== 'OVERDUE') return false;
+
       return true;
     });
-  }, [orders, activeTab, filterBookingStatus, filterBillingStatus, filterDate]);
+  }, [orders, activeTab, filterBookingStatus, filterBillingStatus, filterPaymentStatus, filterDate]);
 
   const totalPages = Math.max(1, Math.ceil(totalElements / PAGE_SIZE));
   const paged = filtered; // Since we already paginate from backend, paged is just filtered orders
@@ -519,6 +560,22 @@ export default function GeneratorOrderList() {
     });
   };
 
+  /* ── Mark Payment as Done ── */
+  const handleMarkPaymentDone = () => {
+    if (!paymentModalTarget) return;
+    setMarkingPaid(true);
+    generatorOrderService.markPaymentDone(paymentModalTarget.id)
+      .then(updated => {
+        setOrders(prev => prev.map(o => o.id === paymentModalTarget.id ? { ...o, paymentStatus: 'PAID' } : o));
+        setPaymentModalTarget(null);
+      })
+      .catch(err => {
+        console.error('Failed to mark payment as done:', err);
+        alert('Failed to update payment status. Please try again.');
+      })
+      .finally(() => setMarkingPaid(false));
+  };
+
   /* ── Pagination pages ── */
   const pageNums = (() => {
     if (totalPages <= 7) return Array.from({ length: totalPages }, (_, i) => i + 1);
@@ -531,6 +588,7 @@ export default function GeneratorOrderList() {
   const stats = useMemo(() => {
     const totalOrders = orders.length;
     const todayCount = orders.filter(isTodayOrder).length;
+    const todayBookingsCount = orders.filter(isTodayFunctionDate).length;
     const completedBilling = orders.filter(o => o.billingStatus === 'COMPLETED').length;
     const pendingBilling = orders.filter(o => o.billingStatus !== 'COMPLETED').length;
     const totalGenerators = orders.reduce((sum, o) => sum + (o.generators?.length || 0), 0);
@@ -538,6 +596,7 @@ export default function GeneratorOrderList() {
     return {
       totalOrders,
       todayCount,
+      todayBookingsCount,
       pendingBilling,
       completedBilling,
       totalGenerators
@@ -598,6 +657,15 @@ export default function GeneratorOrderList() {
             iconColor="var(--color-info)"
             active={activeTab === 'today'}
             onClick={() => { setActiveTab(prev => prev === 'today' ? 'all' : 'today'); setPage(1); }}
+          />
+          <StatCard
+            label="Today's Bookings"
+            value={stats.todayBookingsCount}
+            icon={Icon.Calendar}
+            iconBg="#EEF2FF"
+            iconColor="#4F46E5"
+            active={activeTab === 'today_bookings'}
+            onClick={() => { setActiveTab(prev => prev === 'today_bookings' ? 'all' : 'today_bookings'); setPage(1); }}
           />
           <StatCard
             label="Pending Billing"
@@ -679,6 +747,20 @@ export default function GeneratorOrderList() {
             </select>
           </div>
 
+          <div>
+            <select
+              className="go-filter-select"
+              style={{ width: '100%', minWidth: 'auto' }}
+              value={filterPaymentStatus}
+              onChange={e => { setFilterPaymentStatus(e.target.value); setPage(1); }}
+            >
+              <option value="all">Payment: All</option>
+              <option value="pending">Payment: Pending</option>
+              <option value="paid">Payment: Paid</option>
+              <option value="overdue">Payment: Overdue</option>
+            </select>
+          </div>
+
           {hasFilters && (
             <button
               id="btn-clear-filters"
@@ -687,7 +769,8 @@ export default function GeneratorOrderList() {
                 setFilterDate('');
                 setFilterBillingStatus('all');
                 setFilterBookingStatus('all');
-                setActiveTab('all');
+                setFilterPaymentStatus('all');
+                setActiveTab('today_bookings');
                 setPage(1);
               }}
               style={{
@@ -735,16 +818,17 @@ export default function GeneratorOrderList() {
                   <th style={{ ...thStyle, textAlign:'center' }}>Function Date</th>
                   <th style={{ ...thStyle, textAlign:'center' }}>Booking Status</th>
                   <th style={{ ...thStyle, textAlign:'center' }}>Billing Status</th>
+                  <th style={{ ...thStyle, textAlign:'center' }}>Payment Status</th>
                   <th style={{ ...thStyle, textAlign:'center' }}>Billing Number</th>
-                  <th className="go-th-sticky-right" style={{ ...thStyle, textAlign:'center', width:140 }}>Actions</th>
+                  <th className="go-th-sticky-right" style={{ ...thStyle, textAlign:'center', width:170 }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
-                  Array.from({ length: 6 }).map((_, i) => <SkeletonRow key={i} cols={14} />)
+                  Array.from({ length: 6 }).map((_, i) => <SkeletonRow key={i} cols={15} />)
                 ) : paged.length === 0 ? (
                   <tr>
-                    <td colSpan={14} style={{ padding:'64px 20px', textAlign:'center' }}>
+                    <td colSpan={15} style={{ padding:'64px 20px', textAlign:'center' }}>
                       <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:10, color:'var(--color-text-subtle)' }}>
                         <Icon.ClipboardEmpty />
                         <div style={{ fontWeight:600, color:'var(--color-text-muted)', fontSize:15 }}>
@@ -886,6 +970,15 @@ export default function GeneratorOrderList() {
                       />
                     </td>
 
+                    {/* 13. Payment Status */}
+                    <td style={{ ...tdStyle, textAlign:'center' }}>
+                      <StatusChip
+                        bg={o.paymentStatus === 'PAID' ? '#D1FAE5' : o.paymentStatus === 'OVERDUE' ? '#FEE2E2' : '#FEF3C7'}
+                        color={o.paymentStatus === 'PAID' ? '#065F46' : o.paymentStatus === 'OVERDUE' ? '#991B1B' : '#92400E'}
+                        label={o.paymentStatus === 'PAID' ? 'Paid' : o.paymentStatus === 'OVERDUE' ? 'Overdue' : 'Pending'}
+                      />
+                    </td>
+
                     {/* 13. Billing Number (empty/dash until Billing Status is Completed) */}
                     <td style={{ ...tdStyle, textAlign:'center', whiteSpace:'nowrap' }}>
                       {isBilled && billNum ? (
@@ -901,8 +994,8 @@ export default function GeneratorOrderList() {
                       )}
                     </td>
 
-                    {/* 14. Actions (Sticky Right) */}
-                    <td className="go-td-sticky-right" style={{ ...tdStyle, textAlign:'center', width:140, background: rowBg }}>
+                    {/* 15. Actions (Sticky Right) */}
+                    <td className="go-td-sticky-right" style={{ ...tdStyle, textAlign:'center', width:170, background: rowBg }}>
                       <div style={{ display:'flex', gap:6, justifyContent:'center' }}>
                         <button
                           className="go-action-btn"
@@ -930,6 +1023,44 @@ export default function GeneratorOrderList() {
                           onClick={() => navigate(ROUTES.GENERATOR_ORDER_BILLING.replace(':id', o.id))}
                         >
                           <Icon.Receipt />
+                        </button>
+                        <button
+                          className="go-action-btn"
+                          style={{
+                            ...actionBtn(o.paymentStatus === 'PAID' ? 'emerald' : 'amber'),
+                            position: 'relative',
+                            border: o.paymentStatus === 'PAID' ? '1.5px solid #6EE7B7' : '1.5px solid #FCD34D',
+                          }}
+                          title={o.paymentStatus === 'PAID' ? 'Payment Completed (PAID)' : 'Mark Payment as Done'}
+                          id={`btn-pay-${o.id}`}
+                          onClick={() => setPaymentModalTarget(o)}
+                        >
+                          <Icon.Wallet />
+                          {o.paymentStatus === 'PAID' ? (
+                            <span
+                              style={{
+                                position: 'absolute', top: -3, right: -3,
+                                width: 13, height: 13, borderRadius: '50%',
+                                background: '#10B981', color: '#fff',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                boxShadow: '0 0 0 1.5px #fff'
+                              }}
+                              title="Payment Done"
+                            >
+                              <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round">
+                                <polyline points="20 6 9 17 4 12"/>
+                              </svg>
+                            </span>
+                          ) : (
+                            <span
+                              style={{
+                                position: 'absolute', top: -3, right: -3,
+                                width: 8, height: 8, borderRadius: '50%',
+                                background: o.paymentStatus === 'OVERDUE' ? '#EF4444' : '#F59E0B',
+                              }}
+                              title={o.paymentStatus === 'OVERDUE' ? 'Overdue' : 'Pending'}
+                            />
+                          )}
                         </button>
                         <button
                           className="go-action-btn"
@@ -1058,6 +1189,14 @@ export default function GeneratorOrderList() {
                       label={isBilled ? 'Completed' : 'Pending'}
                     />
                   </div>
+                  <div className="go-mc-field">
+                    <label>Payment Status</label>
+                    <StatusChip
+                      bg={o.paymentStatus === 'PAID' ? '#D1FAE5' : o.paymentStatus === 'OVERDUE' ? '#FEE2E2' : '#FEF3C7'}
+                      color={o.paymentStatus === 'PAID' ? '#065F46' : o.paymentStatus === 'OVERDUE' ? '#991B1B' : '#92400E'}
+                      label={o.paymentStatus === 'PAID' ? 'Paid' : o.paymentStatus === 'OVERDUE' ? 'Overdue' : 'Pending'}
+                    />
+                  </div>
                   <div className="go-mc-field" style={{ gridColumn:'span 2' }}>
                     <label>Billing Number</label>
                     {isBilled && billNum ? (
@@ -1085,6 +1224,42 @@ export default function GeneratorOrderList() {
                   <button className="go-action-btn" style={actionBtn('emerald')} title="Billing"
                     onClick={() => navigate(ROUTES.GENERATOR_ORDER_BILLING.replace(':id', o.id))}>
                     <Icon.Receipt />
+                  </button>
+                  <button
+                    className="go-action-btn"
+                    style={{
+                      ...actionBtn(o.paymentStatus === 'PAID' ? 'emerald' : 'amber'),
+                      position: 'relative',
+                      border: o.paymentStatus === 'PAID' ? '1.5px solid #6EE7B7' : '1.5px solid #FCD34D',
+                    }}
+                    title={o.paymentStatus === 'PAID' ? 'Payment Completed (PAID)' : 'Mark Payment as Done'}
+                    id={`btn-mob-pay-${o.id}`}
+                    onClick={() => setPaymentModalTarget(o)}
+                  >
+                    <Icon.Wallet />
+                    {o.paymentStatus === 'PAID' ? (
+                      <span
+                        style={{
+                          position: 'absolute', top: -3, right: -3,
+                          width: 13, height: 13, borderRadius: '50%',
+                          background: '#10B981', color: '#fff',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          boxShadow: '0 0 0 1.5px #fff'
+                        }}
+                      >
+                        <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="20 6 9 17 4 12"/>
+                        </svg>
+                      </span>
+                    ) : (
+                      <span
+                        style={{
+                          position: 'absolute', top: -3, right: -3,
+                          width: 8, height: 8, borderRadius: '50%',
+                          background: o.paymentStatus === 'OVERDUE' ? '#EF4444' : '#F59E0B',
+                        }}
+                      />
+                    )}
                   </button>
                   <button className="go-action-btn" style={actionBtn('red')} title="Delete"
                     onClick={() => setDeleteTarget(o)}>
@@ -1138,6 +1313,48 @@ export default function GeneratorOrderList() {
           )}
         </div>
       </div>
+
+      {/* ── Payment Done Modal ───────────────────────── */}
+      {paymentModalTarget && (
+        <div className="go-overlay" onClick={() => setPaymentModalTarget(null)}>
+          <div className="go-modal" onClick={e => e.stopPropagation()}>
+            <div className="go-modal-icon" style={{ background: '#D1FAE5', color: '#065F46' }}>
+              <Icon.Wallet />
+            </div>
+            <h3 className="go-modal-title">Mark Payment as Done</h3>
+            <p className="go-modal-body">
+              Are you sure you want to mark payment for order <strong>{paymentModalTarget.orderNumber || `#${paymentModalTarget.id}`}</strong> ({paymentModalTarget.clientName}) as <strong>PAID</strong>?
+            </p>
+            <div className="go-modal-actions">
+              <button
+                id="btn-cancel-pay"
+                style={{
+                  padding: '9px 18px', borderRadius: 'var(--radius-md)',
+                  border: '1.5px solid var(--color-border)', background: 'var(--color-surface)',
+                  fontSize: 14, fontWeight: 600, color: 'var(--color-text)', cursor: 'pointer'
+                }}
+                onClick={() => setPaymentModalTarget(null)}
+                disabled={markingPaid}
+              >
+                Cancel
+              </button>
+              <button
+                id="btn-confirm-pay"
+                style={{
+                  padding: '9px 18px', borderRadius: 'var(--radius-md)',
+                  border: 'none', background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
+                  fontSize: 14, fontWeight: 600, color: '#fff', cursor: 'pointer',
+                  opacity: markingPaid ? 0.7 : 1
+                }}
+                onClick={handleMarkPaymentDone}
+                disabled={markingPaid}
+              >
+                {markingPaid ? 'Updating...' : 'Yes, Mark as Paid'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Delete Confirmation Modal ── */}
       {deleteTarget && (

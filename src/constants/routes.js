@@ -29,6 +29,7 @@ export const ROUTES = {
   GENERATOR_ORDER_EDIT:    '/generators/orders/:id/edit',
   GENERATOR_ORDER_DETAIL:  '/generators/orders/:id',
   GENERATOR_ORDER_BILLING: '/generators/orders/:id/billing',
+  GENERATOR_BILLING_HISTORY: '/generators/billing-history',
 
   // ── Staff Portal ─────────────────────────────────────────────────────────
   STAFF_ORDERS:        '/staff/orders',

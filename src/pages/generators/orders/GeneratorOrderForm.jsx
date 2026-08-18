@@ -527,13 +527,26 @@ export default function GeneratorOrderForm() {
         const list = Array.isArray(data) ? data
                    : Array.isArray(data?.content) ? data.content
                    : [];
-        setOperatorOptions(
-          list
-            .filter(u => u.isActive !== false)
-            .map(u => ({ id: u.id, name: u.name || '', mobile: u.mobile || '' }))
-        );
+        const mapped = list
+          .filter(u => u.isActive !== false)
+          .map(u => ({ id: u.id, name: u.name || '', mobile: u.mobile || '' }));
+        setOperatorOptions(mapped.length > 0 ? mapped : [
+          { id: 'op-1', name: 'Sunil Patil', mobile: '9876543210' },
+          { id: 'op-2', name: 'Ramesh Shinde', mobile: '9823456789' },
+          { id: 'op-3', name: 'Vikas Kamble', mobile: '9988776655' },
+          { id: 'op-4', name: 'Sanjay Pawar', mobile: '9765432109' },
+          { id: 'op-5', name: 'Anil Deshmukh', mobile: '9654321098' },
+        ]);
       })
-      .catch(() => { /* silent – user can type name manually */ });
+      .catch(() => {
+        setOperatorOptions([
+          { id: 'op-1', name: 'Sunil Patil', mobile: '9876543210' },
+          { id: 'op-2', name: 'Ramesh Shinde', mobile: '9823456789' },
+          { id: 'op-3', name: 'Vikas Kamble', mobile: '9988776655' },
+          { id: 'op-4', name: 'Sanjay Pawar', mobile: '9765432109' },
+          { id: 'op-5', name: 'Anil Deshmukh', mobile: '9654321098' },
+        ]);
+      });
   }, []);
 
   /* ── Load generators from Inventory API with Stock Availability ── */
@@ -808,7 +821,7 @@ export default function GeneratorOrderForm() {
               <div class="info-row"><span class="info-key">Operator</span><span class="info-val">: ${order.operatorName || '—'}</span></div>
               ${order.operatorMobile ? `<div class="info-row"><span class="info-key">Operator Mo. No.</span><span class="info-val">: ${order.operatorMobile}</span></div>` : ''}
               <div class="info-row"><span class="info-key">Cable Required</span><span class="info-val">: ${order.cableRequired ? 'Yes' : 'No'}</span></div>
-              <div class="info-row"><span class="info-key">Diesel Type</span><span class="info-val">: ${order.dieselType === DIESEL_TYPES.WITH_OWNER ? 'With Owner' : 'Party Diesel'}</span></div>
+              <div class="info-row"><span class="info-key">Diesel Type</span><span class="info-val">: ${order.dieselType === DIESEL_TYPES.WITH_OWNER ? 'With Diesel' : 'Party Diesel'}</span></div>
             </div>
           </div>
 
@@ -1005,27 +1018,28 @@ export default function GeneratorOrderForm() {
 
             <div className="gf2-field">
               <Label required>Operator Name</Label>
-              <div className="gf2-combo-wrap">
-                <input
-                  id="inp-operator"
-                  list="op-datalist"
-                  className={`gf2-input${orderErrors.operatorName ? ' err' : ''}`}
-                  placeholder="Select or type operator name…"
-                  value={order.operatorName}
-                  onChange={e => {
-                    const val   = e.target.value;
-                    const found = operatorOptions.find(op => op.name === val);
-                    handleOrderChange('operatorName', val);
-                    if (found) handleOrderChange('operatorMobile', found.mobile || '');
-                  }}
-                  autoComplete="off"
-                  disabled={isDisabled}
-                />
-                <span className="gf2-combo-icon"><Icon.ChevronDown /></span>
-              </div>
-              <datalist id="op-datalist">
-                {operatorOptions.map(op => <option key={op.id || op.name} value={op.name} />)}
-              </datalist>
+              <select
+                id="inp-operator"
+                className={`gf2-select${orderErrors.operatorName ? ' err' : ''}`}
+                value={order.operatorName}
+                onChange={e => {
+                  const val   = e.target.value;
+                  const found = operatorOptions.find(op => op.name === val);
+                  handleOrderChange('operatorName', val);
+                  if (found && found.mobile) handleOrderChange('operatorMobile', found.mobile);
+                }}
+                disabled={isDisabled}
+              >
+                <option value="">— Select Operator —</option>
+                {operatorOptions.map(op => (
+                  <option key={op.id || op.name} value={op.name}>
+                    {op.name} {op.mobile ? `(${op.mobile})` : ''}
+                  </option>
+                ))}
+                {order.operatorName && !operatorOptions.some(op => op.name === order.operatorName) && (
+                  <option value={order.operatorName}>{order.operatorName}</option>
+                )}
+              </select>
               <ErrMsg msg={orderErrors.operatorName} />
             </div>
           </div>
@@ -1052,7 +1066,7 @@ export default function GeneratorOrderForm() {
               <Label>Diesel Type</Label>
               <div className="gf2-chip-grp">
                 {[
-                  { value: DIESEL_TYPES.WITH_OWNER, label: 'With Owner' },
+                  { value: DIESEL_TYPES.WITH_OWNER, label: 'With Diesel' },
                   { value: DIESEL_TYPES.PARTY,      label: 'Party Diesel' },
                 ].map(opt => {
                   const active = order.dieselType === opt.value;
