@@ -56,6 +56,14 @@ const Icon = {
       <circle cx="12" cy="12" r="3"/>
     </svg>
   ),
+  Calendar: () => (
+    <svg width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+      <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+      <line x1="16" y1="2" x2="16" y2="6"/>
+      <line x1="8" y1="2" x2="8" y2="6"/>
+      <line x1="3" y1="10" x2="21" y2="10"/>
+    </svg>
+  ),
 };
 
 /* ─── Style helpers ──────────────────────────────────────────── */
@@ -258,6 +266,7 @@ export default function GeneratorList() {
     if (tabFilter === "active") matchTab = !!g.isActive;
     else if (tabFilter === "inactive") matchTab = !g.isActive;
     else if (tabFilter === "noStock") matchTab = (g.stockQuantity ?? 0) === 0;
+    else if (tabFilter === "underService") matchTab = (g.underServiceQuantity ?? 0) > 0;
 
     // Dropdown filter
     const matchActive =
@@ -337,10 +346,11 @@ export default function GeneratorList() {
 
   /* ── Derived stats ─────────────────────────────────────────── */
   const totals = {
-    all:      generators.length,
-    active:   generators.filter((g) => g.isActive).length,
-    inactive: generators.filter((g) => !g.isActive).length,
-    noStock:  generators.filter((g) => (g.stockQuantity ?? 0) === 0).length,
+    all:          generators.length,
+    active:       generators.filter((g) => g.isActive).length,
+    inactive:     generators.filter((g) => !g.isActive).length,
+    noStock:      generators.filter((g) => (g.stockQuantity ?? 0) === 0).length,
+    underService: generators.filter((g) => (g.underServiceQuantity ?? 0) > 0).length,
   };
 
   const SKELETON_COLS = 8;
@@ -411,12 +421,13 @@ export default function GeneratorList() {
 
         .gl-stats-row {
           display: grid;
-          grid-template-columns: repeat(4, 1fr);
+          grid-template-columns: repeat(5, 1fr);
           gap: 16px;
           margin-bottom: 24px;
         }
         .gl-stat-card {
           background: var(--color-surface);
+          border: 1.5px solid var(--color-border);
           border-radius: var(--radius-lg);
           padding: 16px 20px;
           box-shadow: var(--shadow-sm);
@@ -519,6 +530,31 @@ export default function GeneratorList() {
         .gl-row { border-bottom: 1px solid var(--color-surface-2); transition: background 0.15s; }
         .gl-row:hover td { background: rgba(37,99,235,0.04) !important; }
         .gl-row:last-child { border-bottom: none; }
+
+        /* ── Sticky Columns ── */
+        .gl-th-sticky-left-1, .gl-td-sticky-left-1 {
+          position: sticky; left: 0; z-index: 2;
+          box-shadow: 2px 0 6px -1px rgba(0,0,0,.08);
+        }
+        .gl-th-sticky-left-1 { background: var(--color-surface-2) !important; z-index: 4; }
+        
+        .gl-th-sticky-left-2, .gl-td-sticky-left-2 {
+          position: sticky; left: 48px; z-index: 2;
+          box-shadow: 2px 0 6px -1px rgba(0,0,0,.08);
+          border-right: 1.5px solid var(--color-border) !important;
+        }
+        .gl-th-sticky-left-2 { background: var(--color-surface-2) !important; z-index: 4; }
+
+        .gl-th-sticky-right, .gl-td-sticky-right {
+          position: sticky; right: 0; z-index: 2;
+          box-shadow: -2px 0 6px -1px rgba(0,0,0,.08);
+          border-left: 1.5px solid var(--color-border) !important;
+        }
+        .gl-th-sticky-right { background: var(--color-surface-2) !important; z-index: 4; }
+
+        .gl-row:hover .gl-td-sticky-left-1,
+        .gl-row:hover .gl-td-sticky-left-2,
+        .gl-row:hover .gl-td-sticky-right { background: #f0f7ff !important; }
 
         .gl-action-btn { transition: transform 0.15s; }
         .gl-action-btn:hover:not(:disabled) { transform: scale(1.1); }
@@ -646,22 +682,38 @@ export default function GeneratorList() {
               <a href="#">Home</a> › Generators
             </p>
           </div>
-          <button
-            className="gl-add-btn"
-            onClick={() => navigate(ROUTES.GENERATOR_ADD)}
-            disabled={loading}
-          >
-            <Icon.Plus /> Add Generator
-          </button>
+          <div style={{ display: 'flex', gap: '12px' }}>
+            <button
+              className="gl-add-btn"
+              style={{
+                background: 'var(--color-danger)',
+                color: '#fff',
+                border: 'none',
+                boxShadow: '0 4px 12px rgba(239,68,68,0.3)'
+              }}
+              onClick={() => navigate(ROUTES.GENERATOR_AVAILABILITY)}
+              disabled={loading}
+            >
+              <Icon.Calendar /> Check Stock Availability
+            </button>
+            <button
+              className="gl-add-btn"
+              onClick={() => navigate(ROUTES.GENERATOR_ADD)}
+              disabled={loading}
+            >
+              <Icon.Plus /> Add Generator
+            </button>
+          </div>
         </div>
 
         {/* Stats */}
         <div className="gl-stats-row">
           {[
-            { id: "all",      color: "var(--color-primary)", value: loading ? "—" : totals.all,      label: "Total Generators" },
-            { id: "active",   color: "#059669",             value: loading ? "—" : totals.active,   label: "Active" },
-            { id: "inactive", color: "#64748b",             value: loading ? "—" : totals.inactive, label: "Inactive" },
-            { id: "noStock",  color: "#d97706",             value: loading ? "—" : totals.noStock,  label: "Zero Stock" },
+            { id: "all",          color: "var(--color-primary)", value: loading ? "—" : totals.all,          label: "Total Generators" },
+            { id: "active",       color: "#059669",             value: loading ? "—" : totals.active,       label: "Active" },
+            { id: "inactive",     color: "#64748b",             value: loading ? "—" : totals.inactive,     label: "Inactive" },
+            { id: "noStock",      color: "#d97706",             value: loading ? "—" : totals.noStock,      label: "Zero Stock" },
+            { id: "underService", color: "#dc2626",             value: loading ? "—" : totals.underService, label: "Under Service" },
           ].map(({ id, color, value, label }) => {
             const isActive = tabFilter === id;
             return (
@@ -755,16 +807,17 @@ export default function GeneratorList() {
             <table className="gl-table">
               <thead className="gl-thead">
                 <tr>
-                  <th style={{ ...thStyle, width: 48 }}>#</th>
-                  <th style={thStyle}>Generator</th>
+                  <th className="gl-th-sticky-left-1" style={{ ...thStyle, width: 48 }}>#</th>
+                  <th className="gl-th-sticky-left-2" style={thStyle}>Generator</th>
                   <th style={thStyle}>Code (SKU)</th>
                   <th style={thStyle}>Product By</th>
                   <th style={{ ...thStyle, textAlign: "right" }}>Purchase ₹</th>
                   <th style={{ ...thStyle, textAlign: "right" }}>Party Diesel ₹</th>
                   <th style={{ ...thStyle, textAlign: "right" }}>With Diesel ₹</th>
-                  <th style={{ ...thStyle, textAlign: "center" }}>Stock</th>
+                  <th style={{ ...thStyle, textAlign: "center" }}>Total Stock</th>
+                  <th style={{ ...thStyle, textAlign: "center" }}>Under Service</th>
                   <th style={{ ...thStyle, textAlign: "center" }}>Active</th>
-                  <th style={{ ...thStyle, textAlign: "center" }}>Actions</th>
+                  <th className="gl-th-sticky-right" style={{ ...thStyle, textAlign: "center" }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -774,7 +827,7 @@ export default function GeneratorList() {
                   ))
                 ) : paged.length === 0 ? (
                   <tr>
-                    <td colSpan={10} style={{ textAlign: "center", padding: "60px 20px" }}>
+                    <td colSpan={11} style={{ textAlign: "center", padding: "60px 20px" }}>
                       <div style={{ fontSize: 40, marginBottom: 8 }}>⚡</div>
                       <div style={{ fontWeight: 600, color: "var(--color-text-muted)" }}>
                         {search || activeFilter !== "all" ? "No generators match your filters" : "No generators yet"}
@@ -788,16 +841,17 @@ export default function GeneratorList() {
                   </tr>
                 ) : paged.map((gen, i) => {
                   const sc = statusColor(gen.currentStatus);
+                  const rowBg = i % 2 === 0 ? "var(--color-surface)" : "var(--color-bg)";
                   return (
                     <tr
                       key={gen.id}
                       className="gl-row"
-                      style={{ background: i % 2 === 0 ? "var(--color-surface)" : "var(--color-bg)" }}
+                      style={{ background: rowBg }}
                     >
-                      <td style={{ ...tdStyle, color: "var(--color-text-subtle)", fontSize: 13, width: 48 }}>
+                      <td className="gl-td-sticky-left-1" style={{ ...tdStyle, color: "var(--color-text-subtle)", fontSize: 13, width: 48, background: rowBg }}>
                         {(page - 1) * PAGE_SIZE + i + 1}
                       </td>
-                      <td style={tdStyle}>
+                      <td className="gl-td-sticky-left-2" style={{ ...tdStyle, background: rowBg }}>
                         <div style={{ fontWeight: 600, color: "var(--color-text)", display: "flex", alignItems: "center", gap: 8 }}>
                           <div>
                             <div>{gen.name}</div>
@@ -842,6 +896,20 @@ export default function GeneratorList() {
                           {gen.stockQuantity ?? 0}
                         </span>
                       </td>
+                      {/* Under Service */}
+                      <td style={{ ...tdStyle, textAlign: "center" }}>
+                        {(gen.underServiceQuantity ?? 0) > 0 ? (
+                          <span style={{
+                            display: 'inline-flex', alignItems: 'center', gap: 4,
+                            padding: '3px 10px', borderRadius: 20, fontSize: 12, fontWeight: 700,
+                            background: '#FEF9C3', color: '#854D0E', whiteSpace: 'nowrap'
+                          }}>
+                            ⚠ {gen.underServiceQuantity}
+                          </span>
+                        ) : (
+                          <span style={{ color: 'var(--color-text-subtle)' }}>—</span>
+                        )}
+                      </td>
                       <td style={{ ...tdStyle, textAlign: "center" }}>
                         <Toggle
                           active={gen.isActive}
@@ -849,7 +917,7 @@ export default function GeneratorList() {
                           disabled={togglingId === gen.id}
                         />
                       </td>
-                      <td style={{ ...tdStyle, textAlign: "center" }}>
+                      <td className="gl-td-sticky-right" style={{ ...tdStyle, textAlign: "center", background: rowBg }}>
                         <div style={{ display: "flex", gap: 6, justifyContent: "center" }}>
                           <button
                             className="gl-action-btn"

@@ -1,11 +1,11 @@
-// src/components/layout/Sidebar.jsx
 import { NavLink, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Package, ShieldCheck,
   ChevronLeft, ChevronRight, ChevronDown, ChevronUp,
   Zap, ClipboardList, Box, Receipt,
+  Users, Wallet,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useUIStore }     from '@/store/uiStore';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useAuthStore }   from '@/store/authStore';
@@ -71,10 +71,11 @@ function SubNavItem({ label, icon: Icon, route, isActive }) {
 function DropdownGroup({ label, icon: Icon, collapsed, children, isActive }) {
   const [open, setOpen] = useState(isActive);
 
-  // Re-open if a child becomes active while collapsed
-  if (isActive && !open && !collapsed) {
-    // intentional: keep open when already active
-  }
+  useEffect(() => {
+    if (isActive) {
+      setOpen(true);
+    }
+  }, [isActive]);
 
   if (collapsed) {
     // Collapsed sidebar: show only the parent icon (no dropdown)
@@ -134,7 +135,7 @@ function DropdownGroup({ label, icon: Icon, collapsed, children, isActive }) {
       <div
         style={{
           overflow: 'hidden',
-          maxHeight: open ? '200px' : '0px',
+          maxHeight: open ? '650px' : '0px',
           transition: 'max-height .28s ease',
         }}
       >
@@ -163,8 +164,8 @@ export default function Sidebar() {
 
   const isStaff = user?.role === ROLES.STAFF;
 
-  // Whether any Generator route is currently active
-  const isGenActive = location.pathname.startsWith('/generators');
+  // Whether any Generator or Customer route is currently active
+  const isGenActive = location.pathname.startsWith('/generators') || location.pathname.startsWith('/customers');
   // Whether any Staff route is currently active
   const isStaffActive = location.pathname.startsWith('/staff');
 
@@ -172,6 +173,10 @@ export default function Sidebar() {
   const isBillingHistoryActive = location.pathname === ROUTES.GENERATOR_BILLING_HISTORY;
   const isOrdersActive = location.pathname.startsWith('/generators/orders') && !isBillingHistoryActive;
   const isInventoryActive = location.pathname.startsWith('/generators') && !isOrdersActive && !isBillingHistoryActive;
+
+  // Customer Management active states
+  const isCustomerDirActive     = location.pathname === ROUTES.CUSTOMERS || location.pathname === ROUTES.CUSTOMER_ADD || location.pathname.match(/^\/customers\/\d+(\/edit)?$/);
+  const isCustomerPendingActive = location.pathname === ROUTES.CUSTOMER_PENDING;
 
   return (
     <aside
@@ -254,8 +259,8 @@ export default function Sidebar() {
               />
             )}
 
-            {/* ── Generator Management dropdown ── */}
-            {(canAccess(ROUTES.GENERATORS) || canAccess(ROUTES.GENERATOR_ORDERS)) && (
+            {/* ── Generator Management dropdown (Includes Generator Ops & Customer Ops) ── */}
+            {(canAccess(ROUTES.GENERATORS) || canAccess(ROUTES.GENERATOR_ORDERS) || canAccess(ROUTES.CUSTOMERS)) && (
               <DropdownGroup
                 label="Generator Management"
                 icon={Zap}
@@ -285,6 +290,29 @@ export default function Sidebar() {
                     route={ROUTES.GENERATOR_BILLING_HISTORY}
                     isActive={isBillingHistoryActive}
                   />
+                )}
+
+                {/* ── Sub-section: Customer Management under Generator ── */}
+                {canAccess(ROUTES.CUSTOMERS) && (
+                  <>
+                    {!sc && (
+                      <div className="pt-2.5 pb-1 px-4 text-[10px] font-bold tracking-wider text-slate-500 uppercase">
+                        Customers
+                      </div>
+                    )}
+                    <SubNavItem
+                      label="Customer Directory"
+                      icon={Users}
+                      route={ROUTES.CUSTOMERS}
+                      isActive={isCustomerDirActive}
+                    />
+                    <SubNavItem
+                      label="Pending Payments"
+                      icon={Wallet}
+                      route={ROUTES.CUSTOMER_PENDING}
+                      isActive={isCustomerPendingActive}
+                    />
+                  </>
                 )}
               </DropdownGroup>
             )}

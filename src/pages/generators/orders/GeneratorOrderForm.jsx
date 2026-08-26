@@ -795,9 +795,13 @@ export default function GeneratorOrderForm() {
           <div class="hdr">
             <div class="hdr-title">ORDER SHEET</div>
             <div class="hdr-row">
-              <div class="hdr-left">
-                <img src="/images/avadhut-logo.png" alt="Avadhut" style="height:100px;object-fit:contain;display:block;flex-shrink:0;" onerror="this.style.display='none'"/>
-                <div style="font-size:22px;font-weight:800;color:#cc0000;line-height:1.3;white-space:nowrap;">Avadhut Light Decoration &amp; Sound</div>
+              <div class="hdr-left" style="display:flex;align-items:center;gap:14px;flex:1;min-width:0;">
+                <img src="/images/avadhut-logo.png" alt="Avadhut" style="height:90px;object-fit:contain;display:block;flex-shrink:0;" onerror="this.style.display='none'"/>
+                <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;flex:1;min-width:0;">
+                  <div style="font-size:20px;font-weight:800;color:#cc0000;line-height:1.2;white-space:nowrap;margin-bottom:3px;">Avadhut Light Decoration &amp; Sound</div>
+                  <div style="font-size:12px;color:#475569;font-weight:500;line-height:1.3;margin-bottom:2px;white-space:nowrap;">Main Market Road, Sector 12, Navi Mumbai, Maharashtra - 400701</div>
+                  <div style="font-size:12px;color:#475569;font-weight:600;line-height:1.3;white-space:nowrap;">Mo. No.: +91 98765 43210 / +91 91112 22333</div>
+                </div>
               </div>
               <div class="meta">
                 <table>

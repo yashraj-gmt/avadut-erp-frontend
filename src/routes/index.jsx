@@ -20,9 +20,10 @@ const ProductForm   = lazy(() => import('@/pages/inventory/products/ProductForm'
 const ProductDetail = lazy(() => import('@/pages/inventory/products/ProductDetail'))
 
 // ── Generator Management ──────────────────────────────────────────────
-const GeneratorList   = lazy(() => import('@/pages/generators/GeneratorList'))
-const GeneratorForm   = lazy(() => import('@/pages/generators/GeneratorForm'))
-const GeneratorDetail = lazy(() => import('@/pages/generators/GeneratorDetail'))
+const GeneratorList         = lazy(() => import('@/pages/generators/GeneratorList'))
+const GeneratorForm         = lazy(() => import('@/pages/generators/GeneratorForm'))
+const GeneratorAvailability = lazy(() => import('@/pages/generators/GeneratorAvailability'))
+const GeneratorDetail       = lazy(() => import('@/pages/generators/GeneratorDetail'))
 
 // ── Generator Order Management ────────────────────────────────────────
 const GeneratorOrderList   = lazy(() => import('@/pages/generators/orders/GeneratorOrderList'))
@@ -41,6 +42,11 @@ const StaffOrderDetail = lazy(() => import('@/pages/staff/StaffOrderDetail'))
 // ── Misc ──────────────────────────────────────────────────────────────────
 const ProfilePage  = lazy(() => import('@/pages/profile/ProfilePage'))
 const Unauthorized = lazy(() => import('@/pages/Unauthorized'))
+
+// ── Customer Management ──────────────────────────────────────────────────────
+const CustomerList              = lazy(() => import('@/pages/customers/CustomerList'))
+const CustomerProfile           = lazy(() => import('@/pages/customers/CustomerProfile'))
+const PendingPaymentsDashboard  = lazy(() => import('@/pages/customers/PendingPaymentsDashboard'))
 
 // ── Loader ────────────────────────────────────────────────────────────────
 const Loader = () => (
@@ -98,10 +104,11 @@ export const router = createBrowserRouter([
       rr(ROUTES.ROLES, RolesPermissions),
 
       // Generator Inventory Management
-      rr(ROUTES.GENERATORS,        GeneratorList),
-      rr(ROUTES.GENERATOR_ADD,     GeneratorForm),
-      rr(ROUTES.GENERATOR_EDIT,    GeneratorForm),
-      rr(ROUTES.GENERATOR_DETAIL,  GeneratorDetail),
+      rr(ROUTES.GENERATORS,             GeneratorList),
+      rr(ROUTES.GENERATOR_ADD,          GeneratorForm),
+      rr(ROUTES.GENERATOR_AVAILABILITY, GeneratorAvailability),
+      rr(ROUTES.GENERATOR_EDIT,         GeneratorForm),
+      rr(ROUTES.GENERATOR_DETAIL,       GeneratorDetail),
 
       // Generator Order Management
       rr(ROUTES.GENERATOR_ORDERS,        GeneratorOrderList),
@@ -114,6 +121,13 @@ export const router = createBrowserRouter([
       // Staff Portal
       rr(ROUTES.STAFF_ORDERS,       StaffOrderList),
       rr(ROUTES.STAFF_ORDER_DETAIL, StaffOrderDetail),
+
+      // Customer Management
+      rr(ROUTES.CUSTOMERS,         CustomerList),
+      rr(ROUTES.CUSTOMER_ADD,      CustomerList),
+      rr(ROUTES.CUSTOMER_PENDING,  PendingPaymentsDashboard),
+      rr(ROUTES.CUSTOMER_EDIT,     CustomerList),
+      rr(ROUTES.CUSTOMER_PROFILE,  CustomerProfile),
 
       // Profile (no role gate — any authenticated user)
       { path: ROUTES.PROFILE, errorElement: <ErrorBoundary />, element: s(ProfilePage) },

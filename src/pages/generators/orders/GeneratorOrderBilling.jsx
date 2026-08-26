@@ -364,7 +364,7 @@ export default function GeneratorOrderBilling() {
   const [showCompleteModal, setShowCompleteModal] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
   const [generatorsList, setGeneratorsList] = useState([]);
-  const [paymentDueDate, setPaymentDueDate] = useState(''); // YYYY-MM-DD for date input
+  const [paymentDueDate, setPaymentDueDate] = useState('');
 
   /* ── Disable Browser Inspect (F12, Right-Click, Ctrl+Shift+I, etc.) ── */
   useEffect(() => {
@@ -402,6 +402,9 @@ export default function GeneratorOrderBilling() {
   const [dieselPerHour,    setDieselPerHour]    = useState({});
   const [cableRatePerDay,  setCableRatePerDay]  = useState({});
   const [dieselEntries,    setDieselEntries]    = useState({}); // { [gId]: [{ date, startTime, endTime, duration }] }
+
+  /* ── Other Charges (miscellaneous) ── */
+  const [otherCharges, setOtherCharges] = useState([]); // [{ name: '', amount: '' }]
 
   /* ── Errors ── */
   const [rentErrors,    setRentErrors]    = useState({});
@@ -491,6 +494,12 @@ export default function GeneratorOrderBilling() {
         setDieselPerHour(existingDiesel);
         setCableRatePerDay(existingCable);
         setDieselEntries(existingEntries);
+        // Load saved otherCharges from order if available
+        if (foundOrder.otherCharges && foundOrder.otherCharges.length > 0) {
+          setOtherCharges(foundOrder.otherCharges.map(oc => ({ name: oc.name || '', amount: oc.amount != null ? String(oc.amount) : '' })));
+        } else {
+          setOtherCharges([]);
+        }
         setDiscount(foundOrder.discountAmount || 0);
         setBillNo(foundOrder.billNumber || '—');
         // Load paymentDueDate: if saved use it, else default to today + 7 days
@@ -697,8 +706,20 @@ export default function GeneratorOrderBilling() {
   }, [order, rentPerDay, dieselPerHour, cableRatePerDay, dieselEntries, rentalDays, withDiesel, cableRequired]);
 
   const discountVal = parseFloat(discount) || 0;
-  const netTotal    = Math.max(0, parseFloat((calculations.totalAmount - discountVal).toFixed(2)));
+  const otherChargesTotal = otherCharges.reduce((sum, oc) => sum + (parseFloat(oc.amount) || 0), 0);
+  const netTotal    = Math.max(0, parseFloat((calculations.totalAmount + otherChargesTotal - discountVal).toFixed(2)));
   const amountWords = numberToWords(netTotal);
+
+  /* ── Other Charges handlers ── */
+  const handleAddOtherCharge = () => setOtherCharges(prev => [...prev, { name: '', amount: '' }]);
+  const handleRemoveOtherCharge = (idx) => setOtherCharges(prev => prev.filter((_, i) => i !== idx));
+  const handleOtherChargeChange = (idx, field, val) => {
+    setOtherCharges(prev => {
+      const next = [...prev];
+      next[idx] = { ...next[idx], [field]: field === 'amount' ? numOnly(val) : val };
+      return next;
+    });
+  };
 
   /**
    * Detect overlapping or identical time slots within the same date for each generator.
@@ -789,7 +810,11 @@ export default function GeneratorOrderBilling() {
                    };
                })
            };
-       })
+       }),
+       // Include valid other charges only (must have at least an amount)
+       otherCharges: otherCharges
+         .filter(oc => parseFloat(oc.amount) > 0)
+         .map(oc => ({ name: oc.name.trim() || 'Other Charge', amount: parseFloat(oc.amount) || 0 }))
     };
     
     generatorOrderService.updateBilling(id, req)
@@ -893,12 +918,16 @@ export default function GeneratorOrderBilling() {
         <div class="hdr">
           <div class="hdr-title">TAX INVOICE</div>
           <div class="hdr-row">
-            <div class="hdr-left">
-              <img src="/images/avadhut-logo.png" alt="Avadhut" style="height:100px;object-fit:contain;display:block;flex-shrink:0;" onerror="this.style.display='none'"/>
-              <div style="font-size:22px;font-weight:800;color:#cc0000;line-height:1.3;white-space:nowrap;">Avadhut Light Decoration &amp; Sound</div>
+            <div class="hdr-left" style="display:flex;align-items:center;gap:14px;flex:1;min-width:0;">
+              <img src="/images/avadhut-logo.png" alt="Avadhut" style="height:90px;object-fit:contain;display:block;flex-shrink:0;" onerror="this.style.display='none'"/>
+              <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;flex:1;min-width:0;">
+                <div style="font-size:20px;font-weight:800;color:#cc0000;line-height:1.2;white-space:nowrap;margin-bottom:3px;">Avadhut Light Decoration &amp; Sound</div>
+                <div style="font-size:12px;color:#475569;font-weight:500;line-height:1.3;margin-bottom:2px;white-space:nowrap;">Main Market Road, Sector 12, Navi Mumbai, Maharashtra - 400701</div>
+                <div style="font-size:12px;color:#475569;font-weight:600;line-height:1.3;white-space:nowrap;">Mo. No.: +91 98765 43210 / +91 91112 22333</div>
+              </div>
             </div>
             <div class="meta">
-              <table><tr><td>Bill Number</td><td>: #${billNo}</td></tr><tr><td>Order Number</td><td>: ${order.orderNumber || order.id}</td></tr><tr><td>Billing Date</td><td>: ${billingDate}</td></tr><tr><td>Due Date</td><td>: ${paymentDueDate ? fmtDate(new Date(paymentDueDate)) : '—'}</td></tr><tr><td>Rental Days</td><td>: ${rentalDays} day${rentalDays!==1?'s':''}</td></tr></table>
+              <table><tr><td>Bill Number</td><td>: #${billNo}</td></tr><tr><td>Order Number</td><td>: ${order.orderNumber || order.id}</td></tr><tr><td>Billing Date</td><td>: ${billingDate}</td></tr></table>
             </div>
           </div>
         </div>
@@ -940,14 +969,36 @@ export default function GeneratorOrderBilling() {
           <tbody>${rows}</tbody>
         </table>
 
+        ${otherCharges.filter(oc => parseFloat(oc.amount) > 0).length > 0 ? `
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#6366f1;margin-bottom:6px;margin-top:14px;">Other Charges</div>
+        <table class="inv-table">
+          <thead><tr>
+            <th style="width:36px;text-align:center;">#</th>
+            <th style="text-align:left;">Description</th>
+            <th style="text-align:right;color:#6366f1;">Amount</th>
+          </tr></thead>
+          <tbody>
+            ${otherCharges.filter(oc => parseFloat(oc.amount) > 0).map((oc, i) => `
+              <tr style="background:#f5f3ff;">
+                <td style="border:1px solid #cbd5e1;padding:8px 10px;text-align:center;font-size:13px;">${i + 1}</td>
+                <td style="border:1px solid #cbd5e1;padding:8px 10px;font-size:13px;font-weight:600;color:#4338ca;">${oc.name || 'Other Charge'}</td>
+                <td style="border:1px solid #cbd5e1;padding:8px 10px;text-align:right;font-size:13px;font-weight:700;color:#4338ca;font-family:monospace;">${fmtCurrency(parseFloat(oc.amount) || 0)}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+        ` : ''}
+
         <div class="summary">
           <table class="stbl">
-            <tr><td style="color:#64748b;font-weight:500;">Total Amount :</td><td>${fmtCurrency(calculations.totalAmount)}</td></tr>
+            <tr><td style="color:#64748b;font-weight:500;">Generator Total :</td><td>${fmtCurrency(calculations.totalAmount)}</td></tr>
+            ${otherChargesTotal > 0 ? `<tr><td style="color:#6366f1;font-weight:500;">Other Charges :</td><td style="color:#6366f1;">+ ${fmtCurrency(otherChargesTotal)}</td></tr>` : ''}
             <tr><td style="color:#dc2626;font-weight:500;">Discount :</td><td style="color:#dc2626;">- ${fmtCurrency(discountVal)}</td></tr>
             <tr class="net-row"><td>Net Total:</td><td>${fmtCurrency(netTotal)}</td></tr>
           </table>
         </div>
         <div class="words">(${amountWords})</div>
+
         <div class="footer">
           <p>Thank you for your business. Please make payments before due date.</p>
           <p>© ${new Date().getFullYear()} Avadhut ERP Systems. All rights reserved.</p>
@@ -1365,13 +1416,124 @@ export default function GeneratorOrderBilling() {
             </table>
           </div>
 
+          {/* ─────── Other Charges Section ─────── */}
+          <div style={{ marginTop: 18, marginBottom: 4 }}>
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom: 10 }}>
+              <div style={{ display:'flex', alignItems:'center', gap: 8 }}>
+                <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-text)', textTransform:'uppercase', letterSpacing: '0.5px' }}>Other Charges</span>
+                <span style={{ fontSize: 11.5, color: 'var(--color-text-muted)', fontWeight: 400 }}>(Optional — e.g. catering, maintenance)</span>
+              </div>
+              {!isCompleted && (
+                <button
+                  type="button"
+                  id="btn-add-other-charge"
+                  onClick={handleAddOtherCharge}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 5,
+                    background: 'linear-gradient(135deg,#6366f1,#4f46e5)',
+                    color: '#fff', border: 'none', borderRadius: 8,
+                    padding: '7px 14px', fontSize: 12.5, fontWeight: 700,
+                    cursor: 'pointer', boxShadow: '0 2px 8px rgba(99,102,241,0.25)',
+                    transition: 'transform 0.15s, box-shadow 0.15s',
+                  }}
+                  onMouseOver={e => { e.currentTarget.style.transform='translateY(-1px)'; e.currentTarget.style.boxShadow='0 4px 14px rgba(99,102,241,0.35)'; }}
+                  onMouseOut={e => { e.currentTarget.style.transform=''; e.currentTarget.style.boxShadow='0 2px 8px rgba(99,102,241,0.25)'; }}
+                >
+                  <span style={{ fontSize: 16, lineHeight: 1 }}>+</span> Add Charge
+                </button>
+              )}
+            </div>
+
+            {otherCharges.length === 0 && !isCompleted && (
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 10,
+                padding: '12px 16px', borderRadius: 10,
+                background: 'var(--color-surface-2)', border: '1.5px dashed var(--color-border)',
+                color: 'var(--color-text-muted)', fontSize: 12.5,
+              }}>
+                <span style={{ fontSize: 18 }}>💡</span>
+                <span>No other charges added. Click <strong>+ Add Charge</strong> to add miscellaneous items like catering, maintenance, etc.</span>
+              </div>
+            )}
+
+            {otherCharges.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {otherCharges.map((oc, idx) => (
+                  <div key={idx} style={{
+                    display: 'flex', alignItems: 'center', gap: 10,
+                    background: 'var(--color-surface-2)', border: '1px solid var(--color-border)',
+                    borderRadius: 10, padding: '10px 14px',
+                  }}>
+                    <span style={{ fontSize: 13, color: 'var(--color-text-muted)', fontWeight: 600, minWidth: 22 }}>{idx + 1}.</span>
+                    <input
+                      id={`inp-oc-name-${idx}`}
+                      type="text"
+                      className="gb2-input"
+                      placeholder="Charge name (e.g. Catering)"
+                      value={oc.name}
+                      onChange={e => handleOtherChargeChange(idx, 'name', e.target.value)}
+                      disabled={isCompleted}
+                      style={{ flex: 2, minWidth: 0 }}
+                    />
+                    <div style={{ flex: 1, minWidth: 110, position: 'relative' }}>
+                      <span style={{ position:'absolute', left:10, top:'50%', transform:'translateY(-50%)', color:'var(--color-text-muted)', fontWeight:700, fontSize:13, pointerEvents:'none' }}>₹</span>
+                      <input
+                        id={`inp-oc-amount-${idx}`}
+                        type="text"
+                        inputMode="decimal"
+                        className="gb2-input"
+                        placeholder="Amount"
+                        value={oc.amount}
+                        onChange={e => handleOtherChargeChange(idx, 'amount', e.target.value)}
+                        disabled={isCompleted}
+                        style={{ paddingLeft: 26 }}
+                        onKeyDown={e => {
+                          const ok = ['Backspace','Delete','Tab','ArrowLeft','ArrowRight','Home','End','.'];
+                          if (!ok.includes(e.key) && !/^\d$/.test(e.key)) e.preventDefault();
+                        }}
+                      />
+                    </div>
+                    {!isCompleted && (
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveOtherCharge(idx)}
+                        title="Remove this charge"
+                        style={{
+                          background: '#FEF2F2', color: '#DC2626',
+                          border: '1px solid #FECACA', borderRadius: 7,
+                          width: 32, height: 32, display:'flex', alignItems:'center', justifyContent:'center',
+                          cursor: 'pointer', fontWeight: 700, fontSize: 16, flexShrink: 0,
+                        }}
+                      >
+                        ×
+                      </button>
+                    )}
+                    <div style={{ fontFamily:'monospace', fontWeight:700, color:'var(--color-primary-dark)', minWidth: 90, textAlign:'right', fontSize: 13.5, flexShrink:0 }}>
+                      {fmtCurrency(parseFloat(oc.amount) || 0)}
+                    </div>
+                  </div>
+                ))}
+                {/* Other Charges subtotal */}
+                <div style={{ display:'flex', justifyContent:'flex-end', padding:'6px 14px', fontSize:13, fontWeight:700, color:'var(--color-primary-dark)', borderTop: '1px dashed var(--color-border)', marginTop:2 }}>
+                  Other Charges Sub-total: <span style={{ fontFamily:'monospace', marginLeft:8 }}>{fmtCurrency(otherChargesTotal)}</span>
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* Billing Summary */}
           <div className="gb2-summary-card">
             <div className="gb2-summary-box">
               <div className="gb2-summary-row">
-                <span style={{ fontWeight:600, color:'var(--color-text)' }}>Total Amount :</span>
+                <span style={{ fontWeight:600, color:'var(--color-text)' }}>Generator Total :</span>
                 <span style={{ fontFamily:'monospace', fontWeight:700 }}>{fmtCurrency(calculations.totalAmount)}</span>
               </div>
+              {otherChargesTotal > 0 && (
+                <div className="gb2-summary-row">
+                  <span style={{ fontWeight:600, color:'#6366f1' }}>Other Charges :</span>
+                  <span style={{ fontFamily:'monospace', fontWeight:700, color:'#6366f1' }}>+ {fmtCurrency(otherChargesTotal)}</span>
+                </div>
+              )}
               <div className="gb2-summary-row">
                 <span style={{ color:'#dc2626', fontWeight:600 }}>Discount :</span>
                 <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:4 }}>
@@ -1382,7 +1544,7 @@ export default function GeneratorOrderBilling() {
                     className={`gb2-discount-inp${discountError ? ' err' : ''}`}
                     placeholder="0.00"
                     value={discount === 0 ? '' : discount}
-                    onChange={e => handleDiscountChange(e.target.value, calculations.totalAmount)}
+                    onChange={e => handleDiscountChange(e.target.value, calculations.totalAmount + otherChargesTotal)}
                     disabled={isCompleted}
                     onKeyDown={e => {
                       const ok = ['Backspace','Delete','Tab','ArrowLeft','ArrowRight','Home','End','.'];

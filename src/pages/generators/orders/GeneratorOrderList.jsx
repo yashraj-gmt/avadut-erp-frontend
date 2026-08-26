@@ -161,20 +161,22 @@ const STYLES = `
   .go-add-btn:hover { transform:translateY(-1px); box-shadow:0 8px 24px rgba(37,99,235,.35); }
 
   /* ── Stats ── */
-  .go-stats-row { display:grid; grid-template-columns:repeat(6,1fr); gap:14px; margin-bottom:24px; }
+  .go-stats-row { display:grid; grid-template-columns:repeat(7, minmax(0, 1fr)); gap:12px; margin-bottom:24px; }
   .go-stat-card {
     background:var(--color-surface);
-    border:2px solid transparent;
-    border-radius:var(--radius-lg);
-    padding:16px 20px;
+    border:1.5px solid var(--color-border);
+    border-radius:var(--radius-xl);
+    padding:14px 14px;
     box-shadow:var(--shadow-sm);
     display:flex;
     align-items:center;
-    gap:14px;
+    gap:10px;
     cursor:pointer;
     transition:all .2s ease;
     user-select:none;
     position:relative;
+    overflow:hidden;
+    min-width:0;
   }
   .go-stat-card:hover {
     transform:translateY(-2px);
@@ -189,8 +191,9 @@ const STYLES = `
   .go-stat-card.active .go-stat-value {
     color:var(--color-primary);
   }
-  .go-stat-value { font-size:24px; font-weight:800; color:var(--color-text); line-height:1.1; transition:color .2s; }
-  .go-stat-label { font-size:11px; color:var(--color-text-muted); margin-top:4px; font-weight:600; text-transform:uppercase; letter-spacing:.5px; }
+  .go-stat-value { font-size:22px; font-weight:800; color:var(--color-text); line-height:1.1; transition:color .2s; }
+  .go-stat-label { font-size:11px; color:var(--color-text-muted); margin-top:3px; font-weight:600; text-transform:uppercase; letter-spacing:.4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .go-stat-sublabel { font-size:10px; color:var(--color-text-subtle); margin-top:2px; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 
   /* ── Toolbar ── */
   .go-toolbar { display:grid; grid-template-columns:1.2fr 1fr 0.8fr 0.8fr 0.8fr auto; gap:12px; margin-bottom:18px; align-items:center; }
@@ -292,20 +295,21 @@ const STYLES = `
   .go-modal-actions { display:flex; gap:10px; justify-content:flex-end; }
 
   /* ── Responsive ── */
-  @media (max-width:1200px) {
-    .go-stats-row { grid-template-columns:repeat(3,1fr) !important; }
+  @media (max-width:1400px) {
+    .go-stats-row { grid-template-columns:repeat(4, minmax(0, 1fr)) !important; gap: 12px; }
     .go-toolbar { grid-template-columns: repeat(2, 1fr) !important; gap: 10px; }
   }
-  @media (max-width:768px) {
-    .go-stats-row { grid-template-columns:repeat(2,1fr) !important; }
+  @media (max-width:850px) {
+    .go-stats-row { grid-template-columns:repeat(2, minmax(0, 1fr)) !important; }
   }
   @media (max-width:639px) {
     .go-page { padding:16px; }
     .go-header { margin-bottom:16px; }
     .go-stats-row { gap:8px; margin-bottom:16px; }
-    .go-stat-card { padding:12px 10px; gap:8px; }
-    .go-stat-value { font-size:20px; }
-    .go-stat-label { font-size:9px; }
+    .go-stat-card { padding:10px 10px; gap:8px; }
+    .go-stat-value { font-size:18px; }
+    .go-stat-label { font-size:9.5px; }
+    .go-stat-sublabel { font-size:9px; }
     .go-toolbar { grid-template-columns: 1fr !important; gap:8px; margin-bottom:14px; }
     .go-search-wrap { max-width:none; min-width:0; }
     .go-filter-select { flex:1; min-width:0 !important; }
@@ -362,7 +366,7 @@ function SkeletonRow({ cols }) {
   );
 }
 
-function StatCard({ label, value, icon: IconComponent, iconBg, iconColor, active, onClick }) {
+function StatCard({ label, subtitle, value, icon: IconComponent, iconBg, iconColor, active, onClick }) {
   return (
     <div
       className={`go-stat-card ${active ? 'active' : ''}`}
@@ -378,9 +382,10 @@ function StatCard({ label, value, icon: IconComponent, iconBg, iconColor, active
       }}>
         <IconComponent />
       </div>
-      <div>
+      <div style={{ flex: 1, minWidth: 0 }}>
         <div className="go-stat-value">{value}</div>
         <div className="go-stat-label">{label}</div>
+        {subtitle && <div className="go-stat-sublabel">{subtitle}</div>}
       </div>
     </div>
   );
@@ -411,23 +416,19 @@ const isTodayOrder = (o) => {
   const todayYMD = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   const todayDMY = `${String(now.getDate()).padStart(2, '0')}-${String(now.getMonth() + 1).padStart(2, '0')}-${now.getFullYear()}`;
 
-  // Created today
-  if (o.createdAt && o.createdAt.startsWith(todayYMD)) return true;
-
-  // Exact function date match
-  if (o.functionDateFrom && (o.functionDateFrom.startsWith(todayYMD) || o.functionDateFrom.startsWith(todayDMY))) return true;
-  if (o.functionDate && (o.functionDate.includes(todayYMD) || o.functionDate.includes(todayDMY))) return true;
-
-  // Range contains today
-  const fFrom = o.functionDateFrom ? parseDateStr(o.functionDateFrom) : (o.functionDate ? parseDateStr(o.functionDate.split(' to ')[0]) : null);
-  const fTo   = o.functionDateTo   ? parseDateStr(o.functionDateTo)   : (o.functionDate ? parseDateStr(o.functionDate.split(' to ')[1] || o.functionDate) : null);
-
-  if (fFrom && fTo) {
-    const todayZero = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-    const fromZero  = new Date(fFrom.getFullYear(), fFrom.getMonth(), fFrom.getDate()).getTime();
-    const toZero    = new Date(fTo.getFullYear(), fTo.getMonth(), fTo.getDate()).getTime();
-    if (todayZero >= fromZero && todayZero <= toZero) return true;
+  // Created today (only count newly created orders)
+  if (o.createdAt) {
+    const createdStr = typeof o.createdAt === 'string' ? o.createdAt : new Date(o.createdAt).toISOString();
+    if (createdStr.startsWith(todayYMD)) return true;
+    const cDate = parseDateStr(createdStr);
+    if (cDate) {
+      const cYMD = `${cDate.getFullYear()}-${String(cDate.getMonth() + 1).padStart(2, '0')}-${String(cDate.getDate()).padStart(2, '0')}`;
+      if (cYMD === todayYMD) return true;
+    }
   }
+  if (o.createdDate && (o.createdDate.startsWith(todayYMD) || o.createdDate.startsWith(todayDMY))) return true;
+  if (o.bookingDate && (o.bookingDate.startsWith(todayYMD) || o.bookingDate.startsWith(todayDMY))) return true;
+
   return false;
 };
 
@@ -455,6 +456,23 @@ const isTodayFunctionDate = (o) => {
   return false;
 };
 
+/** Checks if the generators were marked as physically returned today */
+const isReturnedToday = (o) => {
+  if (!o || o.orderStatus !== 'COMPLETED' || !o.returnedAt) return false;
+  const now = new Date();
+  const todayYMD = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+
+  const returnedStr = typeof o.returnedAt === 'string' ? o.returnedAt : new Date(o.returnedAt).toISOString();
+  if (returnedStr.startsWith(todayYMD)) return true;
+
+  const rDate = parseDateStr(returnedStr);
+  if (rDate) {
+    const rYMD = `${rDate.getFullYear()}-${String(rDate.getMonth() + 1).padStart(2, '0')}-${String(rDate.getDate()).padStart(2, '0')}`;
+    return rYMD === todayYMD;
+  }
+  return false;
+};
+
 /* ─── Main Component ─────────────────────────────────────────────────────── */
 const PAGE_SIZE = 50;
 
@@ -472,13 +490,15 @@ export default function GeneratorOrderList() {
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [paymentModalTarget, setPaymentModalTarget] = useState(null);
   const [markingPaid, setMarkingPaid]   = useState(false);
-  const [activeTab, setActiveTab]       = useState('today_bookings'); // 'today_bookings' | 'all' | 'today' | 'pending_billing' | 'completed_billing' | 'generators_booked'
+  const [activeTab, setActiveTab]       = useState('today_bookings'); // 'today_bookings' | 'all' | 'today' | 'pending_billing' | 'completed_billing' | 'generators_booked' | 'returned'
 
   // Filters state
   const [filterDate, setFilterDate]                   = useState('');
   const [filterBillingStatus, setFilterBillingStatus] = useState('all');
   const [filterBookingStatus, setFilterBookingStatus] = useState('all');
   const [filterPaymentStatus, setFilterPaymentStatus] = useState('all');
+  const [markReturnedTarget, setMarkReturnedTarget] = useState(null);
+  const [markingReturned, setMarkingReturned]       = useState(false);
   const hasFilters = search !== '' || filterDate !== '' || filterBillingStatus !== 'all' || filterBookingStatus !== 'all' || filterPaymentStatus !== 'all' || activeTab !== 'today_bookings';
 
   // Fetch data
@@ -505,6 +525,7 @@ export default function GeneratorOrderList() {
       if (activeTab === 'pending_billing' && o.billingStatus === 'COMPLETED') return false;
       if (activeTab === 'completed_billing' && o.billingStatus !== 'COMPLETED') return false;
       if (activeTab === 'generators_booked' && (!o.generators || o.generators.length === 0)) return false;
+      if (activeTab === 'returned' && !isReturnedToday(o)) return false;
 
       // 0. Booking Status Match
       const isConfirmed = o.orderStatus === 'CONFIRMED';
@@ -543,9 +564,44 @@ export default function GeneratorOrderList() {
       if (filterPaymentStatus === 'paid' && ps !== 'PAID') return false;
       if (filterPaymentStatus === 'overdue' && ps !== 'OVERDUE') return false;
 
+      // 4. Search Filter (Client Name, Order No, Operator Name, Generator Name)
+      if (search && search.trim()) {
+        const q = search.toLowerCase().trim();
+
+        // Client Name
+        const matchClient = (o.clientName && String(o.clientName).toLowerCase().includes(q)) ||
+                            (o.customer?.name && String(o.customer.name).toLowerCase().includes(q));
+
+        // Order Number / Bill Number
+        const matchOrderNo = (o.id != null && String(o.id).toLowerCase().includes(q)) ||
+                             (o.orderNumber != null && String(o.orderNumber).toLowerCase().includes(q)) ||
+                             (o.billNumber != null && String(o.billNumber).toLowerCase().includes(q));
+
+        // Operator Name
+        const matchOperator = (o.operatorName && String(o.operatorName).toLowerCase().includes(q)) ||
+                              (o.assignedToName && String(o.assignedToName).toLowerCase().includes(q)) ||
+                              (o.generators && o.generators.some(g => g.operatorName && String(g.operatorName).toLowerCase().includes(q)));
+
+        // Generator Name / Model / Code
+        const matchGenerator = (o.generatorName && String(o.generatorName).toLowerCase().includes(q)) ||
+                               (o.generators && o.generators.some(g =>
+                                 (g.generatorName && String(g.generatorName).toLowerCase().includes(q)) ||
+                                 (g.generatorId && String(g.generatorId).toLowerCase().includes(q)) ||
+                                 (g.name && String(g.name).toLowerCase().includes(q))
+                               )) ||
+                               (o.orderItems && o.orderItems.some(i =>
+                                 (i.productName && String(i.productName).toLowerCase().includes(q)) ||
+                                 (i.generator?.name && String(i.generator.name).toLowerCase().includes(q))
+                               ));
+
+        if (!matchClient && !matchOrderNo && !matchOperator && !matchGenerator) {
+          return false;
+        }
+      }
+
       return true;
     });
-  }, [orders, activeTab, filterBookingStatus, filterBillingStatus, filterPaymentStatus, filterDate]);
+  }, [orders, search, activeTab, filterBookingStatus, filterBillingStatus, filterPaymentStatus, filterDate]);
 
   const totalPages = Math.max(1, Math.ceil(totalElements / PAGE_SIZE));
   const paged = filtered; // Since we already paginate from backend, paged is just filtered orders
@@ -576,6 +632,26 @@ export default function GeneratorOrderList() {
       .finally(() => setMarkingPaid(false));
   };
 
+  /* ── Mark as Returned (Generators Released) ── */
+  const handleMarkAsReturned = () => {
+    if (!markReturnedTarget) return;
+    setMarkingReturned(true);
+    generatorOrderService.markAsReturned(markReturnedTarget.id)
+      .then(() => {
+        setOrders(prev => prev.map(o =>
+          o.id === markReturnedTarget.id
+            ? { ...o, orderStatus: 'COMPLETED', returnedAt: new Date().toISOString() }
+            : o
+        ));
+        setMarkReturnedTarget(null);
+      })
+      .catch(err => {
+        console.error('Failed to mark as returned:', err);
+        alert('Failed to mark generators as returned. Please try again.');
+      })
+      .finally(() => setMarkingReturned(false));
+  };
+
   /* ── Pagination pages ── */
   const pageNums = (() => {
     if (totalPages <= 7) return Array.from({ length: totalPages }, (_, i) => i + 1);
@@ -592,6 +668,7 @@ export default function GeneratorOrderList() {
     const completedBilling = orders.filter(o => o.billingStatus === 'COMPLETED').length;
     const pendingBilling = orders.filter(o => o.billingStatus !== 'COMPLETED').length;
     const totalGenerators = orders.reduce((sum, o) => sum + (o.generators?.length || 0), 0);
+    const returnedCount = orders.filter(isReturnedToday).length;
 
     return {
       totalOrders,
@@ -599,7 +676,8 @@ export default function GeneratorOrderList() {
       todayBookingsCount,
       pendingBilling,
       completedBilling,
-      totalGenerators
+      totalGenerators,
+      returnedCount,
     };
   }, [orders]);
 
@@ -642,6 +720,7 @@ export default function GeneratorOrderList() {
         <div className="go-stats-row">
           <StatCard
             label="Total Orders"
+            subtitle="All system orders"
             value={stats.totalOrders}
             icon={Icon.ClipboardList}
             iconBg="var(--color-primary-50)"
@@ -650,16 +729,8 @@ export default function GeneratorOrderList() {
             onClick={() => { setActiveTab('all'); setPage(1); }}
           />
           <StatCard
-            label="Today's Orders"
-            value={stats.todayCount}
-            icon={Icon.Calendar}
-            iconBg="var(--color-info-light)"
-            iconColor="var(--color-info)"
-            active={activeTab === 'today'}
-            onClick={() => { setActiveTab(prev => prev === 'today' ? 'all' : 'today'); setPage(1); }}
-          />
-          <StatCard
             label="Today's Bookings"
+            subtitle="Function date today"
             value={stats.todayBookingsCount}
             icon={Icon.Calendar}
             iconBg="#EEF2FF"
@@ -668,7 +739,18 @@ export default function GeneratorOrderList() {
             onClick={() => { setActiveTab(prev => prev === 'today_bookings' ? 'all' : 'today_bookings'); setPage(1); }}
           />
           <StatCard
+            label="Today's New Orders"
+            subtitle="Newly created today"
+            value={stats.todayCount}
+            icon={Icon.Calendar}
+            iconBg="var(--color-info-light)"
+            iconColor="var(--color-info)"
+            active={activeTab === 'today'}
+            onClick={() => { setActiveTab(prev => prev === 'today' ? 'all' : 'today'); setPage(1); }}
+          />
+          <StatCard
             label="Pending Billing"
+            subtitle="Invoice pending"
             value={stats.pendingBilling}
             icon={Icon.AlertCircle}
             iconBg="#FEF3C7"
@@ -678,6 +760,7 @@ export default function GeneratorOrderList() {
           />
           <StatCard
             label="Completed Billing"
+            subtitle="Fully billed & closed"
             value={stats.completedBilling}
             icon={Icon.CheckCircle}
             iconBg="#D1FAE5"
@@ -687,12 +770,23 @@ export default function GeneratorOrderList() {
           />
           <StatCard
             label="Generators Booked"
+            subtitle="Total units assigned"
             value={stats.totalGenerators}
             icon={Icon.Zap}
             iconBg="var(--color-primary-100)"
             iconColor="var(--color-primary-dark)"
             active={activeTab === 'generators_booked'}
             onClick={() => { setActiveTab(prev => prev === 'generators_booked' ? 'all' : 'generators_booked'); setPage(1); }}
+          />
+          <StatCard
+            label="Returned Today"
+            subtitle="Returned today"
+            value={stats.returnedCount}
+            icon={Icon.CheckCircle}
+            iconBg="#ECFDF5"
+            iconColor="#059669"
+            active={activeTab === 'returned'}
+            onClick={() => { setActiveTab(prev => prev === 'returned' ? 'all' : 'returned'); setPage(1); }}
           />
         </div>
 
@@ -705,7 +799,7 @@ export default function GeneratorOrderList() {
             <input
               id="input-order-search"
               className="go-search-input"
-              placeholder="Search client, ORD-X, operator..."
+              placeholder="Search client, order no, operator, generator name..."
               value={search}
               onChange={e => { setSearch(e.target.value); setPage(1); }}
             />
@@ -778,16 +872,17 @@ export default function GeneratorOrderList() {
                 alignItems: 'center',
                 gap: '6px',
                 padding: '10px 16px',
-                background: 'var(--color-surface)',
-                border: '1.5px solid var(--color-border)',
+                background: '#FEF2F2',
+                border: '1.5px solid #FCA5A5',
                 borderRadius: 'var(--radius-md)',
-                color: 'var(--color-text-muted)',
+                color: '#DC2626',
                 fontSize: '14px',
                 fontWeight: '600',
                 cursor: 'pointer',
                 transition: 'all 0.15s',
                 height: '42px',
-                fontFamily: 'inherit'
+                fontFamily: 'inherit',
+                whiteSpace: 'nowrap'
               }}
               className="go-action-btn"
             >
@@ -820,7 +915,7 @@ export default function GeneratorOrderList() {
                   <th style={{ ...thStyle, textAlign:'center' }}>Billing Status</th>
                   <th style={{ ...thStyle, textAlign:'center' }}>Payment Status</th>
                   <th style={{ ...thStyle, textAlign:'center' }}>Billing Number</th>
-                  <th className="go-th-sticky-right" style={{ ...thStyle, textAlign:'center', width:170 }}>Actions</th>
+                  <th className="go-th-sticky-right" style={{ ...thStyle, textAlign:'center', width:230 }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -954,11 +1049,15 @@ export default function GeneratorOrderList() {
 
                     {/* 11. Booking Status */}
                     <td style={{ ...tdStyle, textAlign:'center' }}>
-                      <StatusChip
-                        bg={orderBookingStatus === 'Confirmed' ? '#D1FAE5' : '#DBEAFE'}
-                        color={orderBookingStatus === 'Confirmed' ? '#065F46' : '#1E40AF'}
-                        label={orderBookingStatus}
-                      />
+                      {o.orderStatus === 'COMPLETED' ? (
+                        <StatusChip bg="#ECFDF5" color="#059669" label="Returned" />
+                      ) : (
+                        <StatusChip
+                          bg={orderBookingStatus === 'Confirmed' ? '#D1FAE5' : '#DBEAFE'}
+                          color={orderBookingStatus === 'Confirmed' ? '#065F46' : '#1E40AF'}
+                          label={orderBookingStatus}
+                        />
+                      )}
                     </td>
 
                     {/* 12. Billing Status */}
@@ -995,7 +1094,7 @@ export default function GeneratorOrderList() {
                     </td>
 
                     {/* 15. Actions (Sticky Right) */}
-                    <td className="go-td-sticky-right" style={{ ...tdStyle, textAlign:'center', width:170, background: rowBg }}>
+                    <td className="go-td-sticky-right" style={{ ...tdStyle, textAlign:'center', width:230, background: rowBg }}>
                       <div style={{ display:'flex', gap:6, justifyContent:'center' }}>
                         <button
                           className="go-action-btn"
@@ -1071,6 +1170,58 @@ export default function GeneratorOrderList() {
                         >
                           <Icon.Trash />
                         </button>
+                        {/* Mark as Returned button */}
+                        {o.orderStatus !== 'CANCELLED' && (
+                          <button
+                            className="go-action-btn"
+                            id={`btn-return-${o.id}`}
+                            title={o.orderStatus === 'COMPLETED' ? 'Generators Returned (Stock Released)' : 'Mark Generators as Returned'}
+                            style={{
+                              display:'inline-flex', alignItems:'center', justifyContent:'center',
+                              width:32, height:32, borderRadius:8,
+                              border: o.orderStatus === 'COMPLETED' ? '1.5px solid #6EE7B7' : '1.5px solid #FCD34D',
+                              cursor: o.orderStatus === 'COMPLETED' ? 'default' : 'pointer',
+                              background: o.orderStatus === 'COMPLETED' ? '#ECFDF5' : '#FFFBEB',
+                              color: o.orderStatus === 'COMPLETED' ? '#059669' : '#D97706',
+                              position: 'relative',
+                              transition:'all .15s',
+                            }}
+                            onClick={() => {
+                              if (o.orderStatus !== 'COMPLETED') {
+                                setMarkReturnedTarget(o);
+                              }
+                            }}
+                          >
+                            <svg width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
+                              <path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+                            </svg>
+                            {o.orderStatus === 'COMPLETED' ? (
+                              <span
+                                style={{
+                                  position: 'absolute', top: -3, right: -3,
+                                  width: 13, height: 13, borderRadius: '50%',
+                                  background: '#10B981', color: '#fff',
+                                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                  boxShadow: '0 0 0 1.5px #fff'
+                                }}
+                                title="Returned"
+                              >
+                                <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round">
+                                  <polyline points="20 6 9 17 4 12"/>
+                                </svg>
+                              </span>
+                            ) : (
+                              <span
+                                style={{
+                                  position: 'absolute', top: -3, right: -3,
+                                  width: 8, height: 8, borderRadius: '50%',
+                                  background: '#F59E0B',
+                                }}
+                                title="Pending Return"
+                              />
+                            )}
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -1265,6 +1416,56 @@ export default function GeneratorOrderList() {
                     onClick={() => setDeleteTarget(o)}>
                     <Icon.Trash />
                   </button>
+                  {/* Mobile Return button */}
+                  {o.orderStatus !== 'CANCELLED' && (
+                    <button
+                      className="go-action-btn"
+                      id={`btn-mob-return-${o.id}`}
+                      title={o.orderStatus === 'COMPLETED' ? 'Generators Returned' : 'Mark Generators as Returned'}
+                      style={{
+                        display:'inline-flex', alignItems:'center', justifyContent:'center',
+                        width:32, height:32, borderRadius:8,
+                        border: o.orderStatus === 'COMPLETED' ? '1.5px solid #6EE7B7' : '1.5px solid #FCD34D',
+                        cursor: o.orderStatus === 'COMPLETED' ? 'default' : 'pointer',
+                        background: o.orderStatus === 'COMPLETED' ? '#ECFDF5' : '#FFFBEB',
+                        color: o.orderStatus === 'COMPLETED' ? '#059669' : '#D97706',
+                        position: 'relative',
+                        transition:'all .15s',
+                      }}
+                      onClick={() => {
+                        if (o.orderStatus !== 'COMPLETED') {
+                          setMarkReturnedTarget(o);
+                        }
+                      }}
+                    >
+                      <svg width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
+                        <path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+                      </svg>
+                      {o.orderStatus === 'COMPLETED' ? (
+                        <span
+                          style={{
+                            position: 'absolute', top: -3, right: -3,
+                            width: 13, height: 13, borderRadius: '50%',
+                            background: '#10B981', color: '#fff',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            boxShadow: '0 0 0 1.5px #fff'
+                          }}
+                        >
+                          <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="20 6 9 17 4 12"/>
+                          </svg>
+                        </span>
+                      ) : (
+                        <span
+                          style={{
+                            position: 'absolute', top: -3, right: -3,
+                            width: 8, height: 8, borderRadius: '50%',
+                            background: '#F59E0B',
+                          }}
+                        />
+                      )}
+                    </button>
+                  )}
                 </div>
               </div>
               );
@@ -1350,6 +1551,55 @@ export default function GeneratorOrderList() {
                 disabled={markingPaid}
               >
                 {markingPaid ? 'Updating...' : 'Yes, Mark as Paid'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Mark as Returned Confirmation Modal ─────────────── */}
+      {markReturnedTarget && (
+        <div className="go-overlay" onClick={() => setMarkReturnedTarget(null)}>
+          <div className="go-modal" onClick={e => e.stopPropagation()}>
+            <div className="go-modal-icon" style={{ background: '#ECFDF5', color: '#059669' }}>
+              <svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+              </svg>
+            </div>
+            <h3 className="go-modal-title">Mark Generators as Returned?</h3>
+            <p className="go-modal-body">
+              This will mark all generators for order <strong>{markReturnedTarget.orderNumber || `#${markReturnedTarget.id}`}</strong>{' '}
+              ({markReturnedTarget.clientName}) as <strong>physically returned</strong>.
+              <br /><br />
+              The generator units will be immediately released and available for new bookings.
+              <br />
+              <span style={{ color: '#059669', fontWeight: 600 }}>Billing is NOT affected</span> — it can still remain pending.
+            </p>
+            <div className="go-modal-actions">
+              <button
+                id="btn-cancel-return"
+                style={{
+                  padding: '9px 18px', borderRadius: 'var(--radius-md)',
+                  border: '1.5px solid var(--color-border)', background: 'var(--color-surface)',
+                  fontSize: 14, fontWeight: 600, color: 'var(--color-text)', cursor: 'pointer'
+                }}
+                onClick={() => setMarkReturnedTarget(null)}
+                disabled={markingReturned}
+              >
+                Cancel
+              </button>
+              <button
+                id="btn-confirm-return"
+                style={{
+                  padding: '9px 18px', borderRadius: 'var(--radius-md)',
+                  border: 'none', background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
+                  fontSize: 14, fontWeight: 600, color: '#fff', cursor: 'pointer',
+                  opacity: markingReturned ? 0.7 : 1
+                }}
+                onClick={handleMarkAsReturned}
+                disabled={markingReturned}
+              >
+                {markingReturned ? 'Releasing Stock...' : '✓ Yes, Mark as Returned'}
               </button>
             </div>
           </div>

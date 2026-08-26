@@ -85,6 +85,7 @@ export default function GeneratorForm() {
     partyDieselRentPrice: '',
     withDieselRentPrice: '',
     stockQuantity: '',
+    underServiceQuantity: '0',
     productBy: '',
     description: '',
     isActive: true,
@@ -115,7 +116,8 @@ export default function GeneratorForm() {
         purchasePrice:        g.purchasePrice           != null ? String(g.purchasePrice)           : '',
         partyDieselRentPrice: g.partyDieselRentPrice     != null ? String(g.partyDieselRentPrice)     : '',
         withDieselRentPrice:  g.withDieselRentPrice      != null ? String(g.withDieselRentPrice)      : '',
-        stockQuantity: g.stockQuantity != null ? String(g.stockQuantity) : '0',
+        stockQuantity:         g.stockQuantity         != null ? String(g.stockQuantity)         : '0',
+        underServiceQuantity:  g.underServiceQuantity  != null ? String(g.underServiceQuantity)  : '0',
         productBy:     g.productBy     ?? '',
         description:   g.description   ?? '',
         isActive:      g.isActive      ?? true,
@@ -214,7 +216,8 @@ export default function GeneratorForm() {
         purchasePrice:        form.purchasePrice        ? Number(form.purchasePrice)        : null,
         partyDieselRentPrice: form.partyDieselRentPrice ? Number(form.partyDieselRentPrice) : null,
         withDieselRentPrice:  form.withDieselRentPrice  ? Number(form.withDieselRentPrice)  : null,
-        stockQuantity: form.stockQuantity ? Number(form.stockQuantity) : 0,
+        stockQuantity:        form.stockQuantity        ? Number(form.stockQuantity)        : 0,
+        underServiceQuantity: form.underServiceQuantity ? Number(form.underServiceQuantity) : 0,
         productBy:     form.productBy.trim() || null,
         description:   form.description.trim() || null,
         isActive:      form.isActive,
@@ -397,9 +400,49 @@ export default function GeneratorForm() {
                   <ErrMsg message={errors.withDieselRentPrice} />
                 </div>
                 <div className="pf-full">
-                  <Label>Stock Quantity (Unit)</Label>
+                  <Label req>Stock Quantity (Unit)</Label>
                   <TextField name="stockQuantity" value={form.stockQuantity} onChange={e => field('stockQuantity', e.target.value)} hasError={!!errors.stockQuantity} placeholder="0" type="number" min="0" />
                   <ErrMsg message={errors.stockQuantity} />
+                </div>
+                {/* Under Service / Not Working */}
+                <div className="pf-full">
+                  <Label hint="units not available for booking">Under Service / Not Working</Label>
+                  <div style={{ position: 'relative' }}>
+                    <TextField
+                      name="underServiceQuantity"
+                      value={form.underServiceQuantity}
+                      onChange={e => {
+                        const val = e.target.value;
+                        const num = parseInt(val, 10);
+                        const stock = parseInt(form.stockQuantity, 10) || 0;
+                        if (!isNaN(num) && num > stock) {
+                          field('underServiceQuantity', String(stock));
+                        } else {
+                          field('underServiceQuantity', val);
+                        }
+                      }}
+                      hasError={!!errors.underServiceQuantity}
+                      placeholder="0"
+                      type="number"
+                      min="0"
+                      max={form.stockQuantity || 0}
+                    />
+                  </div>
+                  <ErrMsg message={errors.underServiceQuantity} />
+                  {(parseInt(form.underServiceQuantity, 10) || 0) > 0 && (
+                    <div style={{
+                      marginTop: 6, display: 'flex', alignItems: 'center', gap: 6,
+                      padding: '7px 12px', borderRadius: 8,
+                      background: '#FEF9C3', border: '1px solid #FDE047',
+                      fontSize: 12, color: '#854D0E', fontWeight: 600
+                    }}>
+                      <span>⚠️</span>
+                      <span>
+                        {form.underServiceQuantity} unit{parseInt(form.underServiceQuantity, 10) !== 1 ? 's' : ''} under service —
+                        bookable stock = {Math.max(0, (parseInt(form.stockQuantity, 10) || 0) - (parseInt(form.underServiceQuantity, 10) || 0))} unit{Math.max(0, (parseInt(form.stockQuantity, 10) || 0) - (parseInt(form.underServiceQuantity, 10) || 0)) !== 1 ? 's' : ''}
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

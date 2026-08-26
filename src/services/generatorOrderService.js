@@ -53,4 +53,19 @@ export const generatorOrderService = {
     const response = await api.post(`/admin/orders/${id}/payment/done`);
     return response.data;
   },
+
+  recordPayment: async (id, data) => {
+    const response = await api.post(`/admin/orders/${id}/payments`, data);
+    return response.data;
+  },
+
+  getPayments: async (id) => {
+    const response = await api.get(`/admin/orders/${id}/payments`);
+    return response.data;
+  },
+
+  markAsReturned: async (id) => {
+    const response = await api.post(`/admin/orders/${id}/mark-returned`);
+    return response.data;
+  },
 };

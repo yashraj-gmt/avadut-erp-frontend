@@ -18,10 +18,11 @@ export const ROUTES = {
   PRODUCT_DETAIL: '/inventory/products/:id',
 
   // ── Generator Management ────────────────────────────────────────────────
-  GENERATORS:        '/generators',
-  GENERATOR_ADD:     '/generators/add',
-  GENERATOR_EDIT:    '/generators/:id/edit',
-  GENERATOR_DETAIL:  '/generators/:id',
+  GENERATORS:             '/generators',
+  GENERATOR_ADD:          '/generators/add',
+  GENERATOR_AVAILABILITY: '/generators/availability',
+  GENERATOR_EDIT:         '/generators/:id/edit',
+  GENERATOR_DETAIL:       '/generators/:id',
 
   // ── Generator Order Management ───────────────────────────────────────────
   GENERATOR_ORDERS:        '/generators/orders',
@@ -34,4 +35,11 @@ export const ROUTES = {
   // ── Staff Portal ─────────────────────────────────────────────────────────
   STAFF_ORDERS:        '/staff/orders',
   STAFF_ORDER_DETAIL:  '/staff/orders/:id',
-};
+
+  // ── Customer Management ──────────────────────────────────────────────────
+  CUSTOMERS:              '/customers',
+  CUSTOMER_ADD:           '/customers/add',
+  CUSTOMER_EDIT:          '/customers/:id/edit',
+  CUSTOMER_PROFILE:       '/customers/details',
+  CUSTOMER_PENDING:       '/customers/pending-payments',
+};

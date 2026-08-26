@@ -25,10 +25,11 @@ export const ROUTE_PERMISSIONS = {
 
 
   // ── Generator Management (Admin only) ──────────────────────────────────
-  [ROUTES.GENERATORS]:        [ROLES.SUPER_ADMIN, ROLES.ADMIN],
-  [ROUTES.GENERATOR_ADD]:     [ROLES.SUPER_ADMIN, ROLES.ADMIN],
-  [ROUTES.GENERATOR_EDIT]:    [ROLES.SUPER_ADMIN, ROLES.ADMIN],
-  [ROUTES.GENERATOR_DETAIL]:  [ROLES.SUPER_ADMIN, ROLES.ADMIN],
+  [ROUTES.GENERATORS]:             [ROLES.SUPER_ADMIN, ROLES.ADMIN],
+  [ROUTES.GENERATOR_ADD]:          [ROLES.SUPER_ADMIN, ROLES.ADMIN],
+  [ROUTES.GENERATOR_AVAILABILITY]: [ROLES.SUPER_ADMIN, ROLES.ADMIN],
+  [ROUTES.GENERATOR_EDIT]:         [ROLES.SUPER_ADMIN, ROLES.ADMIN],
+  [ROUTES.GENERATOR_DETAIL]:       [ROLES.SUPER_ADMIN, ROLES.ADMIN],
 
   // ── Generator Order Management (Admin only) ───────────────────────────
   [ROUTES.GENERATOR_ORDERS]:        [ROLES.SUPER_ADMIN, ROLES.ADMIN],
@@ -41,6 +42,13 @@ export const ROUTE_PERMISSIONS = {
   // ── Staff Portal (STAFF only) ─────────────────────────────────────────
   [ROUTES.STAFF_ORDERS]:       [ROLES.STAFF],
   [ROUTES.STAFF_ORDER_DETAIL]: [ROLES.STAFF],
+
+  // ── Customer Management (Admin + Super Admin) ───────────────────────
+  [ROUTES.CUSTOMERS]:         [ROLES.SUPER_ADMIN, ROLES.ADMIN],
+  [ROUTES.CUSTOMER_ADD]:      [ROLES.SUPER_ADMIN, ROLES.ADMIN],
+  [ROUTES.CUSTOMER_EDIT]:     [ROLES.SUPER_ADMIN, ROLES.ADMIN],
+  [ROUTES.CUSTOMER_PROFILE]:  [ROLES.SUPER_ADMIN, ROLES.ADMIN],
+  [ROUTES.CUSTOMER_PENDING]:  [ROLES.SUPER_ADMIN, ROLES.ADMIN],
 }
 
 /** Returns true if role is allowed on the given route */

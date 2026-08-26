@@ -71,7 +71,29 @@ export const generatorService = {
       withDieselRentPrice: g.withDieselRentPrice,
       partyDieselRentPrice: g.partyDieselRentPrice,
       totalStock: g.stockQuantity,
+      underServiceQuantity: g.underServiceQuantity || 0,
+      effectiveStock: g.effectiveStock != null ? g.effectiveStock : g.stockQuantity,
       availableStock: g.availableStock != null ? g.availableStock : g.stockQuantity
     }));
+  },
+
+  /**
+   * Fetch per-date availability breakdown for a specific generator.
+   * Returns list of { date, totalStock, underServiceQty, effectiveStock, bookedQty, availableQty, bookings[] }
+   */
+  getDailyAvailability: async (generatorId, startDate, endDate) => {
+    const params = { startDate, endDate };
+    const body = await api.get(`/admin/generators/${generatorId}/daily-availability`, { params });
+    return Array.isArray(body?.data) ? body.data : [];
+  },
+
+  /**
+   * Fetch per-date availability breakdown for ALL active generators.
+   * Returns list of generator stats for the given date.
+   */
+  getDailyAvailabilityAll: async (date) => {
+    const params = { date };
+    const body = await api.get('/admin/generators/availability/daily-all', { params });
+    return Array.isArray(body?.data) ? body.data : [];
   },
 }

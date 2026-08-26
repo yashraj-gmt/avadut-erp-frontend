@@ -144,8 +144,8 @@ export default function GeneratorDetail() {
         .gd-actions     { display: flex; gap: 10px; flex-shrink: 0; flex-wrap: wrap; }
         .gd-main-grid   { display: grid; grid-template-columns: 380px 1fr; gap: 20px; align-items: start; }
         .gd-pricing     { display: flex; gap: 20px; padding: 16px; background: var(--color-surface-2); border-radius: var(--radius-lg); border: 1px solid var(--color-border); flex-wrap: wrap; }
-        .gd-pricing-item{ min-width: 110px; flex: 1; }
-        .gd-divider     { width: 1px; background: var(--color-border); flex-shrink: 0; }
+        .gd-pricing-item{ min-width: 110px; flex: 1; margin: 8px 0; }
+        .gd-divider     { width: 1px; background: var(--color-border); flex-shrink: 0; display: none !important; }
         .gd-action-btn:hover { transform: translateY(-2px); }
         .gd-img-wrap { position: relative; }
         .gd-img-wrap:hover .gd-zoom-btn { opacity: 1 !important; }
@@ -153,7 +153,7 @@ export default function GeneratorDetail() {
         @media (max-width: 900px) {
           .gd-main-grid { grid-template-columns: 1fr !important; }
           .gd-pricing   { gap: 12px !important; }
-          .gd-pricing-item { min-width: calc(50% - 10px) !important; flex: unset !important; width: calc(50% - 10px); }
+          .gd-pricing-item { min-width: calc(33.33% - 10px) !important; flex: unset !important; width: calc(33.33% - 10px); }
           .gd-divider   { display: none !important; }
         }
         @media (max-width: 640px) {
@@ -267,6 +267,11 @@ export default function GeneratorDetail() {
                     <Icon.Warning /> Low Stock
                   </span>
                 )}
+                {(generator.underServiceQuantity || 0) > 0 && (
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 10px', borderRadius: 20, fontSize: 12, fontWeight: 600, background: '#fef9c3', color: '#854d0e' }}>
+                    ⚠️ {generator.underServiceQuantity} Under Service
+                  </span>
+                )}
               </div>
 
               <h2 style={{ fontSize: 24, fontWeight: 800, color: 'var(--color-text)', margin: '0 0 6px', letterSpacing: '-0.4px' }}>{generator.name}</h2>
@@ -286,15 +291,14 @@ export default function GeneratorDetail() {
                   { label: 'Purchase Price',        value: fmt(generator.purchasePrice),        color: 'var(--color-text)' },
                   { label: 'Party Diesel Rent ₹',   value: fmt(generator.partyDieselRentPrice), color: 'var(--color-primary)' },
                   { label: 'Diesel Price(with diesel)', value: fmt(generator.withDieselRentPrice), color: 'var(--color-primary)' },
-                  { label: 'Stock Qty',              value: String(stock),                       color: isOutOfStock ? 'var(--color-danger)' : isLowStock ? 'var(--color-warning)' : 'var(--color-text)' },
-                ].map((item, i, arr) => (
-                  <React.Fragment key={item.label}>
-                    <div className="gd-pricing-item">
-                      <div style={{ fontSize: 11, color: 'var(--color-text-subtle)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{item.label}</div>
-                      <div style={{ fontSize: 26, fontWeight: 800, color: item.color, letterSpacing: '-0.5px' }}>{item.value}</div>
-                    </div>
-                    {i < arr.length - 1 && <div className="gd-divider" />}
-                  </React.Fragment>
+                  { label: 'Total Stock',           value: String(stock),                       color: 'var(--color-text)' },
+                  { label: 'Under Service',         value: String(generator.underServiceQuantity || 0), color: (generator.underServiceQuantity || 0) > 0 ? 'var(--color-danger)' : 'var(--color-text)' },
+                  { label: 'Bookable Stock',        value: String(generator.effectiveStock ?? (stock - (generator.underServiceQuantity || 0))), color: (generator.effectiveStock ?? (stock - (generator.underServiceQuantity || 0))) === 0 ? 'var(--color-danger)' : '#059669' },
+                ].map((item) => (
+                  <div key={item.label} className="gd-pricing-item">
+                    <div style={{ fontSize: 11, color: 'var(--color-text-subtle)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{item.label}</div>
+                    <div style={{ fontSize: 24, fontWeight: 800, color: item.color, letterSpacing: '-0.5px', marginTop: 4 }}>{item.value}</div>
+                  </div>
                 ))}
               </div>
 
@@ -320,7 +324,9 @@ export default function GeneratorDetail() {
                 {generator.currentStatus && (
                   <InfoRow label="Current Status" value={STATUS_LABELS[generator.currentStatus] ?? generator.currentStatus} />
                 )}
-                <InfoRow label="Stock Quantity" value={String(stock)} />
+                <InfoRow label="Total Stock" value={String(stock)} />
+                <InfoRow label="Under Service" value={String(generator.underServiceQuantity || 0)} />
+                <InfoRow label="Bookable Stock" value={String(generator.effectiveStock ?? (stock - (generator.underServiceQuantity || 0)))} />
                 <div style={{ display: 'flex', gap: 12, padding: '10px 0' }}>
                   <span style={{ width: 140, flexShrink: 0, fontSize: 13, color: 'var(--color-text-subtle)', fontWeight: 500 }}>Active Status</span>
                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 10px', borderRadius: 20, fontSize: 12, fontWeight: 600, background: generator.isActive ? 'var(--color-success-light)' : 'var(--color-danger-light)', color: generator.isActive ? 'var(--color-success)' : 'var(--color-danger)' }}>

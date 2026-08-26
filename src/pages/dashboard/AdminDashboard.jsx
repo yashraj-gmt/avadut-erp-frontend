@@ -409,7 +409,7 @@ function ActivityTab({ products, generators }) {
               </div>
             ))}
           </div>
-        </SectionCard>
+        </SectionCard>  
 
         <SectionCard title="Quick Actions">
           <div className="p-5 grid grid-cols-2 gap-3">
