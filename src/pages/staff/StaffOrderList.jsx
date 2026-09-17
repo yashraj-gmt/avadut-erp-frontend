@@ -1,496 +1,670 @@
 // src/pages/staff/StaffOrderList.jsx
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ROUTES } from '@/constants/routes';
 import { useAuthStore } from '@/store/authStore';
-import { mockOrders, STATUS_CONFIG, MOCK_BILLS } from '@/pages/generators/orders/mockData';
-
-/* ─── Icons ─────────────────────────────────────────────────────────────── */
-const Icon = {
-  Search: () => (
-    <svg width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-      <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
-    </svg>
-  ),
-  Eye: () => (
-    <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-      <circle cx="12" cy="12" r="3"/>
-    </svg>
-  ),
-  ClipboardList: () => (
-    <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-      <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>
-      <rect x="8" y="2" width="8" height="4" rx="1" ry="1"/>
-      <line x1="9" y1="12" x2="15" y2="12"/>
-      <line x1="9" y1="16" x2="13" y2="16"/>
-    </svg>
-  ),
-  Empty: () => (
-    <svg width="52" height="52" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
-      <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>
-      <rect x="8" y="2" width="8" height="4" rx="1" ry="1"/>
-    </svg>
-  ),
-  ChevronLeft: () => (
-    <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-      <path d="M15 18l-6-6 6-6"/>
-    </svg>
-  ),
-  ChevronRight: () => (
-    <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-      <path d="M9 18l6-6-6-6"/>
-    </svg>
-  ),
-  Shield: () => (
-    <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-    </svg>
-  ),
-  Home: () => (
-    <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-      <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
-      <polyline points="9 22 9 12 15 12 15 22"/>
-    </svg>
-  ),
-};
-
-/* ─── Styles ─────────────────────────────────────────────────────────────── */
-const STYLES = `
-  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
-  *, *::before, *::after { box-sizing: border-box; }
-  @keyframes sol-fadein { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
-  @keyframes sol-pulse  { 0%,100%{opacity:1} 50%{opacity:.45} }
-
-  .sol-page { min-height:100vh; background:var(--color-bg); font-family:'Inter','Segoe UI',sans-serif; padding:28px 32px; }
-
-  .sol-header { display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:24px; gap:12px; flex-wrap:wrap; }
-  .sol-page-title { font-size:clamp(18px,3vw,22px); font-weight:800; color:var(--color-text); letter-spacing:-.4px; margin:0; }
-  .sol-breadcrumb { font-size:12.5px; color:var(--color-text-subtle); margin:4px 0 0; display:flex; align-items:center; gap:5px; flex-wrap:wrap; }
-  .sol-breadcrumb a { color:var(--color-primary); text-decoration:none; display:inline-flex; align-items:center; gap:4px; }
-  .sol-badge-ro {
-    display:inline-flex; align-items:center; gap:5px;
-    background:#D1FAE5; color:#065F46; border-radius:20px;
-    padding:5px 12px; font-size:11px; font-weight:700;
-    text-transform:uppercase; letter-spacing:.5px;
-  }
-
-  /* Stats */
-  .sol-stats-row { display:grid; grid-template-columns:repeat(4,1fr); gap:16px; margin-bottom:24px; }
-  .sol-stat-card {
-    background:var(--color-surface); border-radius:14px; padding:16px 20px;
-    box-shadow:var(--shadow-sm); display:flex; align-items:center; gap:14px;
-    border:1px solid var(--color-border);
-    animation:sol-fadein .4s ease both;
-  }
-  .sol-stat-icon { width:42px; height:42px; border-radius:11px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
-  .sol-stat-value { font-size:24px; font-weight:800; color:var(--color-text); line-height:1.1; }
-  .sol-stat-label { font-size:11px; color:var(--color-text-muted); margin-top:4px; font-weight:600; text-transform:uppercase; letter-spacing:.5px; }
-
-  /* Toolbar */
-  .sol-toolbar { display:flex; gap:12px; margin-bottom:18px; align-items:center; flex-wrap:wrap; }
-  .sol-search-wrap { position:relative; flex:1; min-width:200px; max-width:380px; }
-  .sol-search-icon { position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--color-text-subtle); pointer-events:none; display:flex; }
-  .sol-search-input {
-    width:100%; padding:10px 14px 10px 36px;
-    border:1.5px solid var(--color-border); border-radius:10px;
-    font-size:13.5px; color:var(--color-text); background:var(--color-surface);
-    outline:none; transition:border-color .2s,box-shadow .2s; font-family:inherit;
-  }
-  .sol-search-input:focus { border-color:var(--color-primary); box-shadow:0 0 0 3px rgba(37,99,235,.14); }
-  .sol-filter-select {
-    padding:10px 14px; border:1.5px solid var(--color-border); border-radius:10px;
-    font-size:13.5px; color:var(--color-text-muted); background:var(--color-surface);
-    cursor:pointer; outline:none; font-family:inherit; transition:border-color .2s;
-    min-width:150px;
-  }
-  .sol-filter-select:focus { border-color:var(--color-primary); }
-  .sol-result-count { font-size:13px; color:var(--color-text-muted); margin-left:auto; white-space:nowrap; }
-
-  /* Table card */
-  .sol-card { background:var(--color-surface); border-radius:16px; box-shadow:var(--shadow-md); overflow:hidden; border:1px solid var(--color-border); }
-  .sol-table { width:100%; border-collapse:collapse; }
-  .sol-thead { background:var(--color-surface-2); }
-  .sol-th { padding:12px 16px; text-align:left; font-size:11px; font-weight:700; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:.6px; border-bottom:1.5px solid var(--color-border); white-space:nowrap; }
-  .sol-td { padding:14px 16px; font-size:13.5px; color:var(--color-text); vertical-align:middle; }
-  .sol-row { border-bottom:1px solid var(--color-surface-2); transition:background .15s; }
-  .sol-row:hover td { background:rgba(37,99,235,.04) !important; }
-  .sol-row:last-child { border-bottom:none; }
-  .sol-action-btn {
-    display:inline-flex; align-items:center; justify-content:center;
-    width:32px; height:32px; border-radius:8px;
-    border:none; cursor:pointer;
-    background:var(--color-primary-100); color:var(--color-primary);
-    transition:all .15s;
-  }
-  .sol-action-btn:hover { transform:scale(1.1); box-shadow:0 2px 8px rgba(37,99,235,.25); }
-
-  /* Skeleton */
-  .sol-skel { height:14px; border-radius:6px; background:var(--color-border); animation:sol-pulse 1.4s ease infinite; }
-
-  /* Pagination */
-  .sol-pagination { display:flex; align-items:center; justify-content:space-between; padding:14px 20px; border-top:1px solid var(--color-border); background:var(--color-surface-2); flex-wrap:wrap; gap:10px; }
-
-  /* Mobile */
-  .sol-mobile-list { display:none; padding:12px; }
-  .sol-mobile-card { background:var(--color-surface); border:1px solid var(--color-border); border-radius:12px; padding:14px 16px; margin-bottom:10px; animation:sol-fadein .25s ease; }
-  .sol-mobile-card:last-child { margin-bottom:0; }
-  .sol-mc-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
-  .sol-mc-title { font-weight:700; color:var(--color-text); font-size:14px; }
-  .sol-mc-sub { font-size:11.5px; color:var(--color-text-subtle); margin-top:1px; }
-  .sol-mc-grid { display:grid; grid-template-columns:1fr 1fr; gap:6px 12px; margin-bottom:10px; }
-  .sol-mc-field label { font-size:10px; color:var(--color-text-subtle); font-weight:600; text-transform:uppercase; letter-spacing:.4px; }
-  .sol-mc-field span { display:block; font-size:13px; color:var(--color-text); font-weight:500; margin-top:2px; }
-
-  @media (max-width:1100px) { .sol-stats-row { grid-template-columns:repeat(2,1fr); } }
-  @media (max-width:640px) {
-    .sol-page { padding:16px; }
-    .sol-stats-row { grid-template-columns:1fr 1fr; gap:10px; }
-    .sol-toolbar { flex-direction:column; align-items:stretch; }
-    .sol-search-wrap { max-width:none; }
-    .sol-filter-select { min-width:0; }
-    .sol-result-count { margin-left:0; }
-    .sol-table { display:none; }
-    .sol-mobile-list { display:block; }
-  }
-  @media (max-width:480px) { .sol-stats-row { grid-template-columns:1fr; } }
-`;
-
-const thStyle = { padding: '12px 16px', textAlign: 'left', fontSize: 11, fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '.6px', whiteSpace: 'nowrap' };
-const tdStyle = { padding: '13px 16px', fontSize: 13.5, color: 'var(--color-text)', verticalAlign: 'middle' };
-
-const pageBtn = (active) => ({
-  width: 34, height: 34, borderRadius: 8,
-  border: active ? 'none' : '1.5px solid var(--color-border)',
-  background: active ? 'var(--color-primary)' : 'var(--color-surface)',
-  color: active ? '#fff' : 'var(--color-text)',
-  fontSize: 13, fontWeight: 600, cursor: 'pointer',
-  display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all .15s',
-});
-
-function StatusChip({ status }) {
-  const cfg = STATUS_CONFIG?.[status] ?? { label: status ?? '—', bg: '#F3F4F6', color: '#374151' };
-  return (
-    <span style={{
-      display: 'inline-block', padding: '3px 10px', borderRadius: 20,
-      fontSize: 11, fontWeight: 700, background: cfg.bg, color: cfg.color,
-      textTransform: 'uppercase', letterSpacing: '.4px', whiteSpace: 'nowrap',
-    }}>
-      {cfg.label}
-    </span>
-  );
-}
-
-function StatCard({ label, value, bg, color, loading }) {
-  return (
-    <div className="sol-stat-card">
-      <div className="sol-stat-icon" style={{ background: bg, color }}>
-        <Icon.ClipboardList />
-      </div>
-      <div>
-        <div className="sol-stat-value">{loading ? '—' : value}</div>
-        <div className="sol-stat-label">{label}</div>
-      </div>
-    </div>
-  );
-}
-
-function SkeletonRow() {
-  return (
-    <tr style={{ borderBottom: '1px solid var(--color-surface-2)' }}>
-      {[40, 120, 120, 100, 90, 80, 60].map((w, i) => (
-        <td key={i} style={{ padding: '16px' }}>
-          <div className="sol-skel" style={{ width: w }} />
-        </td>
-      ))}
-    </tr>
-  );
-}
-
-const PAGE_SIZE = 8;
+import {
+  getStaffOrdersList,
+  saveStaffOrderTimes,
+  calculateDuration,
+  getDatesFromFunctionDate,
+  DIESEL_TYPES,
+} from '@/pages/generators/orders/mockData';
+import {
+  ClipboardList,
+  Clock,
+  AlertCircle,
+  CheckCircle2,
+  Search,
+  Fuel,
+  Phone,
+  MapPin,
+  User,
+  Calendar,
+  Zap,
+  X,
+  Plus,
+  Trash2,
+  Save,
+  Home,
+  Info,
+} from 'lucide-react';
 
 export default function StaffOrderList() {
   const navigate = useNavigate();
   const { user } = useAuthStore();
-  const [search, setSearch]       = useState('');
-  const [filterStatus, setFilterStatus] = useState('all');
-  const [page, setPage]           = useState(1);
-  const [loading, setLoading]     = useState(true);
+  const [orders, setOrders] = useState([]);
+  const [search, setSearch] = useState('');
+  const [filterStatus, setFilterStatus] = useState('ALL');
+  const [loading, setLoading] = useState(true);
 
-  // Simulate load
-  React.useEffect(() => {
-    const t = setTimeout(() => setLoading(false), 800);
+  // Time Logging Modal State
+  const [modalOpen, setModalOpen] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState(null);
+  const [editingGenerators, setEditingGenerators] = useState([]);
+  const [saving, setSaving] = useState(false);
+  const [toast, setToast] = useState(null);
+
+  useEffect(() => {
+    const list = getStaffOrdersList(user);
+    setOrders(list);
+    const t = setTimeout(() => setLoading(false), 200);
     return () => clearTimeout(t);
-  }, []);
-
-  // Filter orders assigned to this staff user
-  const myOrders = useMemo(() => {
-    if (!user) return [];
-    return mockOrders.filter(o =>
-      o.assignedToName?.toLowerCase() === user.name?.toLowerCase() ||
-      o.assignedToId === user.id
-    );
   }, [user]);
 
-  // Apply search + status filter
-  const filtered = useMemo(() => {
-    const q = search.toLowerCase();
-    return myOrders.filter(o => {
-      const genNames = (o.generators || []).map(g => (g.generatorName || '').toLowerCase()).join(' ');
-      const matchSearch =
-        o.clientName.toLowerCase().includes(q) ||
-        o.id.toLowerCase().includes(q) ||
-        genNames.includes(q);
-      if (!matchSearch) return false;
-      if (filterStatus !== 'all' && o.status !== filterStatus) return false;
-      return true;
-    });
-  }, [myOrders, search, filterStatus]);
-
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const paged      = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
-
-  const pageNums = (() => {
-    if (totalPages <= 7) return Array.from({ length: totalPages }, (_, i) => i + 1);
-    if (page <= 4) return [1, 2, 3, 4, 5, '…', totalPages];
-    if (page >= totalPages - 3) return [1, '…', totalPages - 4, totalPages - 3, totalPages - 2, totalPages - 1, totalPages];
-    return [1, '…', page - 1, page, page + 1, '…', totalPages];
-  })();
-
+  // Compute live stats
   const stats = useMemo(() => ({
-    total:      myOrders.length,
-    pending:    myOrders.filter(o => o.status === 'PENDING').length,
-    inProgress: myOrders.filter(o => o.status === 'IN_PROGRESS').length,
-    completed:  myOrders.filter(o => o.status === 'COMPLETED').length,
-  }), [myOrders]);
+    total: orders.length,
+    inProgress: orders.filter(o => o.status === 'IN_PROGRESS').length,
+    pending: orders.filter(o => o.status === 'PENDING').length,
+    completed: orders.filter(o => o.status === 'COMPLETED').length,
+  }), [orders]);
+
+  // Filter orders by search and status
+  const filteredOrders = useMemo(() => {
+    const q = search.toLowerCase().trim();
+    return orders.filter(o => {
+      const matchStatus = filterStatus === 'ALL' || o.status === filterStatus;
+      const genNames = (o.generators || []).map(g => g.generatorName || '').join(' ').toLowerCase();
+      const matchSearch =
+        !q ||
+        o.id?.toLowerCase().includes(q) ||
+        o.clientName?.toLowerCase().includes(q) ||
+        o.contactNumber?.includes(q) ||
+        o.siteAddress?.toLowerCase().includes(q) ||
+        o.operatorName?.toLowerCase().includes(q) ||
+        genNames.includes(q);
+
+      return matchStatus && matchSearch;
+    });
+  }, [orders, search, filterStatus]);
+
+  // Open modal for adding/editing times
+  const openTimeModal = (order) => {
+    setSelectedOrder(order);
+
+    const dates = getDatesFromFunctionDate(order.functionDate);
+
+    // Initialize generators with dieselSlots for each date
+    const gens = (order.generators || []).map((g, gIdx) => {
+      let slots = g.dieselSlots && g.dieselSlots.length > 0 ? [...g.dieselSlots] : [];
+
+      // If no slots exist yet, create 1 initial slot for the first date
+      if (slots.length === 0 && order.dieselType === DIESEL_TYPES.WITH_OWNER) {
+        slots = [
+          {
+            id: `slot-${order.id}-${gIdx}-${Date.now()}-0`,
+            date: dates[0],
+            startTime: g.dieselStartTime || '09:00',
+            endTime: g.dieselEndTime || '17:00',
+            duration: g.dieselDuration || '08:00',
+          },
+        ];
+      }
+
+      return {
+        ...g,
+        dieselSlots: slots,
+      };
+    });
+
+    setEditingGenerators(gens);
+    setModalOpen(true);
+  };
+
+  const closeModal = () => {
+    setModalOpen(false);
+    setSelectedOrder(null);
+    setEditingGenerators([]);
+  };
+
+  // Add another time slot for a specific date (like Super Admin in billing)
+  const handleAddSlotForDate = (genIdx, date) => {
+    setEditingGenerators(prev => {
+      const copy = [...prev];
+      const gen = { ...copy[genIdx] };
+      const currentSlots = [...(gen.dieselSlots || [])];
+
+      const newSlot = {
+        id: `slot-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        date,
+        startTime: '18:00',
+        endTime: '22:00',
+        duration: '04:00',
+      };
+
+      // Insert immediately after the last slot for that date
+      const lastIdx = currentSlots.reduce((acc, s, i) => (s.date === date ? i : acc), -1);
+      if (lastIdx === -1) {
+        currentSlots.push(newSlot);
+      } else {
+        currentSlots.splice(lastIdx + 1, 0, newSlot);
+      }
+
+      gen.dieselSlots = currentSlots;
+      copy[genIdx] = gen;
+      return copy;
+    });
+  };
+
+  // Remove a specific time slot
+  const handleRemoveSlot = (genIdx, slotId) => {
+    setEditingGenerators(prev => {
+      const copy = [...prev];
+      const gen = { ...copy[genIdx] };
+      gen.dieselSlots = (gen.dieselSlots || []).filter(s => s.id !== slotId);
+      copy[genIdx] = gen;
+      return copy;
+    });
+  };
+
+  // Handle slot time change
+  const handleSlotChange = (genIdx, slotId, field, val) => {
+    setEditingGenerators(prev => {
+      const copy = [...prev];
+      const gen = { ...copy[genIdx] };
+      gen.dieselSlots = (gen.dieselSlots || []).map(s => {
+        if (s.id !== slotId) return s;
+        const updated = { ...s, [field]: val };
+        if (field === 'startTime' || field === 'endTime') {
+          updated.duration = calculateDuration(updated.startTime, updated.endTime);
+        }
+        return updated;
+      });
+      copy[genIdx] = gen;
+      return copy;
+    });
+  };
+
+  // Save times from modal
+  const handleSaveTimes = () => {
+    if (!selectedOrder) return;
+    setSaving(true);
+
+    setTimeout(() => {
+      // Sync the primary dieselStartTime / dieselEndTime from first slot for backwards compatibility
+      const preparedGens = editingGenerators.map(g => {
+        const firstSlot = (g.dieselSlots || [])[0];
+        return {
+          ...g,
+          dieselStartTime: firstSlot?.startTime || '',
+          dieselEndTime: firstSlot?.endTime || '',
+          dieselDuration: firstSlot?.duration || '',
+        };
+      });
+
+      const updated = saveStaffOrderTimes(selectedOrder.id, preparedGens);
+      if (updated) {
+        setOrders(prev => prev.map(o => (o.id === updated.id ? updated : o)));
+      }
+      setSaving(false);
+      closeModal();
+      showToast(`Diesel operating times saved for Order ${selectedOrder.id}!`);
+    }, 300);
+  };
+
+  const showToast = (message) => {
+    setToast(message);
+    setTimeout(() => setToast(null), 3000);
+  };
 
   return (
-    <>
-      <style>{STYLES}</style>
-      <div className="sol-page">
+    <div className="min-h-screen pb-14" style={{ background: 'var(--color-bg)' }}>
+      {/* ── Toast Notification ────────────────────────────────────────── */}
+      {toast && (
+        <div className="fixed top-5 right-5 z-50 flex items-center gap-2 px-4 py-3 rounded-xl bg-slate-900 text-white shadow-xl text-xs font-medium animate-in fade-in duration-150">
+          <CheckCircle2 size={16} className="text-emerald-400" />
+          <span>{toast}</span>
+        </div>
+      )}
 
-        {/* ── Header ── */}
-        <div className="sol-header">
-          <div>
-            <h1 className="sol-page-title">My Assigned Orders</h1>
-            <div className="sol-breadcrumb">
-              <a href="#" onClick={e => { e.preventDefault(); navigate(ROUTES.DASHBOARD); }}>
-                <Icon.Home /> Home
-              </a>
-              <span style={{ color: 'var(--color-text-subtle)' }}>›</span>
-              <span>My Orders</span>
+      {/* ── Header ─────────────────────────────────────────────────────── */}
+      <div className="bg-white border-b border-slate-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5">
+          <div className="flex items-center gap-2 text-xs text-slate-400 mb-1.5">
+            <span
+              onClick={() => navigate(ROUTES.DASHBOARD)}
+              className="flex items-center gap-1 hover:text-blue-600 cursor-pointer transition-colors"
+            >
+              <Home size={12} />
+              Home
+            </span>
+            <span>›</span>
+            <span className="text-slate-700 font-medium">My Orders</span>
+          </div>
+
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight text-slate-900">
+                My Assigned Orders
+              </h1>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Review assigned bookings and add diesel running time slots for With-Diesel orders.
+              </p>
+            </div>
+
+            {/* Quick search input */}
+            <div className="relative w-full sm:w-72">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+              <input
+                type="text"
+                placeholder="Search orders, clients, phones…"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                className="w-full pl-8 pr-3 py-1.5 rounded-lg text-xs bg-slate-50 border border-slate-200 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all"
+              />
             </div>
           </div>
-          <span className="sol-badge-ro">
-            <Icon.Shield />
-            View Only Access
-          </span>
         </div>
+      </div>
 
-        {/* ── Stats ── */}
-        <div className="sol-stats-row">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
+        {/* ── 4 Simple Stat Cards ───────────────────────────────────────── */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6">
           {[
-            { label: 'Total Assigned', value: stats.total, bg: '#EFF6FF', color: '#2563EB' },
-            { label: 'In Progress',    value: stats.inProgress, bg: '#EDE9FE', color: '#7C3AED' },
-            { label: 'Pending',        value: stats.pending, bg: '#FEF3C7', color: '#92400E' },
-            { label: 'Completed',      value: stats.completed, bg: '#D1FAE5', color: '#065F46' },
-          ].map((s, i) => (
-            <StatCard key={i} {...s} loading={loading} />
-          ))}
+            { id: 'ALL', label: 'TOTAL ASSIGNED', value: stats.total, icon: ClipboardList, color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-200' },
+            { id: 'IN_PROGRESS', label: 'IN PROGRESS', value: stats.inProgress, icon: Clock, color: 'text-amber-600', bg: 'bg-amber-50', border: 'border-amber-200' },
+            { id: 'PENDING', label: 'PENDING', value: stats.pending, icon: AlertCircle, color: 'text-purple-600', bg: 'bg-purple-50', border: 'border-purple-200' },
+            { id: 'COMPLETED', label: 'COMPLETED', value: stats.completed, icon: CheckCircle2, color: 'text-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-200' },
+          ].map(stat => {
+            const IconComp = stat.icon;
+            const active = filterStatus === stat.id;
+            return (
+              <div
+                key={stat.id}
+                onClick={() => setFilterStatus(stat.id)}
+                role="button"
+                tabIndex={0}
+                className={`p-3.5 sm:p-4 rounded-xl bg-white border ${stat.border} shadow-2xs transition-all cursor-pointer hover:shadow-sm ${
+                  active ? 'ring-2 ring-blue-500' : ''
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${stat.bg} ${stat.color}`}>
+                    <IconComp size={16} />
+                  </div>
+                  {active && (
+                    <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-slate-900 text-white">
+                      Selected
+                    </span>
+                  )}
+                </div>
+                <div className="mt-2">
+                  <div className="text-xl sm:text-2xl font-extrabold text-slate-900">
+                    {loading ? '—' : stat.value}
+                  </div>
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mt-0.5">
+                    {stat.label}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
         </div>
 
-        {/* ── Toolbar ── */}
-        <div className="sol-toolbar">
-          <div className="sol-search-wrap">
-            <span className="sol-search-icon"><Icon.Search /></span>
-            <input
-              className="sol-search-input"
-              placeholder="Search by client, order #, generator…"
-              value={search}
-              onChange={e => { setSearch(e.target.value); setPage(1); }}
-              disabled={loading}
-            />
+        {/* ── Table Card ───────────────────────────────────────────────── */}
+        <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
+          <div className="px-4 py-3 bg-slate-50/70 border-b border-slate-200 flex items-center justify-between text-xs">
+            <span className="font-bold text-slate-700 uppercase tracking-wider">
+              Assigned Orders List ({filteredOrders.length})
+            </span>
+            {filterStatus !== 'ALL' && (
+              <button
+                onClick={() => setFilterStatus('ALL')}
+                className="text-blue-600 hover:text-blue-700 font-semibold cursor-pointer"
+              >
+                Clear Filter ({filterStatus})
+              </button>
+            )}
           </div>
-          <select
-            className="sol-filter-select"
-            value={filterStatus}
-            onChange={e => { setFilterStatus(e.target.value); setPage(1); }}
-            disabled={loading}
-          >
-            <option value="all">All Statuses</option>
-            <option value="PENDING">Pending</option>
-            <option value="IN_PROGRESS">In Progress</option>
-            <option value="COMPLETED">Completed</option>
-            <option value="CANCELLED">Cancelled</option>
-          </select>
-          <span className="sol-result-count">
-            {loading ? 'Loading…' : `${filtered.length} order${filtered.length !== 1 ? 's' : ''}`}
-          </span>
-        </div>
 
-        {/* ── Table Card ── */}
-        <div className="sol-card">
-          {/* Desktop Table */}
-          <div style={{ overflowX: 'auto' }}>
-            <table className="sol-table">
-              <thead className="sol-thead">
-                <tr>
-                  <th style={{ ...thStyle, width: 44 }}>#</th>
-                  <th style={thStyle}>Order #</th>
-                  <th style={thStyle}>Client</th>
-                  <th style={thStyle}>Generators</th>
-                  <th style={{ ...thStyle, textAlign: 'center' }}>Function Date</th>
-                  <th style={{ ...thStyle, textAlign: 'center' }}>Status</th>
-                  <th style={{ ...thStyle, textAlign: 'center' }}>Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {loading
-                  ? [...Array(6)].map((_, i) => <SkeletonRow key={i} />)
-                  : paged.length === 0
-                  ? (
-                    <tr>
-                      <td colSpan={7} style={{ padding: '64px 20px', textAlign: 'center' }}>
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, color: 'var(--color-text-subtle)' }}>
-                          <Icon.Empty />
-                          <div style={{ fontWeight: 600, color: 'var(--color-text-muted)', fontSize: 15 }}>
-                            {search || filterStatus !== 'all' ? 'No orders match your search' : 'No orders assigned yet'}
-                          </div>
-                          <div style={{ fontSize: 13 }}>
-                            {search || filterStatus !== 'all' ? 'Try adjusting your filters' : 'Your admin will assign orders to you soon'}
-                          </div>
-                        </div>
-                      </td>
-                    </tr>
-                  ) : paged.map((o, i) => {
-                    const gens = o.generators || [];
-                    const firstName = gens[0]?.generatorName || '—';
-                    const extra    = gens.length > 1 ? ` +${gens.length - 1} more` : '';
+          {filteredOrders.length === 0 ? (
+            <div className="py-16 text-center px-4">
+              <div className="w-10 h-10 rounded-lg bg-slate-100 text-slate-400 flex items-center justify-center mx-auto mb-2.5">
+                <ClipboardList size={20} />
+              </div>
+              <h3 className="text-sm font-bold text-slate-700">No orders found</h3>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Try resetting your search or filter criteria.
+              </p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">
+                    <th className="py-3 px-3.5">Order No</th>
+                    <th className="py-3 px-3.5">Client Name</th>
+                    <th className="py-3 px-3.5">Client Contact</th>
+                    <th className="py-3 px-3.5 min-w-[200px]">Site Address</th>
+                    <th className="py-3 px-3.5">Diesel Type</th>
+                    <th className="py-3 px-3.5">Cable</th>
+                    <th className="py-3 px-3.5">Operator Name</th>
+                    <th className="py-3 px-3.5">Function Date</th>
+                    <th className="py-3 px-3.5 text-center">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {filteredOrders.map(o => {
+                    const isWithOwner = o.dieselType === DIESEL_TYPES.WITH_OWNER;
+                    const cableList = (o.generators || [])
+                      .map(g => g.cableSize)
+                      .filter(Boolean);
+                    const cableText = cableList.length > 0 ? cableList.join(', ') + ' mm²' : (o.cableRequired ? 'Required' : 'No Cable');
+
+                    const totalSlotsCount = (o.generators || []).reduce(
+                      (acc, g) => acc + (g.dieselSlots?.length || (g.dieselStartTime ? 1 : 0)),
+                      0
+                    );
+
                     return (
-                      <tr
-                        key={o.id}
-                        className="sol-row"
-                        style={{ background: i % 2 === 0 ? 'var(--color-surface)' : 'var(--color-bg)' }}
-                      >
-                        <td style={{ ...tdStyle, color: 'var(--color-text-subtle)', fontSize: 13, width: 44 }}>
-                          {(page - 1) * PAGE_SIZE + i + 1}
+                      <tr key={o.id} className="hover:bg-slate-50/80 transition-colors">
+                        {/* 1. Order No */}
+                        <td className="py-3 px-3.5 font-mono font-bold text-blue-600 whitespace-nowrap">
+                          {o.id}
                         </td>
-                        <td style={tdStyle}>
-                          <span style={{
-                            fontFamily: 'monospace', fontWeight: 700, fontSize: 12.5,
-                            background: '#EFF6FF', color: '#1D4ED8',
-                            padding: '2px 8px', borderRadius: 6,
-                          }}>{o.id}</span>
+
+                        {/* 2. Client Name */}
+                        <td className="py-3 px-3.5 font-semibold text-slate-900 whitespace-nowrap">
+                          {o.clientName || '—'}
                         </td>
-                        <td style={tdStyle}>
-                          <div style={{ fontWeight: 600 }}>{o.clientName}</div>
-                          <div style={{ fontSize: 11.5, color: 'var(--color-text-subtle)', marginTop: 1 }}>
-                            {o.contactNumber}
-                          </div>
+
+                        {/* 3. Client Contact Number */}
+                        <td className="py-3 px-3.5 whitespace-nowrap text-slate-700 font-mono">
+                          <span className="flex items-center gap-1.5">
+                            <Phone size={11} className="text-slate-400" />
+                            {o.contactNumber || '—'}
+                          </span>
                         </td>
-                        <td style={tdStyle}>
-                          <div style={{ fontWeight: 600, fontSize: 13 }}>{firstName}</div>
-                          {extra && <div style={{ fontSize: 11, color: 'var(--color-primary)', fontWeight: 600 }}>{extra}</div>}
-                          <div style={{ fontSize: 11, color: 'var(--color-text-subtle)' }}>
-                            {gens.length} generator{gens.length !== 1 ? 's' : ''}
-                          </div>
+
+                        {/* 4. Site Address */}
+                        <td className="py-3 px-3.5 text-slate-600 max-w-xs">
+                          <span className="flex items-start gap-1.5 line-clamp-2">
+                            <MapPin size={12} className="text-slate-400 shrink-0 mt-0.5" />
+                            <span>{o.siteAddress || '—'}</span>
+                          </span>
                         </td>
-                        <td style={{ ...tdStyle, textAlign: 'center', fontSize: 12.5, color: 'var(--color-text-muted)' }}>
-                          {o.functionDate || '—'}
-                        </td>
-                        <td style={{ ...tdStyle, textAlign: 'center' }}>
-                          <StatusChip status={o.status} />
-                        </td>
-                        <td style={{ ...tdStyle, textAlign: 'center' }}>
-                          <button
-                            className="sol-action-btn"
-                            title="View Order"
-                            onClick={() => navigate(ROUTES.STAFF_ORDER_DETAIL.replace(':id', o.id))}
+
+                        {/* 5. Diesel Type */}
+                        <td className="py-3 px-3.5 whitespace-nowrap">
+                          <span
+                            className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
+                              isWithOwner
+                                ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                : 'bg-amber-50 text-amber-700 border-amber-200'
+                            }`}
                           >
-                            <Icon.Eye />
-                          </button>
+                            <Fuel size={10} />
+                            {isWithOwner ? 'With Diesel' : 'Party Diesel'}
+                          </span>
+                        </td>
+
+                        {/* 6. Cable */}
+                        <td className="py-3 px-3.5 whitespace-nowrap">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-medium text-[11px]">
+                            {cableText}
+                          </span>
+                        </td>
+
+                        {/* 7. Operator Name */}
+                        <td className="py-3 px-3.5 whitespace-nowrap text-slate-700">
+                          <span className="flex items-center gap-1.5 font-medium">
+                            <User size={11} className="text-slate-400" />
+                            {o.operatorName || '—'}
+                          </span>
+                        </td>
+
+                        {/* 8. Function Date */}
+                        <td className="py-3 px-3.5 whitespace-nowrap text-slate-600">
+                          <span className="flex items-center gap-1.5">
+                            <Calendar size={11} className="text-slate-400" />
+                            {o.functionDate || '—'}
+                          </span>
+                        </td>
+
+                        {/* 9. Action Button */}
+                        <td className="py-3 px-3.5 text-center whitespace-nowrap">
+                          {isWithOwner ? (
+                            <button
+                              onClick={() => openTimeModal(o)}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white transition-all cursor-pointer shadow-2xs"
+                              title="Add / Update Diesel Running Time Slots"
+                            >
+                              <Clock size={12} />
+                              <span>{totalSlotsCount > 0 ? `Edit Times (${totalSlotsCount})` : 'Add Time Slot'}</span>
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => openTimeModal(o)}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-100 text-slate-500 hover:bg-slate-200 transition-colors cursor-pointer border border-slate-200"
+                              title="Party Diesel — View Info"
+                            >
+                              <Info size={12} />
+                              <span>Party Diesel</span>
+                            </button>
+                          )}
                         </td>
                       </tr>
                     );
-                  })
-                }
-              </tbody>
-            </table>
-          </div>
-
-          {/* Mobile Cards */}
-          <div className="sol-mobile-list">
-            {loading ? (
-              [...Array(4)].map((_, i) => (
-                <div key={i} className="sol-mobile-card">
-                  <div className="sol-skel" style={{ width: '60%', marginBottom: 8 }} />
-                  <div className="sol-skel" style={{ width: '40%', marginBottom: 12 }} />
-                  <div className="sol-skel" style={{ width: '80%' }} />
-                </div>
-              ))
-            ) : paged.map(o => (
-              <div key={o.id} className="sol-mobile-card">
-                <div className="sol-mc-header">
-                  <div>
-                    <div className="sol-mc-title">{o.clientName}</div>
-                    <div className="sol-mc-sub">{o.id}</div>
-                  </div>
-                  <StatusChip status={o.status} />
-                </div>
-                <div className="sol-mc-grid">
-                  <div className="sol-mc-field">
-                    <label>Generators</label>
-                    <span style={{ fontWeight: 600 }}>{(o.generators || [])[0]?.generatorName || '—'}</span>
-                    {(o.generators || []).length > 1 && (
-                      <span style={{ fontSize: 11, color: 'var(--color-primary)', fontWeight: 600 }}>
-                        +{(o.generators || []).length - 1} more
-                      </span>
-                    )}
-                  </div>
-                  <div className="sol-mc-field">
-                    <label>Function Date</label>
-                    <span style={{ fontSize: 12 }}>{o.functionDate || '—'}</span>
-                  </div>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: 8, borderTop: '1px solid var(--color-surface-2)' }}>
-                  <button
-                    className="sol-action-btn"
-                    title="View"
-                    onClick={() => navigate(ROUTES.STAFF_ORDER_DETAIL.replace(':id', o.id))}
-                  >
-                    <Icon.Eye />
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Pagination */}
-          {!loading && filtered.length > 0 && (
-            <div className="sol-pagination">
-              <span style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>
-                Showing {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length}
-              </span>
-              <div style={{ display: 'flex', gap: 6 }}>
-                <button style={pageBtn(false)} disabled={page === 1} onClick={() => setPage(p => p - 1)}>
-                  <Icon.ChevronLeft />
-                </button>
-                {pageNums.map((n, i) =>
-                  n === '…' ? (
-                    <span key={`e${i}`} style={{ display: 'flex', alignItems: 'center', padding: '0 4px', color: 'var(--color-text-subtle)', fontSize: 13 }}>…</span>
-                  ) : (
-                    <button key={n} style={pageBtn(n === page)} onClick={() => setPage(n)}>{n}</button>
-                  )
-                )}
-                <button style={pageBtn(false)} disabled={page === totalPages} onClick={() => setPage(p => p + 1)}>
-                  <Icon.ChevronRight />
-                </button>
-              </div>
+                  })}
+                </tbody>
+              </table>
             </div>
           )}
         </div>
-
       </div>
-    </>
+
+      {/* ── TIME LOGGING MODAL WITH MULTI-SLOT ADD PER DATE ──────────── */}
+      {modalOpen && selectedOrder && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-150">
+            {/* Modal Header */}
+            <div className="p-4 sm:px-6 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-xs font-bold text-blue-600 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded">
+                    {selectedOrder.id}
+                  </span>
+                  <span
+                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                      selectedOrder.dieselType === DIESEL_TYPES.WITH_OWNER
+                        ? 'bg-blue-50 text-blue-700 border-blue-200'
+                        : 'bg-amber-50 text-amber-700 border-amber-200'
+                    }`}
+                  >
+                    <Fuel size={10} />
+                    {selectedOrder.dieselType === DIESEL_TYPES.WITH_OWNER ? 'With Diesel' : 'Party Diesel'}
+                  </span>
+                </div>
+                <h3 className="text-base font-bold text-slate-900 mt-1">
+                  {selectedOrder.dieselType === DIESEL_TYPES.WITH_OWNER
+                    ? `Diesel Operating Time Slots — ${selectedOrder.clientName}`
+                    : `Order Details — ${selectedOrder.clientName}`}
+                </h3>
+              </div>
+
+              <button
+                onClick={closeModal}
+                className="w-8 h-8 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-200/60 flex items-center justify-center transition-colors cursor-pointer"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-4 sm:p-6 overflow-y-auto space-y-4">
+              {selectedOrder.dieselType !== DIESEL_TYPES.WITH_OWNER ? (
+                /* Party Diesel Info Box */
+                <div className="p-6 text-center rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+                  <div className="w-10 h-10 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center mx-auto mb-2">
+                    <Fuel size={20} />
+                  </div>
+                  <h4 className="text-sm font-bold text-slate-800">Party Diesel Booking</h4>
+                  <p className="text-xs text-slate-500 max-w-sm mx-auto leading-relaxed">
+                    This order is booked under <strong>Party Diesel</strong> terms. Fuel is arranged and provided directly by the client. Operating time slots are only required for With-Diesel bookings.
+                  </p>
+                </div>
+              ) : (
+                /* With Diesel Time Slots */
+                <>
+                  <div className="p-3 rounded-lg bg-blue-50/70 border border-blue-200 text-xs text-blue-800 flex items-center gap-2">
+                    <Info size={15} className="text-blue-600 shrink-0" />
+                    <span>
+                      Enter start and end times for each shift/date. Click <strong>+ Add Slot</strong> to add another time slot for the same date.
+                    </span>
+                  </div>
+
+                  {editingGenerators.map((gen, gIdx) => {
+                    const orderDates = getDatesFromFunctionDate(selectedOrder.functionDate);
+                    const slots = gen.dieselSlots || [];
+
+                    return (
+                      <div
+                        key={gen._id || gIdx}
+                        className="p-4 rounded-xl border border-slate-200 bg-white shadow-2xs space-y-4"
+                      >
+                        {/* Unit Header */}
+                        <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                          <div className="flex items-center gap-2">
+                            <span className="w-6 h-6 rounded-md bg-blue-100 text-blue-700 text-[11px] font-bold flex items-center justify-center">
+                              #{gIdx + 1}
+                            </span>
+                            <span className="font-bold text-xs text-slate-800">
+                              {gen.generatorName || 'Generator Set'}
+                            </span>
+                          </div>
+                          <span className="text-[11px] font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                            {slots.length} Time Slot{slots.length !== 1 ? 's' : ''}
+                          </span>
+                        </div>
+
+                        {/* Dates Grouping */}
+                        <div className="space-y-4">
+                          {orderDates.map(dateStr => {
+                            const dateSlots = slots.filter(s => s.date === dateStr);
+
+                            return (
+                              <div
+                                key={dateStr}
+                                className="p-3 rounded-xl bg-slate-50/70 border border-slate-200 space-y-2.5"
+                              >
+                                {/* Date Header + Add Slot Button for this Date */}
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700">
+                                    <Calendar size={13} className="text-blue-600" />
+                                    <span>Date: {dateStr}</span>
+                                  </div>
+
+                                  {/* Add another time slot for this date button */}
+                                  <button
+                                    type="button"
+                                    onClick={() => handleAddSlotForDate(gIdx, dateStr)}
+                                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-300 transition-colors cursor-pointer shadow-2xs"
+                                    title="Add another time slot for this date"
+                                  >
+                                    <Plus size={11} />
+                                    <span>Add Time Slot</span>
+                                  </button>
+                                </div>
+
+                                {/* Slots list for this date */}
+                                {dateSlots.length === 0 ? (
+                                  <div className="py-3 text-center text-xs text-slate-400 bg-white rounded-lg border border-dashed border-slate-200">
+                                    No slots logged for this date. Click &ldquo;Add Time Slot&rdquo; above.
+                                  </div>
+                                ) : (
+                                  <div className="space-y-2">
+                                    {dateSlots.map((slot, sIdx) => {
+                                      return (
+                                        <div
+                                          key={slot.id}
+                                          className="p-2.5 bg-white rounded-lg border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2 shadow-2xs"
+                                        >
+                                          <div className="flex items-center gap-2">
+                                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider min-w-[45px]">
+                                              Slot #{sIdx + 1}
+                                            </span>
+
+                                            {/* Start Time */}
+                                            <div className="flex items-center gap-1">
+                                              <span className="text-[10px] text-slate-500 font-medium">Start:</span>
+                                              <input
+                                                type="time"
+                                                value={slot.startTime || '09:00'}
+                                                onChange={e => handleSlotChange(gIdx, slot.id, 'startTime', e.target.value)}
+                                                className="px-2 py-1 text-xs rounded border border-slate-300 font-mono font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                              />
+                                            </div>
+
+                                            {/* End Time */}
+                                            <div className="flex items-center gap-1">
+                                              <span className="text-[10px] text-slate-500 font-medium">End:</span>
+                                              <input
+                                                type="time"
+                                                value={slot.endTime || '17:00'}
+                                                onChange={e => handleSlotChange(gIdx, slot.id, 'endTime', e.target.value)}
+                                                className="px-2 py-1 text-xs rounded border border-slate-300 font-mono font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                              />
+                                            </div>
+                                          </div>
+
+                                          <div className="flex items-center justify-between sm:justify-end gap-2 w-full sm:w-auto">
+                                            {/* Calculated Duration */}
+                                            <div className="px-2.5 py-1 rounded bg-blue-50 text-blue-700 font-mono font-bold text-[11px] border border-blue-200">
+                                              {slot.duration || calculateDuration(slot.startTime, slot.endTime)} hrs
+                                            </div>
+
+                                            {/* Remove Slot Button */}
+                                            <button
+                                              type="button"
+                                              onClick={() => handleRemoveSlot(gIdx, slot.id)}
+                                              className="p-1 rounded text-rose-500 hover:bg-rose-50 hover:text-rose-700 transition-colors cursor-pointer"
+                                              title="Remove this slot"
+                                            >
+                                              <Trash2 size={13} />
+                                            </button>
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 sm:px-6 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={closeModal}
+                className="px-4 py-2 rounded-lg text-xs font-semibold border border-slate-200 bg-white text-slate-700 hover:bg-slate-100 cursor-pointer transition-colors"
+              >
+                Cancel
+              </button>
+
+              {selectedOrder.dieselType === DIESEL_TYPES.WITH_OWNER && (
+                <button
+                  type="button"
+                  onClick={handleSaveTimes}
+                  disabled={saving}
+                  className="inline-flex items-center gap-1.5 px-5 py-2 rounded-lg text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white shadow-xs cursor-pointer transition-all disabled:opacity-60"
+                >
+                  <Save size={13} />
+                  <span>{saving ? 'Saving…' : 'Save Time Slots'}</span>
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }

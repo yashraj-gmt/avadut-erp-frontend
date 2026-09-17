@@ -498,25 +498,27 @@ const rawMockOrders = [
 
 // ── Mock staff users (mirrors what could be in the DB) ───────────────────────
 export const MOCK_STAFF_USERS = [
+  { id: 100, name: 'Staff',          mobile: '9800000000' },
   { id: 101, name: 'Arjun Mehta',    mobile: '9811001101' },
   { id: 102, name: 'Priya Sharma',   mobile: '9811001102' },
   { id: 103, name: 'Ravi Desai',     mobile: '9811001103' },
 ];
 
-// Distribute orders across mock staff for demo purposes
+// Distribute orders across mock staff for demo purposes.
+// Key demo orders assigned directly to "Staff" (covering In Progress, Pending, and Completed):
 const STAFF_ASSIGNMENT = {
-  'GO20261':  { id: 101, name: 'Arjun Mehta' },
-  'GO20262':  { id: 101, name: 'Arjun Mehta' },
-  'GO20263':  { id: 102, name: 'Priya Sharma' },
+  'GO20261':  { id: 100, name: 'Staff' },        // IN_PROGRESS (With Diesel)
+  'GO20262':  { id: 100, name: 'Staff' },        // COMPLETED (Party Diesel)
+  'GO20263':  { id: 100, name: 'Staff' },        // PENDING (With Diesel)
   'GO20264':  { id: 102, name: 'Priya Sharma' },
-  'GO20265':  { id: 103, name: 'Ravi Desai' },
-  'GO20266':  { id: 101, name: 'Arjun Mehta' },
+  'GO20265':  { id: 100, name: 'Staff' },        // IN_PROGRESS (With Diesel)
+  'GO20266':  { id: 100, name: 'Staff' },        // IN_PROGRESS (Party Diesel)
   'GO20267':  { id: 103, name: 'Ravi Desai' },
-  'GO20268':  { id: 102, name: 'Priya Sharma' },
+  'GO20268':  { id: 100, name: 'Staff' },        // PENDING (With Diesel)
   'GO20269':  { id: 101, name: 'Arjun Mehta' },
-  'GO202610': { id: 103, name: 'Ravi Desai' },
+  'GO202610': { id: 100, name: 'Staff' },        // PENDING (With Diesel)
   'GO202611': { id: 102, name: 'Priya Sharma' },
-  'GO202612': { id: 101, name: 'Arjun Mehta' },
+  'GO202612': { id: 100, name: 'Staff' },        // COMPLETED (With Diesel)
   'GO202613': { id: 103, name: 'Ravi Desai' },
   'GO202614': { id: 102, name: 'Priya Sharma' },
   'GO202615': { id: 101, name: 'Arjun Mehta' },
@@ -541,13 +543,54 @@ const OPERATOR_ASSIGNMENT = {
   'GO202615': { name: 'Sandeep Verma',  mobile: '9555666777' },
 };
 
+// Diesel type mapping for demo
+const DIESEL_ASSIGNMENT = {
+  'GO20261':  'WITH_OWNER',
+  'GO20262':  'PARTY',
+  'GO20263':  'WITH_OWNER',
+  'GO20264':  'WITH_OWNER',
+  'GO20265':  'WITH_OWNER',
+  'GO20266':  'PARTY',
+  'GO20267':  'PARTY',
+  'GO20268':  'WITH_OWNER',
+  'GO20269':  'PARTY',
+  'GO202610': 'WITH_OWNER',
+  'GO202611': 'WITH_OWNER',
+  'GO202612': 'WITH_OWNER',
+  'GO202613': 'PARTY',
+  'GO202614': 'WITH_OWNER',
+  'GO202615': 'WITH_OWNER',
+};
+
 export const mockOrders = rawMockOrders.map((o, idx) => {
   const dateObj = new Date(o.createdAt || '2026-07-06T00:00:00Z');
   const fromStr = dateObj.toISOString().split('T')[0];
   const toDate = new Date(dateObj.getTime() + 2 * 24 * 60 * 60 * 1000); // 2 days later
   const toStr = toDate.toISOString().split('T')[0];
-  const staffAssignment = STAFF_ASSIGNMENT[o.id] || { id: 101, name: 'Arjun Mehta' };
+  const staffAssignment = STAFF_ASSIGNMENT[o.id] || { id: 100, name: 'Staff' };
   const operatorAssignment = OPERATOR_ASSIGNMENT[o.id] || { name: 'Suresh Kumar', mobile: '9876543210' };
+  const orderDieselType = DIESEL_ASSIGNMENT[o.id] || 'WITH_OWNER';
+
+  // Ensure generators have default time values and multi-slot structure for time logging
+  const enrichedGenerators = (o.generators || []).map((g, gIdx) => {
+    const initialSlots = orderDieselType === 'WITH_OWNER' ? [
+      {
+        id: `slot-${o.id}-${gIdx}-1`,
+        date: fromStr,
+        startTime: '09:00',
+        endTime: '17:00',
+        duration: '08:00',
+      },
+    ] : [];
+
+    return {
+      ...g,
+      dieselSlots: g.dieselSlots || initialSlots,
+      dieselStartTime: g.dieselStartTime || (orderDieselType === 'WITH_OWNER' ? '09:00' : ''),
+      dieselEndTime: g.dieselEndTime || (orderDieselType === 'WITH_OWNER' ? '17:00' : ''),
+      dieselDuration: g.dieselDuration || (orderDieselType === 'WITH_OWNER' ? '08:00' : ''),
+    };
+  });
 
   return {
     ...o,
@@ -555,8 +598,9 @@ export const mockOrders = rawMockOrders.map((o, idx) => {
     bookingStatus: idx % 2 === 0 ? 'Confirmed' : 'Booked',
     operatorName: operatorAssignment.name,
     operatorMobile: operatorAssignment.mobile,
-    cableRequired: o.generators?.some(g => g.cableSize) ?? true,
-    dieselType: o.dieselType || 'WITH_OWNER',
+    cableRequired: enrichedGenerators.some(g => g.cableSize) ?? true,
+    dieselType: orderDieselType,
+    generators: enrichedGenerators,
     // Staff assignment fields
     assignedToId:   staffAssignment.id,
     assignedToName: staffAssignment.name,
@@ -564,6 +608,123 @@ export const mockOrders = rawMockOrders.map((o, idx) => {
     assignedByName: 'Super Admin',
   };
 });
+
+/* ── Staff Order Persistence & Filter Helpers ─────────────────────────────── */
+
+const STAFF_STORAGE_KEY = 'erp_staff_orders_demo_cache';
+
+export function getDatesFromFunctionDate(functionDateStr) {
+  if (!functionDateStr) return [new Date().toISOString().split('T')[0]];
+  const parts = functionDateStr.split(' to ');
+  const parseDate = (dStr) => {
+    if (!dStr) return null;
+    const clean = dStr.trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(clean)) return new Date(clean);
+    if (/^\d{2}\/\d{2}\/\d{4}$/.test(clean)) {
+      const [d, m, y] = clean.split('/').map(Number);
+      return new Date(y, m - 1, d);
+    }
+    if (/^\d{2}-\d{2}-\d{4}$/.test(clean)) {
+      const [d, m, y] = clean.split('-').map(Number);
+      return new Date(y, m - 1, d);
+    }
+    const d = new Date(clean);
+    return isNaN(d.getTime()) ? null : d;
+  };
+
+  const start = parseDate(parts[0]);
+  const end = parts[1] ? parseDate(parts[1]) : start;
+
+  if (!start) return [new Date().toISOString().split('T')[0]];
+  const dates = [];
+  const curr = new Date(start);
+  const stop = end || start;
+  while (curr <= stop) {
+    dates.push(curr.toISOString().split('T')[0]);
+    curr.setDate(curr.getDate() + 1);
+    if (dates.length > 31) break;
+  }
+  return dates.length > 0 ? dates : [new Date().toISOString().split('T')[0]];
+}
+
+export function calculateDuration(startTime, endTime) {
+  if (!startTime || !endTime) return '—';
+  const [sh, sm] = startTime.split(':').map(Number);
+  const [eh, em] = endTime.split(':').map(Number);
+  if (isNaN(sh) || isNaN(sm) || isNaN(eh) || isNaN(em)) return '—';
+
+  let startMinutes = sh * 60 + sm;
+  let endMinutes = eh * 60 + em;
+  if (endMinutes < startMinutes) {
+    endMinutes += 24 * 60; // passes midnight
+  }
+  const diff = endMinutes - startMinutes;
+  const hours = Math.floor(diff / 60);
+  const mins = diff % 60;
+  return `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
+}
+
+export function getStaffOrdersList(currentUser) {
+  let baseOrders = mockOrders;
+  try {
+    const cached = localStorage.getItem(STAFF_STORAGE_KEY);
+    if (cached) {
+      const parsed = JSON.parse(cached);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        baseOrders = parsed;
+      }
+    }
+  } catch {
+    // fallback to mockOrders
+  }
+
+  // Filter for orders assigned to current staff user
+  // If user is Staff or has role STAFF, show all orders assigned to 'Staff'
+  const isStaffRole = currentUser?.role === 'STAFF';
+  const userName = currentUser?.name?.trim().toLowerCase() || 'staff';
+
+  const userOrders = baseOrders.filter(o => {
+    const assignedName = (o.assignedToName || '').toLowerCase();
+    if (assignedName === userName) return true;
+    if (currentUser?.id && o.assignedToId === currentUser.id) return true;
+    if (isStaffRole && (assignedName === 'staff' || !assignedName)) return true;
+    return false;
+  });
+
+  // If none matched, fallback to all orders where assignedToName is 'Staff'
+  if (userOrders.length === 0) {
+    return baseOrders.filter(o => (o.assignedToName || '').toLowerCase() === 'staff');
+  }
+
+  return userOrders;
+}
+
+export function saveStaffOrderTimes(orderId, updatedGenerators) {
+  try {
+    let orders = [];
+    const cached = localStorage.getItem(STAFF_STORAGE_KEY);
+    if (cached) {
+      orders = JSON.parse(cached);
+    } else {
+      orders = [...mockOrders];
+    }
+
+    const idx = orders.findIndex(o => o.id === orderId);
+    if (idx !== -1) {
+      orders[idx] = {
+        ...orders[idx],
+        generators: updatedGenerators,
+        updatedAt: new Date().toISOString(),
+      };
+      localStorage.setItem(STAFF_STORAGE_KEY, JSON.stringify(orders));
+      return orders[idx];
+    }
+  } catch (err) {
+    console.error('Failed to save staff order times', err);
+  }
+  return null;
+}
+
 
 
 /* ── Helper utilities ─────────────────────────────────────────────────────── */
