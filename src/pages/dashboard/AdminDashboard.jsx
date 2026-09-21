@@ -9,7 +9,6 @@ import {
   Users,
   ArrowRight,
   CheckCircle2,
-  ShieldCheck,
 } from 'lucide-react'
 import { ROUTES } from '@/constants/routes'
 import { useAuthStore } from '@/store/authStore'
@@ -102,7 +101,12 @@ const QUICK_LINKS = [
   },
 ]
 
-export default function AdminDashboard() {
+export default function AdminDashboard({
+  title = 'Dashboard Quick Links',
+  subtitle = 'Quickly access key workflows across generator inventory, booking operations, customer billing, and payment tracking.',
+  badgeText = 'ERP Operations Hub',
+  children,
+}) {
   const navigate = useNavigate()
   const { user } = useAuthStore()
 
@@ -116,7 +120,7 @@ export default function AdminDashboard() {
               <div className="flex items-center gap-2 mb-1">
                 <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
                   <span className="w-2 h-2 rounded-full bg-blue-600 animate-pulse" />
-                  ERP Operations Hub
+                  {badgeText}
                 </span>
                 <span className="text-xs text-slate-400">•</span>
                 <span className="text-xs text-slate-500 font-medium">
@@ -124,10 +128,10 @@ export default function AdminDashboard() {
                 </span>
               </div>
               <h1 className="text-2xl font-bold tracking-tight text-slate-900">
-                Dashboard Quick Links
+                {title}
               </h1>
               <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
-                Quickly access key workflows across generator inventory, booking operations, customer billing, and payment tracking.
+                {subtitle}
               </p>
             </div>
 
@@ -198,18 +202,9 @@ export default function AdminDashboard() {
           })}
         </div>
 
-        {/* ── Subtitle / Footer Note ────────────────────────────────────── */}
-        <div className="mt-8 p-3.5 rounded-lg bg-slate-50 border border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-500">
-          <div className="flex items-center gap-2">
-            <ShieldCheck size={15} className="text-blue-600 shrink-0" />
-            <span>
-              All redirect links open directly in authenticated routes with full role permissions.
-            </span>
-          </div>
-          <div className="text-slate-400 font-mono text-[11px]">
-            Avadhut ERP • Direct Access Hub
-          </div>
-        </div>
+        {/* ── Additional Dynamic Content (e.g. Completed Orders Table) ──── */}
+        {children}
+
       </div>
     </div>
   )
