@@ -7,6 +7,7 @@ import {
   formatToDMY,
   formatRangeToDMY,
   parseDateStr,
+  formatDurationDisplay,
 } from './mockData';
 
 /* ─── Pure utility functions (no mock data dependency) ───────────────────── */
@@ -844,7 +845,7 @@ export default function GeneratorOrderDetail() {
                           {di === 0 ? `${fmtCur(g.dPrice)} / hr` : ''}
                         </td>
                         <td className="gd2-calc-td" style={{ textAlign:'center', fontFamily:'monospace' }}>
-                          {de.durHours ? `${de.durHours.toFixed(2)} hrs` : (de.duration ? `${Number(de.duration).toFixed(2)} hrs` : '—')}
+                          {de.durHours != null ? formatDurationDisplay(de.durHours) : (de.duration ? formatDurationDisplay(de.duration) : '—')}
                         </td>
                         <td className="gd2-calc-td" style={{ textAlign:'right', fontFamily:'monospace', fontWeight:700 }}>
                           {di === g.entries.length - 1 ? fmtCur(g.dieselAmount) : ''}
@@ -855,7 +856,7 @@ export default function GeneratorOrderDetail() {
                       <tr className="gd2-calc-tr-diesel">
                         <td className="gd2-calc-td" style={{ paddingLeft:24 }}>⛽ Diesel Charge</td>
                         <td className="gd2-calc-td" style={{ textAlign:'right', fontFamily:'monospace' }}>{fmtCur(g.dPrice)} / hr</td>
-                        <td className="gd2-calc-td" style={{ textAlign:'center' }}>0.00 hrs</td>
+                        <td className="gd2-calc-td" style={{ textAlign:'center' }}>0 hrs</td>
                         <td className="gd2-calc-td" style={{ textAlign:'right', fontFamily:'monospace', fontWeight:700 }}>₹0.00</td>
                       </tr>
                     )}

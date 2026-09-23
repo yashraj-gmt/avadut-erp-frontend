@@ -465,7 +465,7 @@ const INITIAL_ORDER = {
   clientName:             '',
   contactNumber:          '',
   alternateContactNumber: '',
-  operatorName:           '',
+  operators:               [],
   operatorMobile:         '',
   cableRequired:          true,
   dieselType:             DIESEL_TYPES.WITH_OWNER,
@@ -569,7 +569,9 @@ export default function GeneratorOrderForm() {
           clientName:             o.clientName      || '',
           contactNumber:          o.contactNumber   || '',
           alternateContactNumber: o.alternateMobile || '',
-          operatorName:           o.operatorName    || '',
+          operators:              o.operatorName
+            ? o.operatorName.split(',').map(s => s.trim()).filter(Boolean)
+            : (o.operators || []),
           operatorMobile:         o.operatorMobile  || '',
           cableRequired:          o.cableRequired   ?? true,
           dieselType:             o.withDiesel === false ? DIESEL_TYPES.PARTY : DIESEL_TYPES.WITH_OWNER,
@@ -658,7 +660,7 @@ export default function GeneratorOrderForm() {
         valid = false;
       }
     }
-    if (!order.operatorName.trim())  { oe.operatorName  = 'Operator name is required';  valid = false; }
+    // operatorName is now optional — no required validation
     if (!order.siteAddress.trim())   { oe.siteAddress   = 'Site address is required';   valid = false; }
     if (!order.functionDate?.trim()) { oe.functionDate  = 'Function date range is required'; valid = false; }
 
@@ -706,7 +708,7 @@ export default function GeneratorOrderForm() {
       clientName:      order.clientName.trim(),
       contactNumber:   order.contactNumber.trim(),
       alternateMobile: order.alternateContactNumber.trim() || null,
-      operatorName:    order.operatorName.trim(),
+      operators:       order.operators,
       operatorMobile:  order.operatorMobile.trim() || null,
       cableRequired:   order.cableRequired,
       dieselType:      order.dieselType,
@@ -1020,31 +1022,60 @@ export default function GeneratorOrderForm() {
               <ErrMsg msg={orderErrors.alternateContactNumber} />
             </div>
 
-            <div className="gf2-field">
-              <Label required>Operator Name</Label>
-              <select
-                id="inp-operator"
-                className={`gf2-select${orderErrors.operatorName ? ' err' : ''}`}
-                value={order.operatorName}
-                onChange={e => {
-                  const val   = e.target.value;
-                  const found = operatorOptions.find(op => op.name === val);
-                  handleOrderChange('operatorName', val);
-                  if (found && found.mobile) handleOrderChange('operatorMobile', found.mobile);
-                }}
-                disabled={isDisabled}
-              >
-                <option value="">— Select Operator —</option>
-                {operatorOptions.map(op => (
-                  <option key={op.id || op.name} value={op.name}>
-                    {op.name} {op.mobile ? `(${op.mobile})` : ''}
-                  </option>
-                ))}
-                {order.operatorName && !operatorOptions.some(op => op.name === order.operatorName) && (
-                  <option value={order.operatorName}>{order.operatorName}</option>
+            <div className="gf2-field" style={{ gridColumn: '1 / -1' }}>
+              <Label>Operator Name <span style={{ fontSize: 11, color: 'var(--color-text-subtle)', fontWeight: 500 }}>(Optional — select one or more)</span></Label>
+              <div style={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: 8,
+                padding: '10px 12px',
+                border: '1.5px solid var(--color-border)',
+                borderRadius: 'var(--radius-md)',
+                background: 'var(--color-surface)',
+                minHeight: 44,
+              }}>
+                {operatorOptions.length === 0 && (
+                  <span style={{ fontSize: 13, color: 'var(--color-text-subtle)', alignSelf: 'center' }}>Loading operators…</span>
                 )}
-              </select>
-              <ErrMsg msg={orderErrors.operatorName} />
+                {operatorOptions.map(op => {
+                  const isSelected = order.operators.includes(op.name);
+                  return (
+                    <button
+                      key={op.id || op.name}
+                      type="button"
+                      disabled={isDisabled}
+                      onClick={() => {
+                        if (isDisabled) return;
+                        const next = isSelected
+                          ? order.operators.filter(n => n !== op.name)
+                          : [...order.operators, op.name];
+                        handleOrderChange('operators', next);
+                      }}
+                      style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 6,
+                        padding: '5px 12px', borderRadius: 20, fontSize: 13, fontWeight: 500,
+                        cursor: isDisabled ? 'not-allowed' : 'pointer',
+                        border: isSelected ? '1.5px solid var(--color-primary)' : '1.5px solid var(--color-border)',
+                        background: isSelected ? 'var(--color-primary-50)' : 'var(--color-surface-2)',
+                        color: isSelected ? 'var(--color-primary)' : 'var(--color-text-muted)',
+                        transition: 'all .15s', fontFamily: 'inherit',
+                      }}
+                    >
+                      {isSelected && (
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                          <polyline points="20 6 9 17 4 12" />
+                        </svg>
+                      )}
+                      {op.name}
+                    </button>
+                  );
+                })}
+              </div>
+              {order.operators.length > 0 && (
+                <p style={{ fontSize: 11.5, color: 'var(--color-text-muted)', marginTop: 4 }}>
+                  Selected: <strong>{order.operators.join(', ')}</strong>
+                </p>
+              )}
             </div>
           </div>
 

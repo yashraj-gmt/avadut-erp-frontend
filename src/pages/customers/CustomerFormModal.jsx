@@ -20,6 +20,8 @@ function validate(form) {
   else if (!MOBILE_REGEX.test(form.mobile)) errors.mobile = 'Must be a valid 10-digit Indian mobile number.';
   if (form.alternateMobile && !MOBILE_REGEX.test(form.alternateMobile))
     errors.alternateMobile = 'Must be a valid 10-digit Indian mobile number.';
+  if (form.telephoneNumber?.trim() && !/^[0-9+\-\s()]{6,20}$/.test(form.telephoneNumber.trim()))
+    errors.telephoneNumber = 'Enter a valid telephone number (6-20 characters).';
   if (form.email && !EMAIL_REGEX.test(form.email)) errors.email = 'Must be a valid email address.';
   if (form.address?.length > 500) errors.address = 'Address must not exceed 500 characters.';
   if (form.addressLocationLink?.length > 500) errors.addressLocationLink = 'Link must not exceed 500 characters.';
@@ -119,6 +121,7 @@ export default function CustomerFormModal({ customer, onSuccess, onClose }) {
     firmName:            customer?.firmName            ?? '',
     mobile:              customer?.mobile              ?? '',
     alternateMobile:     customer?.alternateMobile     ?? '',
+    telephoneNumber:     customer?.telephoneNumber     ?? '',
     email:               customer?.email               ?? '',
     address:             customer?.address             ?? '',
     addressLocationLink: customer?.addressLocationLink ?? '',
@@ -156,6 +159,7 @@ export default function CustomerFormModal({ customer, onSuccess, onClose }) {
         firmName:            form.firmName?.trim()            || undefined,
         mobile:              form.mobile.trim(),
         alternateMobile:     form.alternateMobile?.trim()     || undefined,
+        telephoneNumber:     form.telephoneNumber?.trim()     || undefined,
         email:               form.email?.trim()               || undefined,
         address:             form.address?.trim()             || undefined,
         addressLocationLink: form.addressLocationLink?.trim() || undefined,
@@ -256,6 +260,15 @@ export default function CustomerFormModal({ customer, onSuccess, onClose }) {
               />
             </Field>
 
+            <Field label="Telephone Number" icon={Phone} error={errors.telephoneNumber} hint="Optional landline / office phone">
+              <input
+                type="tel" placeholder="e.g. 022-28765432 or Landline"
+                value={form.telephoneNumber} onChange={set('telephoneNumber')}
+                className={inputCls(true, errors.telephoneNumber)}
+                maxLength={20}
+              />
+            </Field>
+
             <Field label="Email Address" icon={Mail} error={errors.email}>
               <input
                 type="email" placeholder="e.g. rajesh@example.com"
@@ -297,7 +310,7 @@ export default function CustomerFormModal({ customer, onSuccess, onClose }) {
 
           {/* ── Administrative ── */}
           <Section title="Administrative" />
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+          <div className={isEdit ? "grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4" : "space-y-3 sm:space-y-4"}>
             {isEdit && (
               <Field label="Status">
                 <select value={form.customerStatus} onChange={set('customerStatus')} className={selectCls()}>
@@ -306,7 +319,7 @@ export default function CustomerFormModal({ customer, onSuccess, onClose }) {
                 </select>
               </Field>
             )}
-            <Field label="Remarks" icon={FileText} error={errors.remarks} hint="Special notes or instructions">
+            <Field label="Remarks" error={errors.remarks} hint="Special notes or instructions">
               <textarea
                 placeholder="Any remarks about this customer…"
                 value={form.remarks} onChange={set('remarks')}

@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { ROUTES } from '@/constants/routes';
 import { generatorOrderService } from '@/services/generatorOrderService';
 import { generatorService } from '@/services/generatorService';
-import { formatRangeToDMY, formatToDMY, numberToWords } from '../orders/mockData';
+import { formatRangeToDMY, formatToDMY, numberToWords, formatDurationDisplay } from '../orders/mockData';
 
 /* ─── Helpers ────────────────────────────────────────────────────────────── */
 const fmt = (n) =>
@@ -274,7 +274,7 @@ function printBillingInvoice(order) {
             <td style="border:1px solid #cbd5e1;padding:8px 10px;text-align:center;font-size:12px;color:${isFirst ? '#92400e' : '#b45309'};font-weight:${isFirst ? '600' : '400'};">${isFirst ? fmtDate(de.entryDate) : '&#8627;'}</td>
             <td style="border:1px solid #cbd5e1;padding:8px 10px;text-align:center;font-size:12px;color:#92400e;">${de.startTime || '—'}</td>
             <td style="border:1px solid #cbd5e1;padding:8px 10px;text-align:center;font-size:12px;color:#92400e;">${de.endTime || '—'}</td>
-            <td style="border:1px solid #cbd5e1;padding:8px 10px;text-align:center;font-size:12px;color:#92400e;">${(parseFloat(de.duration) || 0).toFixed(2)} hrs</td>
+            <td style="border:1px solid #cbd5e1;padding:8px 10px;text-align:center;font-size:12px;color:#92400e;">${formatDurationDisplay(de.duration)}</td>
             ${dIdx === 0 ? `<td rowspan="${entries.length}" style="border:1px solid #cbd5e1;padding:8px 10px;text-align:right;font-size:13px;font-weight:700;color:#92400e;font-family:monospace;">${fmtCur(dieselAmt)}</td>` : ''}
           </tr>`;
         }).join('')

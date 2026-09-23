@@ -7,6 +7,7 @@ import {
   getStaffOrdersList,
   saveStaffOrderTimes,
   calculateDuration,
+  formatDurationDisplay,
   getDatesFromFunctionDate,
   STATUS_CONFIG,
   DIESEL_TYPES,
@@ -316,7 +317,7 @@ export default function StaffOrderDetail() {
                 <span>{order.siteAddress || '—'}</span>
               </div>
             </div>
-
+            
             <div className="sm:col-span-1">
               <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">
                 Assigned Operator
@@ -463,7 +464,7 @@ export default function StaffOrderDetail() {
 
                                       <div className="flex items-center justify-between sm:justify-end gap-2 w-full sm:w-auto">
                                         <div className="px-2.5 py-1 rounded bg-blue-50 text-blue-700 font-mono font-bold text-[11px] border border-blue-200">
-                                          {slot.duration || calculateDuration(slot.startTime, slot.endTime)} hrs
+                                          {formatDurationDisplay(slot.duration || calculateDuration(slot.startTime, slot.endTime))}
                                         </div>
 
                                         <button

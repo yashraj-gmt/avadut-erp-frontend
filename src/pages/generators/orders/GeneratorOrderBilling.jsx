@@ -4,6 +4,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { ROUTES } from '@/constants/routes';
 import {
   calcDuration,
+  formatDurationDisplay,
   getCableRate,
   numberToWords,
   formatToDMY,
@@ -874,7 +875,7 @@ export default function GeneratorOrderBilling() {
         <td style="border:1px solid #cbd5e1;padding:8px 10px;text-align:center;font-size:12px;color:${isFirstForDate ? '#92400e' : '#b45309'};font-weight:${isFirstForDate ? '600' : '400'}">${isFirstForDate ? fmtDate(de.date) : '&#8627;'}</td>
         <td style="border:1px solid #cbd5e1;padding:8px 10px;text-align:center;font-size:12px;color:#92400e;">${de.startTime}</td>
         <td style="border:1px solid #cbd5e1;padding:8px 10px;text-align:center;font-size:12px;color:#92400e;">${de.endTime}</td>
-        <td style="border:1px solid #cbd5e1;padding:8px 10px;text-align:center;font-size:12px;color:#92400e;">${de.duration.toFixed(2)} hrs</td>
+        <td style="border:1px solid #cbd5e1;padding:8px 10px;text-align:center;font-size:12px;color:#92400e;">${formatDurationDisplay(de.duration)}</td>
         ${dIdx === 0 ? `<td rowspan="${g.entries.length}" style="border:1px solid #cbd5e1;padding:8px 10px;text-align:right;font-size:13px;font-weight:700;color:#92400e;font-family:monospace;">${fmtCurrency(g.dieselAmount)}</td>` : ''}
       </tr>`;
       }).join('') : ''}
@@ -1204,7 +1205,7 @@ export default function GeneratorOrderBilling() {
                 <col style={{ width:110 }} />   {/* Date */}
                 {withDiesel && <col style={{ width:90 }} />}  {/* Diesel Start */}
                 {withDiesel && <col style={{ width:90 }} />}  {/* Diesel End */}
-                {withDiesel && <col style={{ width:80 }} />}  {/* Diesel Hrs */}
+                {withDiesel && <col style={{ minWidth:105, width:115 }} />}  {/* Diesel Hrs */}
                 {withDiesel && <col style={{ width:60 }} />}  {/* Slot Actions */}
                 <col style={{ width:140 }} />   {/* Amount */}
               </colgroup>
@@ -1277,7 +1278,7 @@ export default function GeneratorOrderBilling() {
                             <td className="gb2-td" style={{ paddingLeft:20 }} rowSpan={g.entries.length}>
                               <span className="gb2-badge gb2-badge-diesel">⛽ Diesel</span>
                               <div style={{ fontSize:11, color:'var(--color-text-subtle)', marginTop:2 }}>
-                                ₹/hr × {g.totalDieselHours.toFixed(2)} hrs
+                                ₹/hr × {formatDurationDisplay(g.totalDieselHours)}
                               </div>
                             </td>
                           ) : null}
@@ -1319,8 +1320,8 @@ export default function GeneratorOrderBilling() {
                           </td>
                           {/* Diesel Hours — shows conflict warning inline when there's an overlap */}
                           <td className="gb2-td" style={{ textAlign:'center' }}>
-                            <div style={{ fontWeight:700, color: dieselConflicts[g._key]?.[dIdx] ? '#dc2626' : '#92400e' }}>
-                              {de.duration.toFixed(2)} hrs
+                            <div style={{ fontWeight:700, color: dieselConflicts[g._key]?.[dIdx] ? '#dc2626' : '#92400e', whiteSpace:'nowrap' }}>
+                              {formatDurationDisplay(de.duration)}
                             </div>
                             {dieselConflicts[g._key]?.[dIdx] && (
                               <div style={{ fontSize:10, color:'#dc2626', marginTop:2, whiteSpace:'nowrap', fontWeight:600 }}>

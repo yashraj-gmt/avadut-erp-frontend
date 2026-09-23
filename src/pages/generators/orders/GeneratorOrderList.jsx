@@ -11,6 +11,7 @@ import {
   MOCK_BILLS,
 } from './mockData';
 import { generatorOrderService } from '@/services/generatorOrderService';
+import GeneratorDieselModal from './GeneratorDieselModal';
 
 /* ─── Icons ─────────────────────────────────────────────────────────────── */
 const Icon = {
@@ -125,6 +126,22 @@ const Icon = {
       <path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/>
       <path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/>
       <path d="M18 12a2 2 0 0 0 0 4h4v-4z"/>
+    </svg>
+  ),
+  Fuel: () => (
+    <svg width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18"/>
+      <path d="M15 10h2a2 2 0 0 1 2 2v4a2 2 0 0 0 2 2h0a2 2 0 0 0 2-2V9.83a2 2 0 0 0-.59-1.42L19.5 5.5"/>
+      <path d="M3 22h12"/>
+      <path d="M7 6h4"/>
+      <path d="M7 9h4"/>
+    </svg>
+  ),
+  MoreVertical: () => (
+    <svg width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="1.5"/>
+      <circle cx="12" cy="5" r="1.5"/>
+      <circle cx="12" cy="19" r="1.5"/>
     </svg>
   ),
 };
@@ -331,6 +348,70 @@ const STYLES = `
 
   /* ── Skeleton ── */
   .go-skeleton { height:14px; border-radius:6px; background:var(--color-border); animation:go-pulse 1.5s ease-in-out infinite; }
+
+  /* ── Action Dropdown Menu ── */
+  .go-dropdown-wrap {
+    position: relative;
+    display: inline-block;
+  }
+  .go-dropdown-menu {
+    position: absolute;
+    right: 0;
+    top: calc(100% + 4px);
+    background: #ffffff;
+    border: 1px solid var(--color-border);
+    border-radius: 10px;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.15), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+    min-width: 190px;
+    z-index: 100;
+    padding: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    animation: go-modal-in 0.15s ease-out;
+  }
+  .go-dropdown-menu.up {
+    top: auto;
+    bottom: calc(100% + 4px);
+  }
+  .go-dropdown-item {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 8px 12px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--color-text);
+    border-radius: 6px;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    text-align: left;
+    width: 100%;
+    font-family: inherit;
+    transition: background 0.15s, color 0.15s;
+    white-space: nowrap;
+  }
+  .go-dropdown-item:hover:not(:disabled) {
+    background: var(--color-surface-2);
+    color: var(--color-primary);
+  }
+  .go-dropdown-item:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
+  .go-dropdown-item.danger {
+    color: #dc2626;
+  }
+  .go-dropdown-item.danger:hover {
+    background: #fef2f2;
+    color: #b91c1c;
+  }
+  .go-dropdown-divider {
+    height: 1px;
+    background: var(--color-border);
+    margin: 4px 0;
+  }
 
   /* ── Delete Modal ── */
   .go-overlay {
@@ -629,7 +710,21 @@ export default function GeneratorOrderList() {
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [paymentModalTarget, setPaymentModalTarget] = useState(null);
   const [markingPaid, setMarkingPaid]   = useState(false);
+  const [dieselModalTarget, setDieselModalTarget]   = useState(null);
+  const [openDropdownId, setOpenDropdownId]         = useState(null);
+  const [dropdownDirection, setDropdownDirection]   = useState('down'); // 'down' | 'up'
   const [activeTab, setActiveTab]       = useState('last_7_days'); // 'last_7_days' | 'all'
+
+  // Close dropdown on outside click
+  React.useEffect(() => {
+    const handleOutsideClick = (e) => {
+      if (!e.target.closest('.go-dropdown-wrap')) {
+        setOpenDropdownId(null);
+      }
+    };
+    document.addEventListener('click', handleOutsideClick);
+    return () => document.removeEventListener('click', handleOutsideClick);
+  }, []);
 
   // Filters state
   const [filterDate, setFilterDate]                   = useState('');
@@ -979,7 +1074,7 @@ export default function GeneratorOrderList() {
                   <th style={{ ...thStyle, textAlign:'center' }}>Billing Status</th>
                   <th style={{ ...thStyle, textAlign:'center' }}>Payment Status</th>
                   <th style={{ ...thStyle, textAlign:'center' }}>Billing Number</th>
-                  <th className="go-th-sticky-right" style={{ ...thStyle, textAlign:'center', width:230 }}>Actions</th>
+                  <th className="go-th-sticky-right" style={{ ...thStyle, textAlign:'center', minWidth: 155, width: 165 }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -1158,134 +1253,144 @@ export default function GeneratorOrderList() {
                     </td>
 
                     {/* 15. Actions (Sticky Right) */}
-                    <td className="go-td-sticky-right" style={{ ...tdStyle, textAlign:'center', width:230, background: rowBg }}>
-                      <div style={{ display:'flex', gap:6, justifyContent:'center' }}>
+                    <td className="go-td-sticky-right" style={{ ...tdStyle, textAlign:'center', minWidth: 155, width: 165, background: rowBg, zIndex: openDropdownId === o.id ? 20 : 2 }}>
+                      <div style={{ display:'flex', gap:6, justifyContent:'center', alignItems:'center' }}>
+                        {/* 1. View */}
                         <button
                           className="go-action-btn"
                           style={actionBtn('blue')}
-                          title="View Order"
+                          title="View Order Details"
                           id={`btn-view-${o.id}`}
                           onClick={() => navigate(ROUTES.GENERATOR_ORDER_DETAIL.replace(':id', o.id))}
                         >
                           <Icon.Eye />
                         </button>
-                        <button
-                          className="go-action-btn"
-                          style={actionBtn('amber')}
-                          title="Edit Order"
-                          id={`btn-edit-${o.id}`}
-                          onClick={() => navigate(ROUTES.GENERATOR_ORDER_EDIT.replace(':id', o.id))}
-                        >
-                          <Icon.Edit />
-                        </button>
+
+                        {/* 2. Billing */}
                         <button
                           className="go-action-btn"
                           style={actionBtn('emerald')}
-                          title="Billing"
+                          title="Generator Order Billing"
                           id={`btn-billing-${o.id}`}
                           onClick={() => navigate(ROUTES.GENERATOR_ORDER_BILLING.replace(':id', o.id))}
                         >
                           <Icon.Receipt />
                         </button>
-                        <button
-                          className="go-action-btn"
-                          style={{
-                            ...actionBtn(o.paymentStatus === 'PAID' ? 'emerald' : 'amber'),
-                            position: 'relative',
-                            border: o.paymentStatus === 'PAID' ? '1.5px solid #6EE7B7' : '1.5px solid #FCD34D',
-                          }}
-                          title={o.paymentStatus === 'PAID' ? 'Payment Completed (PAID)' : 'Mark Payment as Done'}
-                          id={`btn-pay-${o.id}`}
-                          onClick={() => setPaymentModalTarget(o)}
-                        >
-                          <Icon.Wallet />
-                          {o.paymentStatus === 'PAID' ? (
-                            <span
-                              style={{
-                                position: 'absolute', top: -3, right: -3,
-                                width: 13, height: 13, borderRadius: '50%',
-                                background: '#10B981', color: '#fff',
-                                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                boxShadow: '0 0 0 1.5px #fff'
-                              }}
-                              title="Payment Done"
-                            >
-                              <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round">
-                                <polyline points="20 6 9 17 4 12"/>
-                              </svg>
-                            </span>
-                          ) : (
-                            <span
-                              style={{
-                                position: 'absolute', top: -3, right: -3,
-                                width: 8, height: 8, borderRadius: '50%',
-                                background: o.paymentStatus === 'OVERDUE' ? '#EF4444' : '#F59E0B',
-                              }}
-                              title={o.paymentStatus === 'OVERDUE' ? 'Overdue' : 'Pending'}
-                            />
-                          )}
-                        </button>
-                        <button
-                          className="go-action-btn"
-                          style={actionBtn('red')}
-                          title="Delete Order"
-                          id={`btn-delete-${o.id}`}
-                          onClick={() => setDeleteTarget(o)}
-                        >
-                          <Icon.Trash />
-                        </button>
-                        {/* Mark as Returned button */}
-                        {o.orderStatus !== 'CANCELLED' && (
+
+                        {/* 3. Diesel (only if with-diesel) */}
+                        {isWithDiesel && (
                           <button
                             className="go-action-btn"
-                            id={`btn-return-${o.id}`}
-                            title={o.orderStatus === 'COMPLETED' ? 'Generators Returned (Stock Released)' : 'Mark Generators as Returned'}
                             style={{
-                              display:'inline-flex', alignItems:'center', justifyContent:'center',
-                              width:32, height:32, borderRadius:8,
-                              border: o.orderStatus === 'COMPLETED' ? '1.5px solid #6EE7B7' : '1.5px solid #FCD34D',
-                              cursor: o.orderStatus === 'COMPLETED' ? 'default' : 'pointer',
-                              background: o.orderStatus === 'COMPLETED' ? '#ECFDF5' : '#FFFBEB',
-                              color: o.orderStatus === 'COMPLETED' ? '#059669' : '#D97706',
-                              position: 'relative',
-                              transition:'all .15s',
+                              ...actionBtn('amber'),
+                              background: '#FEF3C7',
+                              color: '#B45309',
+                              border: '1.5px solid #FDE68A'
                             }}
-                            onClick={() => {
-                              if (o.orderStatus !== 'COMPLETED') {
-                                setMarkReturnedTarget(o);
+                            title="Diesel Running Hours Log"
+                            id={`btn-diesel-${o.id}`}
+                            onClick={() => setDieselModalTarget(o)}
+                          >
+                            <Icon.Fuel />
+                          </button>
+                        )}
+
+                        {/* 4. More Options (Three Dots) */}
+                        <div className="go-dropdown-wrap">
+                          <button
+                            className="go-action-btn"
+                            style={{
+                              ...actionBtn('slate'),
+                              background: openDropdownId === o.id ? 'var(--color-primary-50, #eff6ff)' : '#F1F5F9',
+                              color: openDropdownId === o.id ? 'var(--color-primary, #2563eb)' : '#475569',
+                              border: openDropdownId === o.id ? '1.5px solid #93C5FD' : '1.5px solid #CBD5E1',
+                            }}
+                            title="More Actions"
+                            id={`btn-more-${o.id}`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (openDropdownId === o.id) {
+                                setOpenDropdownId(null);
+                              } else {
+                                const rect = e.currentTarget.getBoundingClientRect();
+                                const spaceBelow = window.innerHeight - rect.bottom;
+                                setDropdownDirection(spaceBelow < 220 ? 'up' : 'down');
+                                setOpenDropdownId(o.id);
                               }
                             }}
                           >
-                            <svg width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
-                              <path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
-                            </svg>
-                            {o.orderStatus === 'COMPLETED' ? (
-                              <span
-                                style={{
-                                  position: 'absolute', top: -3, right: -3,
-                                  width: 13, height: 13, borderRadius: '50%',
-                                  background: '#10B981', color: '#fff',
-                                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                  boxShadow: '0 0 0 1.5px #fff'
-                                }}
-                                title="Returned"
-                              >
-                                <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round">
-                                  <polyline points="20 6 9 17 4 12"/>
-                                </svg>
-                              </span>
-                            ) : (
-                              <span
-                                style={{
-                                  position: 'absolute', top: -3, right: -3,
-                                  width: 8, height: 8, borderRadius: '50%',
-                                  background: '#F59E0B',
-                                }}
-                                title="Pending Return"
-                              />
-                            )}
+                            <Icon.MoreVertical />
                           </button>
-                        )}
+
+                          {openDropdownId === o.id && (
+                            <div className={`go-dropdown-menu${dropdownDirection === 'up' ? ' up' : ''}`} onClick={e => e.stopPropagation()}>
+                              <button
+                                className="go-dropdown-item"
+                                onClick={() => {
+                                  setOpenDropdownId(null);
+                                  navigate(ROUTES.GENERATOR_ORDER_EDIT.replace(':id', o.id));
+                                }}
+                              >
+                                <Icon.Edit />
+                                <span>Edit Order</span>
+                              </button>
+
+                              <button
+                                className="go-dropdown-item"
+                                onClick={() => {
+                                  setOpenDropdownId(null);
+                                  setPaymentModalTarget(o);
+                                }}
+                              >
+                                <Icon.Wallet />
+                                <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: 6 }}>
+                                  <span>Payment</span>
+                                  <span style={{
+                                    fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 4,
+                                    background: o.paymentStatus === 'PAID' ? '#D1FAE5' : o.paymentStatus === 'OVERDUE' ? '#FEE2E2' : '#FEF3C7',
+                                    color: o.paymentStatus === 'PAID' ? '#065F46' : o.paymentStatus === 'OVERDUE' ? '#991B1B' : '#92400E',
+                                  }}>
+                                    {o.paymentStatus === 'PAID' ? 'Paid' : o.paymentStatus === 'OVERDUE' ? 'Overdue' : 'Pending'}
+                                  </span>
+                                </span>
+                              </button>
+
+                              {o.orderStatus !== 'CANCELLED' && (
+                                <button
+                                  className="go-dropdown-item"
+                                  disabled={o.orderStatus === 'COMPLETED'}
+                                  onClick={() => {
+                                    setOpenDropdownId(null);
+                                    if (o.orderStatus !== 'COMPLETED') {
+                                      setMarkReturnedTarget(o);
+                                    }
+                                  }}
+                                >
+                                  <Icon.CheckCircle />
+                                  <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: 6 }}>
+                                    <span>{o.orderStatus === 'COMPLETED' ? 'Generators Returned' : 'Mark as Returned'}</span>
+                                    {o.orderStatus === 'COMPLETED' && (
+                                      <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 5px', borderRadius: 4, background: '#D1FAE5', color: '#065F46' }}>✓</span>
+                                    )}
+                                  </span>
+                                </button>
+                              )}
+
+                              <div className="go-dropdown-divider" />
+
+                              <button
+                                className="go-dropdown-item danger"
+                                onClick={() => {
+                                  setOpenDropdownId(null);
+                                  setDeleteTarget(o);
+                                }}
+                              >
+                                <Icon.Trash />
+                                <span>Delete Order</span>
+                              </button>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </td>
                   </tr>
@@ -1432,104 +1537,126 @@ export default function GeneratorOrderList() {
                     onClick={() => navigate(ROUTES.GENERATOR_ORDER_DETAIL.replace(':id', o.id))}>
                     <Icon.Eye />
                   </button>
-                  <button className="go-action-btn" style={actionBtn('amber')} title="Edit"
-                    onClick={() => navigate(ROUTES.GENERATOR_ORDER_EDIT.replace(':id', o.id))}>
-                    <Icon.Edit />
-                  </button>
+
                   <button className="go-action-btn" style={actionBtn('emerald')} title="Billing"
                     onClick={() => navigate(ROUTES.GENERATOR_ORDER_BILLING.replace(':id', o.id))}>
                     <Icon.Receipt />
                   </button>
-                  <button
-                    className="go-action-btn"
-                    style={{
-                      ...actionBtn(o.paymentStatus === 'PAID' ? 'emerald' : 'amber'),
-                      position: 'relative',
-                      border: o.paymentStatus === 'PAID' ? '1.5px solid #6EE7B7' : '1.5px solid #FCD34D',
-                    }}
-                    title={o.paymentStatus === 'PAID' ? 'Payment Completed (PAID)' : 'Mark Payment as Done'}
-                    id={`btn-mob-pay-${o.id}`}
-                    onClick={() => setPaymentModalTarget(o)}
-                  >
-                    <Icon.Wallet />
-                    {o.paymentStatus === 'PAID' ? (
-                      <span
-                        style={{
-                          position: 'absolute', top: -3, right: -3,
-                          width: 13, height: 13, borderRadius: '50%',
-                          background: '#10B981', color: '#fff',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          boxShadow: '0 0 0 1.5px #fff'
-                        }}
-                      >
-                        <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round">
-                          <polyline points="20 6 9 17 4 12"/>
-                        </svg>
-                      </span>
-                    ) : (
-                      <span
-                        style={{
-                          position: 'absolute', top: -3, right: -3,
-                          width: 8, height: 8, borderRadius: '50%',
-                          background: o.paymentStatus === 'OVERDUE' ? '#EF4444' : '#F59E0B',
-                        }}
-                      />
-                    )}
-                  </button>
-                  <button className="go-action-btn" style={actionBtn('red')} title="Delete"
-                    onClick={() => setDeleteTarget(o)}>
-                    <Icon.Trash />
-                  </button>
-                  {/* Mobile Return button */}
-                  {o.orderStatus !== 'CANCELLED' && (
+                  {isWithDiesel && (
                     <button
                       className="go-action-btn"
-                      id={`btn-mob-return-${o.id}`}
-                      title={o.orderStatus === 'COMPLETED' ? 'Generators Returned' : 'Mark Generators as Returned'}
                       style={{
-                        display:'inline-flex', alignItems:'center', justifyContent:'center',
-                        width:32, height:32, borderRadius:8,
-                        border: o.orderStatus === 'COMPLETED' ? '1.5px solid #6EE7B7' : '1.5px solid #FCD34D',
-                        cursor: o.orderStatus === 'COMPLETED' ? 'default' : 'pointer',
-                        background: o.orderStatus === 'COMPLETED' ? '#ECFDF5' : '#FFFBEB',
-                        color: o.orderStatus === 'COMPLETED' ? '#059669' : '#D97706',
-                        position: 'relative',
-                        transition:'all .15s',
+                        ...actionBtn('amber'),
+                        background: '#FEF3C7',
+                        color: '#B45309',
+                        border: '1.5px solid #FDE68A'
                       }}
-                      onClick={() => {
-                        if (o.orderStatus !== 'COMPLETED') {
-                          setMarkReturnedTarget(o);
+                      title="Diesel Timings & Log"
+                      id={`btn-mob-diesel-${o.id}`}
+                      onClick={() => setDieselModalTarget(o)}
+                    >
+                      <Icon.Fuel />
+                    </button>
+                  )}
+                  {/* 4. More Options */}
+                  <div className="go-dropdown-wrap">
+                    <button
+                      className="go-action-btn"
+                      style={{
+                        ...actionBtn('slate'),
+                        background: openDropdownId === `mob-${o.id}` ? 'var(--color-primary-50, #eff6ff)' : '#F1F5F9',
+                        color: openDropdownId === `mob-${o.id}` ? 'var(--color-primary, #2563eb)' : '#475569',
+                        border: openDropdownId === `mob-${o.id}` ? '1.5px solid #93C5FD' : '1.5px solid #CBD5E1',
+                      }}
+                      title="More Actions"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (openDropdownId === `mob-${o.id}`) {
+                          setOpenDropdownId(null);
+                        } else {
+                          const rect = e.currentTarget.getBoundingClientRect();
+                          const spaceBelow = window.innerHeight - rect.bottom;
+                          setDropdownDirection(spaceBelow < 220 ? 'up' : 'down');
+                          setOpenDropdownId(`mob-${o.id}`);
                         }
                       }}
                     >
-                      <svg width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
-                        <path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
-                      </svg>
-                      {o.orderStatus === 'COMPLETED' ? (
-                        <span
-                          style={{
-                            position: 'absolute', top: -3, right: -3,
-                            width: 13, height: 13, borderRadius: '50%',
-                            background: '#10B981', color: '#fff',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            boxShadow: '0 0 0 1.5px #fff'
+                      <Icon.MoreVertical />
+                    </button>
+
+                    {openDropdownId === `mob-${o.id}` && (
+                      <div className={`go-dropdown-menu${dropdownDirection === 'up' ? ' up' : ''}`} onClick={e => e.stopPropagation()}>
+                        <button
+                          className="go-dropdown-item"
+                          onClick={() => {
+                            setOpenDropdownId(null);
+                            navigate(ROUTES.GENERATOR_ORDER_EDIT.replace(':id', o.id));
                           }}
                         >
-                          <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round">
-                            <polyline points="20 6 9 17 4 12"/>
-                          </svg>
-                        </span>
-                      ) : (
-                        <span
-                          style={{
-                            position: 'absolute', top: -3, right: -3,
-                            width: 8, height: 8, borderRadius: '50%',
-                            background: '#F59E0B',
+                          <Icon.Edit />
+                          <span>Edit Order</span>
+                        </button>
+
+                        <button
+                          className="go-dropdown-item"
+                          onClick={() => {
+                            setOpenDropdownId(null);
+                            setPaymentModalTarget(o);
                           }}
-                        />
-                      )}
-                    </button>
-                  )}
+                        >
+                          <Icon.Wallet />
+                          <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: 6 }}>
+                            <span>Payment</span>
+                            <span style={{
+                              fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 4,
+                              background: o.paymentStatus === 'PAID' ? '#D1FAE5' : o.paymentStatus === 'OVERDUE' ? '#FEE2E2' : '#FEF3C7',
+                              color: o.paymentStatus === 'PAID' ? '#065F46' : o.paymentStatus === 'OVERDUE' ? '#991B1B' : '#92400E',
+                            }}>
+                              {o.paymentStatus === 'PAID' ? 'Paid' : o.paymentStatus === 'OVERDUE' ? 'Overdue' : 'Pending'}
+                            </span>
+                          </span>
+                        </button>
+
+                        {o.orderStatus !== 'CANCELLED' && (
+                          <button
+                            className="go-dropdown-item"
+                            disabled={o.orderStatus === 'COMPLETED'}
+                            onClick={() => {
+                              setOpenDropdownId(null);
+                              if (o.orderStatus !== 'COMPLETED') {
+                                setMarkReturnedTarget(o);
+                              }
+                            }}
+                          >
+                            <Icon.CheckCircle />
+                            <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: 6 }}>
+                              <span>{o.orderStatus === 'COMPLETED' ? 'Generators Returned' : 'Mark as Returned'}</span>
+                              {o.orderStatus === 'COMPLETED' && (
+                                <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 5px', borderRadius: 4, background: '#D1FAE5', color: '#065F46' }}>✓</span>
+                              )}
+                            </span>
+                          </button>
+                        )}
+
+                        <div className="go-dropdown-divider" />
+
+                        <button
+                          className="go-dropdown-item danger"
+                          onClick={() => {
+                            setOpenDropdownId(null);
+                            setDeleteTarget(o);
+                          }}
+                        >
+                          <Icon.Trash />
+                          <span>Delete Order</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+
+
+
                 </div>
               </div>
               );
@@ -1669,6 +1796,18 @@ export default function GeneratorOrderList() {
           </div>
         </div>
       )}
+
+      {/* ── Diesel Timings Modal ── */}
+      <GeneratorDieselModal
+        isOpen={!!dieselModalTarget}
+        order={dieselModalTarget}
+        onClose={() => setDieselModalTarget(null)}
+        onSuccess={(updatedOrder) => {
+          if (updatedOrder) {
+            setOrders(prev => prev.map(item => String(item.id) === String(updatedOrder.id) ? { ...item, ...updatedOrder } : item));
+          }
+        }}
+      />
 
       {/* ── Delete Confirmation Modal ── */}
       {deleteTarget && (

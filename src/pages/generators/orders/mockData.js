@@ -764,6 +764,39 @@ export function calcDuration(start, end) {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 }
 
+/**
+ * Format duration value (decimal hours, 'HH:MM' string, or number) into human-readable "X hrs Y mins" or "0 hrs".
+ * Guarantees that minutes are strictly between 0 and 59 under any condition.
+ */
+export function formatDurationDisplay(val) {
+  if (val === null || val === undefined || val === '' || val === '—') return '0 hrs';
+  let totalMinutes = 0;
+
+  if (typeof val === 'string' && val.includes(':')) {
+    const parts = val.split(':').map(Number);
+    const h = isNaN(parts[0]) ? 0 : parts[0];
+    const m = isNaN(parts[1]) ? 0 : parts[1];
+    totalMinutes = Math.round(h * 60 + m);
+  } else {
+    const num = parseFloat(val);
+    if (isNaN(num) || num <= 0) return '0 hrs';
+    totalMinutes = Math.round(num * 60);
+  }
+
+  if (totalMinutes <= 0) return '0 hrs';
+
+  const hours = Math.floor(totalMinutes / 60);
+  const mins = totalMinutes % 60;
+
+  if (hours > 0 && mins > 0) {
+    return `${hours} hr${hours !== 1 ? 's' : ''} ${mins} min${mins !== 1 ? 's' : ''}`;
+  }
+  if (hours > 0) {
+    return `${hours} hr${hours !== 1 ? 's' : ''}`;
+  }
+  return `${mins} min${mins !== 1 ? 's' : ''}`;
+}
+
 /** Parse string or date into a valid JS Date object */
 export function parseDateStr(str) {
   if (!str) return null;

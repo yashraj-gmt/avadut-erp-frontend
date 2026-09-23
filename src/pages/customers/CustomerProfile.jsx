@@ -4,7 +4,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Phone, Mail, MapPin, Calendar, Star, ShieldX,
   ShoppingCart, FileText, CreditCard, TrendingUp, Clock, ChevronDown,
-  Pencil, Trash2, RefreshCw, Building2, Link2, Plus, CheckCircle2,
+  Pencil, Trash2, RefreshCw, Building2, Link2, Plus,
   AlertTriangle, Eye, ArrowUpRight, History, X, IndianRupee, Layers,
 } from 'lucide-react';
 import { customerService } from '@/services/customerService';
@@ -57,11 +57,7 @@ function RecordPaymentModal({ order, onClose, onSuccess }) {
   const currentPaid   = Number(order.paidAmount) || 0;
   const currentPending = Math.max(0, totalAmount - currentPaid);
 
-  useEffect(() => {
-    if (currentPending > 0) {
-      setAmount(String(currentPending));
-    }
-  }, [currentPending]);
+  // Amount field starts empty — user enters the amount they wish to pay
 
   const enteredAmt = Number(amount) || 0;
   const projectedRemaining = Math.max(0, currentPending - enteredAmt);
@@ -144,13 +140,6 @@ function RecordPaymentModal({ order, onClose, onSuccess }) {
               <label className="text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">
                 Amount Paid (₹) <span className="text-rose-500">*</span>
               </label>
-              <button
-                type="button"
-                onClick={() => setAmount(String(currentPending))}
-                className="text-[11px] font-semibold text-[var(--color-primary)] hover:underline"
-              >
-                Full Pending (₹{currentPending.toLocaleString('en-IN')})
-              </button>
             </div>
             <div className="relative">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 font-bold text-sm text-[var(--color-text-subtle)]">₹</span>
@@ -454,6 +443,13 @@ export default function CustomerProfile() {
                   <span className="font-medium text-[var(--color-text)]">{profile.mobile}</span>
                   {profile.alternateMobile && <span className="text-[var(--color-text-subtle)]">({profile.alternateMobile})</span>}
                 </div>
+                {profile.telephoneNumber && (
+                  <div className="flex items-center gap-1">
+                    <Phone size={12} className="text-[var(--color-text-subtle)]" />
+                    <span className="text-[var(--color-text-subtle)]">Tel:</span>
+                    <span className="font-medium text-[var(--color-text)]">{profile.telephoneNumber}</span>
+                  </div>
+                )}
                 {profile.email && (
                   <div className="flex items-center gap-1">
                     <Mail size={12} className="text-[var(--color-text-subtle)]" />
@@ -500,7 +496,7 @@ export default function CustomerProfile() {
       </div>
 
       {/* ── 2. SUMMARY METRICS (CUSTOMER-WISE STATS) ── */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-3.5 shadow-sm">
           <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-muted)]">Total Revenue</p>
           <p className="text-base sm:text-lg font-black text-blue-600 dark:text-blue-400 mt-1">{inr(profile.totalBusinessValue)}</p>
@@ -513,7 +509,7 @@ export default function CustomerProfile() {
 
         <div className={`rounded-xl border p-3.5 shadow-sm ${Number(profile.outstandingDues) > 0 ? 'border-rose-300 bg-rose-50/50 dark:bg-rose-950/20' : 'border-[var(--color-border)] bg-[var(--color-surface)]'}`}>
           <p className={`text-[10px] font-bold uppercase tracking-wider ${Number(profile.outstandingDues) > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-[var(--color-text-muted)]'}`}>
-            Pending Balance
+            Pending Amount
           </p>
           <p className={`text-base sm:text-lg font-black mt-1 ${Number(profile.outstandingDues) > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600'}`}>
             {inr(profile.outstandingDues)}
@@ -523,16 +519,6 @@ export default function CustomerProfile() {
         <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-3.5 shadow-sm">
           <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-muted)]">Total Orders</p>
           <p className="text-base sm:text-lg font-black text-[var(--color-text)] mt-1">{profile.totalOrders ?? 0}</p>
-        </div>
-
-        <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-3.5 shadow-sm">
-          <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">Completed Orders</p>
-          <p className="text-base sm:text-lg font-black text-emerald-600 dark:text-emerald-400 mt-1">{profile.completedOrders ?? 0}</p>
-        </div>
-
-        <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-3.5 shadow-sm">
-          <p className="text-[10px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400">Dues Pending Orders</p>
-          <p className="text-base sm:text-lg font-black text-amber-600 dark:text-amber-400 mt-1">{profile.pendingPaymentOrders ?? 0}</p>
         </div>
       </div>
 
@@ -562,7 +548,7 @@ export default function CustomerProfile() {
                 <th className="px-4 py-3 text-center">Billing Status</th>
                 <th className="px-4 py-3 text-right">Total Bill</th>
                 <th className="px-4 py-3 text-right">Paid Amount</th>
-                <th className="px-4 py-3 text-right">Pending Balance</th>
+                <th className="px-4 py-3 text-right">Pending Amount</th>
                 <th className="px-4 py-3 text-center">Payment Status</th>
                 <th className="px-4 py-3 text-center">Paid Date</th>
                 <th className="px-4 py-3 text-right">Actions</th>
@@ -622,7 +608,7 @@ export default function CustomerProfile() {
                         {inr(paidAmt)}
                       </td>
 
-                      {/* Pending Balance */}
+                      {/* Pending Amount */}
                       <td className="px-4 py-3.5 text-right font-bold">
                         <span className={pendingAmt > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-slate-400'}>
                           {inr(pendingAmt)}
@@ -657,16 +643,7 @@ export default function CustomerProfile() {
                             </button>
                           )}
 
-                          {/* Quick Mark Paid button if not fully paid */}
-                          {!isFullyPaid && (
-                            <button
-                              onClick={() => handleMarkPaymentDone(ord)}
-                              title="Quick Mark as Paid in Full"
-                              className="px-2 py-1.5 rounded-lg text-xs font-semibold border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-muted)] hover:text-emerald-600 hover:border-emerald-500 transition"
-                            >
-                              <CheckCircle2 size={13} />
-                            </button>
-                          )}
+
 
                           {/* Payment History button */}
                           <button

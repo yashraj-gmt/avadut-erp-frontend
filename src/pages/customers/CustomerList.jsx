@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Plus, Search, X, RefreshCw, User, Phone,
   Eye, Pencil, Trash2, Users, Star, ShieldX, CheckCircle2,
+  Building2, MapPin,
 } from 'lucide-react';
 import { customerService } from '@/services/customerService';
 import PageHeader from '@/components/shared/PageHeader';
@@ -98,8 +99,8 @@ export default function CustomerList() {
   const [totalElements, setTotalElements] = useState(0);
 
   // Filter state
-  const [activeTab, setActiveTab]   = useState('all');
-  const [search, setSearch]         = useState('');
+  const [activeTab, setActiveTab] = useState('all');
+  const [search, setSearch]       = useState('');
 
   // Modal states
   const [formOpen,     setFormOpen]     = useState(false);
@@ -112,16 +113,16 @@ export default function CustomerList() {
     if (window.location.pathname.endsWith('/add')) setFormOpen(true);
   }, []);
 
-  // ── Build filter params from active tab ───────────────────────────────
+  // ── Build filter params from active tab and search ────────────────────
   const buildParams = useCallback((tab, searchTerm, currentPage) => {
     const tabFilter = TABS.find(t => t.key === tab)?.filter ?? {};
     return {
       ...tabFilter,
-      search:  searchTerm || undefined,
-      page:    currentPage,
-      size:    PAGE_SIZE,
-      sortBy:  'dateJoined',
-      sortDir: 'desc',
+      search:   searchTerm?.trim() || undefined,
+      page:     currentPage,
+      size:     PAGE_SIZE,
+      sortBy:   'dateJoined',
+      sortDir:  'desc',
     };
   }, []);
 
@@ -182,6 +183,11 @@ export default function CustomerList() {
     setPage(0);
   };
 
+  const handleResetAll = () => {
+    setSearch('');
+    handleTabChange('all');
+  };
+
   // ── Actions ───────────────────────────────────────────────────────────
   const handleDelete = async () => {
     if (!deleteTarget) return;
@@ -210,11 +216,13 @@ export default function CustomerList() {
   // ── Columns ───────────────────────────────────────────────────────────
   const columns = [
     {
-      key: 'name', header: 'Customer', sortable: true,
+      key: 'name',
+      header: 'Customer Name',
+      sortable: true,
       render: (_, row) => (
-        <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+        <div className="flex items-center gap-2.5 min-w-0">
           <div
-            className="w-8 h-8 sm:w-9 sm:h-9 shrink-0 rounded-full flex items-center justify-center text-xs sm:text-sm font-bold text-white shadow-sm"
+            className="w-8 h-8 shrink-0 rounded-full flex items-center justify-center text-xs font-bold text-white shadow-xs"
             style={{ background: 'linear-gradient(135deg, #2563EB, #0EA5E9)' }}
           >
             {row.name?.charAt(0)?.toUpperCase() ?? '?'}
@@ -224,28 +232,65 @@ export default function CustomerList() {
               <span className="text-sm font-semibold text-[var(--color-text)] truncate">{row.name}</span>
               {row.isRegular && <span title="Regular Customer" className="text-amber-400 text-xs shrink-0">⭐</span>}
             </div>
-            {row.firmName && (
-              <div className="text-[11px] text-[var(--color-text-subtle)] truncate">{row.firmName}</div>
-            )}
-            <div className="flex items-center gap-1 mt-0.5 text-xs text-[var(--color-text-muted)]">
-              <Phone size={10} className="shrink-0" />
-              <span className="truncate">{row.mobile}</span>
-            </div>
           </div>
         </div>
       ),
     },
     {
-      key: 'customerStatus', header: 'Status', align: 'center',
-      render: v => <Badge variant={statusVariant(v)} dot size="sm">{v?.charAt(0) + v?.slice(1)?.toLowerCase() ?? '—'}</Badge>,
+      key: 'firmName',
+      header: 'Firm Name',
+      sortable: true,
+      render: v => v ? (
+        <div className="flex items-center gap-1.5 text-xs sm:text-sm font-medium text-[var(--color-text)]">
+          <Building2 size={13} className="text-slate-400 shrink-0" />
+          <span className="truncate">{v}</span>
+        </div>
+      ) : (
+        <span className="text-xs text-[var(--color-text-subtle)]">—</span>
+      ),
     },
     {
-      key: 'totalOrders', header: 'Orders', align: 'center', sortable: true,
-      render: v => <span className="font-semibold text-[var(--color-text)]">{v ?? 0}</span>,
+      key: 'mobile',
+      header: 'Mobile Number',
+      render: (_, row) => (
+        <div className="text-xs sm:text-sm">
+          <div className="flex items-center gap-1.5 font-medium text-[var(--color-text)]">
+            <Phone size={13} className="text-slate-400 shrink-0" />
+            <span>{row.mobile}</span>
+          </div>
+          {row.telephoneNumber && (
+            <div className="text-[11px] text-[var(--color-text-subtle)] pl-4.5 mt-0.5 truncate">
+              Tel: {row.telephoneNumber}
+            </div>
+          )}
+        </div>
+      ),
     },
     {
-      key: 'dateJoined', header: 'Joined', sortable: true,
-      render: v => <span className="text-xs sm:text-sm text-[var(--color-text-muted)] whitespace-nowrap">{fmt(v)}</span>,
+      key: 'address',
+      header: 'Site Address',
+      render: (_, row) => {
+        const loc = [row.address, row.area, row.city].filter(Boolean).join(', ');
+        return loc ? (
+          <div className="flex items-start gap-1.5 text-xs text-[var(--color-text-muted)] max-w-xs" title={loc}>
+            <MapPin size={13} className="text-slate-400 shrink-0 mt-0.5" />
+            <span className="line-clamp-2 leading-relaxed">{loc}</span>
+          </div>
+        ) : (
+          <span className="text-xs text-[var(--color-text-subtle)]">—</span>
+        );
+      },
+    },
+    {
+      key: 'totalOrders',
+      header: 'Total Orders',
+      align: 'center',
+      sortable: true,
+      render: v => (
+        <span className="inline-flex items-center justify-center min-w-[28px] px-2 py-0.5 text-xs font-bold rounded-full bg-[var(--color-surface-2)] text-[var(--color-text)] border border-[var(--color-border)]">
+          {v ?? 0}
+        </span>
+      ),
     },
     {
       key: '_actions', header: '', align: 'right',
@@ -296,59 +341,56 @@ export default function CustomerList() {
         }
       />
 
-      {/* ── Clickable Tab Cards ── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+      {/* ── Balanced Tab Filter Cards ── */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3.5">
         {TABS.map(tab => {
-          const Icon    = tab.icon;
-          const count   = counts[tab.key] ?? 0;
+          const Icon     = tab.icon;
+          const count    = counts[tab.key] ?? 0;
           const isActive = activeTab === tab.key;
           return (
             <button
               key={tab.key}
               onClick={() => handleTabChange(tab.key)}
               className={[
-                'text-left rounded-[var(--radius-lg)] border p-3.5 sm:p-4 transition-all duration-200 cursor-pointer',
-                'hover:shadow-md hover:scale-[1.01] active:scale-[0.99]',
+                'flex items-center gap-3 p-3 sm:p-3.5 rounded-[var(--radius-lg)] border transition-all duration-200 cursor-pointer text-left',
+                'hover:shadow-sm hover:-translate-y-0.5 active:translate-y-0',
                 isActive
-                  ? 'border-2 shadow-md'
-                  : 'border-[var(--color-border)] bg-[var(--color-surface)] hover:border-current',
+                  ? 'border-2 shadow-sm'
+                  : 'border-[var(--color-border)] bg-[var(--color-surface)] hover:bg-[var(--color-surface-2)]',
               ].join(' ')}
               style={{
                 borderColor: isActive ? tab.color : undefined,
                 background:  isActive ? tab.bg    : undefined,
               }}
             >
-              <div className="flex items-center justify-between mb-2">
-                <div
-                  className="w-8 h-8 sm:w-9 sm:h-9 rounded-[var(--radius-md)] flex items-center justify-center shrink-0"
-                  style={{ background: isActive ? tab.color + '22' : 'var(--color-surface-2)' }}
-                >
-                  <Icon size={16} style={{ color: tab.color }} />
-                </div>
-                {isActive && (
-                  <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full"
-                    style={{ background: tab.color + '22', color: tab.color }}>
-                    Active
-                  </span>
-                )}
+              <div
+                className="w-9 h-9 sm:w-10 sm:h-10 rounded-[var(--radius-md)] flex items-center justify-center shrink-0"
+                style={{ background: isActive ? tab.color + '22' : 'var(--color-surface-2)' }}
+              >
+                <Icon size={18} style={{ color: tab.color }} />
               </div>
-              <p className="text-xl sm:text-2xl font-bold" style={{ color: isActive ? tab.color : 'var(--color-text)' }}>
-                {count}
-              </p>
-              <p className="text-xs sm:text-sm font-medium text-[var(--color-text-muted)] mt-0.5">{tab.label}</p>
+              <div className="min-w-0 flex-1">
+                <p className="text-base sm:text-xl font-bold leading-tight" style={{ color: isActive ? tab.color : 'var(--color-text)' }}>
+                  {count}
+                </p>
+                <p className="text-xs font-medium text-[var(--color-text-muted)] truncate mt-0.5">
+                  {tab.label}
+                </p>
+              </div>
             </button>
           );
         })}
       </div>
 
-      {/* ── Search Bar ── */}
+      {/* ── Main Search Bar ── */}
       <div className="rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] shadow-[var(--shadow-sm)] p-3 sm:p-4">
         <div className="flex items-center gap-2.5 sm:gap-3">
+          {/* Universal Search Input */}
           <div className="relative flex-1">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-text-subtle)]" />
             <input
               type="text"
-              placeholder="Search by name, mobile…"
+              placeholder="Search by name, firm name, mobile, location…"
               value={search}
               onChange={e => handleSearch(e.target.value)}
               className="w-full pl-9 pr-8 py-2 text-sm rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-text)] placeholder:text-[var(--color-text-subtle)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] transition"
@@ -359,7 +401,15 @@ export default function CustomerList() {
               </button>
             )}
           </div>
-          <Button size="sm" variant="ghost" icon={<RefreshCw size={14} />} onClick={() => { handleSearch(''); handleTabChange('all'); }} disabled={loading}>
+
+          <Button
+            size="sm"
+            variant="ghost"
+            icon={<RefreshCw size={14} />}
+            onClick={handleResetAll}
+            disabled={loading}
+            title="Reset search"
+          >
             Reset
           </Button>
         </div>
