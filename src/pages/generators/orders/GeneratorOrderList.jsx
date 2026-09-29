@@ -1,17 +1,19 @@
-// src/pages/generators/orders/GeneratorOrderList.jsx
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { ROUTES } from '@/constants/routes';
-import DateRangePicker from './DateRangePicker';
 import {
   fmtDate,
   formatToDMY,
   formatRangeToDMY,
   parseDateStr,
-  MOCK_BILLS,
+  mockOrders,
+  MOCK_GENERATORS,
 } from './mockData';
 import { generatorOrderService } from '@/services/generatorOrderService';
+import { generatorService } from '@/services/generatorService';
 import GeneratorDieselModal from './GeneratorDieselModal';
+import OrderPaymentModal from './OrderPaymentModal';
 
 /* ─── Icons ─────────────────────────────────────────────────────────────── */
 const Icon = {
@@ -179,8 +181,7 @@ const STYLES = `
     display: flex;
     align-items: center;
     gap: 10px;
-    flex-wrap: nowrap;
-    flex-shrink: 0;
+    flex-wrap: wrap;
   }
 
   .go-availability-btn {
@@ -232,43 +233,29 @@ const STYLES = `
     box-shadow: 0 8px 24px rgba(37,99,235,.35);
   }
 
-  /* ── Stats / Tabs ── */
-  .go-stats-row { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:16px; margin-bottom:24px; }
+  /* ── Stats Display Cards (Non-clickable) ── */
+  .go-stats-row { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:16px; margin-bottom:24px; }
   .go-stat-card {
     background:var(--color-surface);
     border:1.5px solid var(--color-border);
     border-radius:var(--radius-xl);
-    padding:14px 14px;
+    padding:14px 16px;
     box-shadow:var(--shadow-sm);
     display:flex;
     align-items:center;
-    gap:10px;
-    cursor:pointer;
-    transition:all .2s ease;
+    gap:12px;
+    cursor:default;
     user-select:none;
     position:relative;
     overflow:hidden;
     min-width:0;
   }
-  .go-stat-card:hover {
-    transform:translateY(-2px);
-    box-shadow:var(--shadow-md);
-    border-color:var(--color-border);
-  }
-  .go-stat-card.active {
-    border-color:var(--color-primary);
-    background:linear-gradient(135deg, rgba(37,99,235,0.08) 0%, rgba(37,99,235,0.02) 100%);
-    box-shadow:0 4px 14px rgba(37,99,235,0.18);
-  }
-  .go-stat-card.active .go-stat-value {
-    color:var(--color-primary);
-  }
-  .go-stat-value { font-size:22px; font-weight:800; color:var(--color-text); line-height:1.1; transition:color .2s; }
+  .go-stat-value { font-size:22px; font-weight:800; color:var(--color-text); line-height:1.1; }
   .go-stat-label { font-size:11px; color:var(--color-text-muted); margin-top:3px; font-weight:600; text-transform:uppercase; letter-spacing:.4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .go-stat-sublabel { font-size:10px; color:var(--color-text-subtle); margin-top:2px; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 
   /* ── Toolbar ── */
-  .go-toolbar { display:grid; grid-template-columns:1.5fr 1fr 1fr auto; gap:12px; margin-bottom:18px; align-items:center; }
+  .go-toolbar { display:grid; grid-template-columns:1.4fr 1.3fr 1fr auto; gap:12px; margin-bottom:18px; align-items:center; }
   .go-search-wrap { position:relative; flex:1; min-width:180px; max-width:360px; }
   .go-search-icon { position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--color-text-subtle); pointer-events:none; display:flex; }
   .go-search-input {
@@ -278,6 +265,31 @@ const STYLES = `
     outline:none; transition:border-color .2s,box-shadow .2s; font-family:inherit;
   }
   .go-search-input:focus { border-color:var(--color-primary); box-shadow:0 0 0 3px rgba(37,99,235,.15); }
+  .go-date-picker-wrap { min-width:200px; }
+  .go-single-date-box {
+    display:flex; align-items:center; gap:8px; height:42px;
+    background:var(--color-surface); border:1.5px solid var(--color-border);
+    border-radius:var(--radius-md); padding:0 10px 0 12px;
+    transition:border-color .2s,box-shadow .2s;
+  }
+  .go-single-date-box:focus-within { border-color:var(--color-primary); box-shadow:0 0 0 3px rgba(37,99,235,.15); }
+  .go-date-icon { display:flex; align-items:center; color:var(--color-text-subtle); flex-shrink:0; }
+  .go-single-date-input {
+    border:none; background:transparent; font-size:13.5px; font-weight:600;
+    color:var(--color-text); outline:none; font-family:inherit; cursor:pointer; flex:1; min-width:0;
+  }
+  .go-quick-today-btn {
+    font-size:11.5px; font-weight:700; padding:3px 8px; background:#EFF6FF;
+    color:var(--color-primary); border:1px solid #BFDBFE; border-radius:6px;
+    cursor:pointer; white-space:nowrap; transition:all .15s; font-family:inherit;
+  }
+  .go-quick-today-btn:hover { background:var(--color-primary); color:#fff; }
+  .go-date-clear-btn {
+    font-size:11.5px; font-weight:600; padding:3px 6px; background:#F1F5F9;
+    color:#64748B; border:1px solid #CBD5E1; border-radius:6px;
+    cursor:pointer; white-space:nowrap; transition:all .15s; font-family:inherit;
+  }
+  .go-date-clear-btn:hover { background:#FEE2E2; color:#DC2626; border-color:#FCA5A5; }
   .go-filter-select {
     padding:10px 14px; border:1.5px solid var(--color-border); border-radius:var(--radius-md);
     font-size:14px; color:var(--color-text-muted); background:var(--color-surface);
@@ -355,24 +367,19 @@ const STYLES = `
     display: inline-block;
   }
   .go-dropdown-menu {
-    position: absolute;
-    right: 0;
-    top: calc(100% + 4px);
+    position: fixed;
     background: #ffffff;
     border: 1px solid var(--color-border);
     border-radius: 10px;
-    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.15), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
-    min-width: 190px;
-    z-index: 100;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.18), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+    min-width: 195px;
+    max-width: calc(100vw - 24px);
+    z-index: 99999;
     padding: 6px;
     display: flex;
     flex-direction: column;
     gap: 2px;
     animation: go-modal-in 0.15s ease-out;
-  }
-  .go-dropdown-menu.up {
-    top: auto;
-    bottom: calc(100% + 4px);
   }
   .go-dropdown-item {
     display: flex;
@@ -407,11 +414,26 @@ const STYLES = `
     background: #fef2f2;
     color: #b91c1c;
   }
+  .go-dropdown-item.cancel-item {
+    color: #ea580c;
+  }
+  .go-dropdown-item.cancel-item:hover {
+    background: #fff7ed;
+    color: #c2410c;
+  }
   .go-dropdown-divider {
     height: 1px;
     background: var(--color-border);
     margin: 4px 0;
   }
+
+  /* Cancelled row highlight */
+  .go-row-cancelled td { background: #FFF5F5 !important; }
+  .go-row-cancelled:hover td { background: #FEE2E2 !important; }
+  .go-row-cancelled .go-td-sticky-left,
+  .go-row-cancelled .go-td-sticky-right { background: #FFF5F5 !important; }
+  .go-row-cancelled:hover .go-td-sticky-left,
+  .go-row-cancelled:hover .go-td-sticky-right { background: #FEE2E2 !important; }
 
   /* ── Delete Modal ── */
   .go-overlay {
@@ -440,13 +462,15 @@ const STYLES = `
   @media (max-width:639px) {
     .go-page { padding:16px; }
     .go-header { flex-direction:column; align-items:stretch; gap:12px; margin-bottom:16px; }
-    .go-header-actions { display:flex; flex-direction:row; align-items:center; gap:8px; width:100%; }
+    .go-header-actions { display:flex; flex-direction:column; align-items:stretch; gap:8px; width:100%; }
     .go-availability-btn, .go-add-btn {
-      flex: 1;
-      padding: 9px 8px;
-      font-size: 12px;
-      gap: 5px;
+      width: 100%;
+      flex: none;
+      padding: 10px 14px;
+      font-size: 13px;
+      gap: 7px;
       justify-content: center;
+      box-sizing: border-box;
     }
     .go-stats-row { grid-template-columns:1fr !important; gap:10px; margin-bottom:16px; }
     .go-stat-card { padding:10px 10px; gap:8px; }
@@ -509,18 +533,15 @@ function SkeletonRow({ cols }) {
   );
 }
 
-function StatCard({ label, subtitle, value, icon: IconComponent, iconBg, iconColor, active, onClick }) {
+function StatCard({ label, subtitle, value, icon: IconComponent, iconBg, iconColor }) {
   return (
     <div
-      className={`go-stat-card ${active ? 'active' : ''}`}
-      onClick={onClick}
-      role="button"
-      tabIndex={0}
-      title={`Filter by ${label}`}
-      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } }}
+      className="go-stat-card"
       style={{
         padding: '16px 20px',
         gap: '14px',
+        cursor: 'default',
+        userSelect: 'text',
       }}
     >
       <div style={{
@@ -535,12 +556,6 @@ function StatCard({ label, subtitle, value, icon: IconComponent, iconBg, iconCol
         <div className="go-stat-label" style={{ fontSize: 12 }}>{label}</div>
         {subtitle && <div className="go-stat-sublabel" style={{ fontSize: 11 }}>{subtitle}</div>}
       </div>
-      {active && (
-        <span style={{
-          width: 8, height: 8, borderRadius: '50%', background: 'var(--color-primary)',
-          position: 'absolute', top: 14, right: 14
-        }} />
-      )}
     </div>
   );
 }
@@ -564,133 +579,63 @@ function StatusChip({ bg, color, label }) {
   );
 }
 
-const isTodayOrder = (o) => {
-  if (!o) return false;
-  const now = new Date();
-  const todayYMD = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-  const todayDMY = `${String(now.getDate()).padStart(2, '0')}-${String(now.getMonth() + 1).padStart(2, '0')}-${now.getFullYear()}`;
-
-  // Created today (only count newly created orders)
-  if (o.createdAt) {
-    const createdStr = typeof o.createdAt === 'string' ? o.createdAt : new Date(o.createdAt).toISOString();
-    if (createdStr.startsWith(todayYMD)) return true;
-    const cDate = parseDateStr(createdStr);
-    if (cDate) {
-      const cYMD = `${cDate.getFullYear()}-${String(cDate.getMonth() + 1).padStart(2, '0')}-${String(cDate.getDate()).padStart(2, '0')}`;
-      if (cYMD === todayYMD) return true;
-    }
-  }
-  if (o.createdDate && (o.createdDate.startsWith(todayYMD) || o.createdDate.startsWith(todayDMY))) return true;
-  if (o.bookingDate && (o.bookingDate.startsWith(todayYMD) || o.bookingDate.startsWith(todayDMY))) return true;
-
-  return false;
+/** Formats current date to YYYY-MM-DD */
+export const getTodayYMD = () => {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
 };
 
-/** Checks if the order's function date specifically matches / overlaps today's date */
-const isTodayFunctionDate = (o) => {
-  if (!o) return false;
-  const now = new Date();
-  const todayYMD = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-  const todayDMY = `${String(now.getDate()).padStart(2, '0')}-${String(now.getMonth() + 1).padStart(2, '0')}-${now.getFullYear()}`;
+/**
+ * Checks if an order's function / booking date matches or spans the target date.
+ * If dateStr is empty or null, matches all orders.
+ */
+export const isOrderMatchesDate = (o, dateStr) => {
+  if (!o || !dateStr) return true;
 
-  // Exact function date match
-  if (o.functionDateFrom && (o.functionDateFrom.startsWith(todayYMD) || o.functionDateFrom.startsWith(todayDMY))) return true;
-  if (o.functionDate && (o.functionDate.includes(todayYMD) || o.functionDate.includes(todayDMY))) return true;
+  const targetDate = parseDateStr(dateStr) || new Date(dateStr);
+  if (!targetDate || isNaN(targetDate.getTime())) return true;
 
-  // Range contains today
+  const targetStart = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate()).getTime();
+  const targetEnd = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate(), 23, 59, 59, 999).getTime();
+
+  // 1. Function Date range check: target falls within [fFrom, fTo]
   const fFrom = o.functionDateFrom ? parseDateStr(o.functionDateFrom) : (o.functionDate ? parseDateStr(o.functionDate.split(' to ')[0]) : null);
-  const fTo   = o.functionDateTo   ? parseDateStr(o.functionDateTo)   : (o.functionDate ? parseDateStr(o.functionDate.split(' to ')[1] || o.functionDate) : null);
-
-  if (fFrom && fTo) {
-    const todayZero = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-    const fromZero  = new Date(fFrom.getFullYear(), fFrom.getMonth(), fFrom.getDate()).getTime();
-    const toZero    = new Date(fTo.getFullYear(), fTo.getMonth(), fTo.getDate()).getTime();
-    if (todayZero >= fromZero && todayZero <= toZero) return true;
-  }
-  return false;
-};
-
-/** Checks if the generators were marked as physically returned today */
-const isReturnedToday = (o) => {
-  if (!o || o.orderStatus !== 'COMPLETED' || !o.returnedAt) return false;
-  const now = new Date();
-  const todayYMD = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-
-  const returnedStr = typeof o.returnedAt === 'string' ? o.returnedAt : new Date(o.returnedAt).toISOString();
-  if (returnedStr.startsWith(todayYMD)) return true;
-
-  const rDate = parseDateStr(returnedStr);
-  if (rDate) {
-    const rYMD = `${rDate.getFullYear()}-${String(rDate.getMonth() + 1).padStart(2, '0')}-${String(rDate.getDate()).padStart(2, '0')}`;
-    return rYMD === todayYMD;
-  }
-  return false;
-};
-
-/** Helper to check if an order belongs to Last 7 Days (ongoing, function date within last 7 days, or recently completed) */
-const isLast7DaysOrder = (o) => {
-  if (!o) return false;
-
-  const now = new Date();
-  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-  const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999).getTime();
-
-  const sevenDaysAgo = new Date();
-  sevenDaysAgo.setDate(now.getDate() - 7);
-  sevenDaysAgo.setHours(0, 0, 0, 0);
-  const sevenDaysAgoTime = sevenDaysAgo.getTime();
-
-  const bufferTomorrow = new Date();
-  bufferTomorrow.setDate(now.getDate() + 1);
-  bufferTomorrow.setHours(23, 59, 59, 999);
-  const bufferTomorrowTime = bufferTomorrow.getTime();
-
-  // 1. Function Date check (ongoing or falls within last 7 days)
-  const fFrom = o.functionDateFrom
-    ? parseDateStr(o.functionDateFrom)
-    : (o.functionDate ? parseDateStr(o.functionDate.split(' to ')[0]) : null);
-  const fTo = o.functionDateTo
-    ? parseDateStr(o.functionDateTo)
-    : (o.functionDate ? parseDateStr(o.functionDate.split(' to ')[1] || o.functionDate) : null);
+  const fTo = o.functionDateTo ? parseDateStr(o.functionDateTo) : (o.functionDate ? parseDateStr(o.functionDate.split(' to ')[1] || o.functionDate) : null);
 
   if (fFrom && fTo) {
     const fromTime = new Date(fFrom.getFullYear(), fFrom.getMonth(), fFrom.getDate()).getTime();
     const toTime = new Date(fTo.getFullYear(), fTo.getMonth(), fTo.getDate()).getTime();
-
-    // Ongoing today
-    if (fromTime <= todayEnd && toTime >= todayStart) {
-      return true;
-    }
-    // Function date intersects last 7 days
-    if (fromTime <= bufferTomorrowTime && toTime >= sevenDaysAgoTime) {
-      return true;
-    }
+    if (targetStart >= fromTime && targetStart <= toTime) return true;
+    if (fromTime <= targetEnd && toTime >= targetStart) return true;
   } else if (fFrom) {
     const fromTime = new Date(fFrom.getFullYear(), fFrom.getMonth(), fFrom.getDate()).getTime();
-    if (fromTime >= sevenDaysAgoTime && fromTime <= bufferTomorrowTime) {
-      return true;
-    }
+    if (fromTime >= targetStart && fromTime <= targetEnd) return true;
   }
 
-  // 2. Explicitly in progress status
-  if (o.orderStatus === 'IN_PROGRESS' || o.status === 'IN_PROGRESS') {
-    return true;
-  }
+  // 2. String comparison safeguard
+  const y = targetDate.getFullYear();
+  const m = String(targetDate.getMonth() + 1).padStart(2, '0');
+  const d = String(targetDate.getDate()).padStart(2, '0');
+  const ymd = `${y}-${m}-${d}`;
+  const dmy = `${d}-${m}-${y}`;
+  const slashDmy = `${d}/${m}/${y}`;
 
-  // 3. Completed or updated within last 7 days
-  const otherDates = [o.returnedAt, o.updatedAt, o.createdAt];
-  for (const d of otherDates) {
-    if (!d) continue;
-    const p = typeof d === 'string' ? parseDateStr(d) || new Date(d) : new Date(d);
-    if (p && !isNaN(p.getTime())) {
-      const pTime = p.getTime();
-      if (pTime >= sevenDaysAgoTime && pTime <= bufferTomorrowTime) {
-        return true;
-      }
-    }
-  }
+  const check = (val) => {
+    if (!val) return false;
+    const s = String(val);
+    return s.includes(ymd) || s.includes(dmy) || s.includes(slashDmy);
+  };
 
-  return false;
+  return (
+    check(o.functionDate) ||
+    check(o.functionDateFrom) ||
+    check(o.functionDateTo) ||
+    check(o.bookingDate) ||
+    check(o.deliveryDate)
+  );
 };
 
 /* ─── Main Component ─────────────────────────────────────────────────────── */
@@ -704,42 +649,107 @@ export default function GeneratorOrderList() {
   const [loading, setLoading] = useState(false);
   const [totalElements, setTotalElements] = useState(0);
 
-  // UI state
-  const [search, setSearch]             = useState('');
-  const [page, setPage]                 = useState(1);
-  const [deleteTarget, setDeleteTarget] = useState(null);
-  const [paymentModalTarget, setPaymentModalTarget] = useState(null);
-  const [markingPaid, setMarkingPaid]   = useState(false);
-  const [dieselModalTarget, setDieselModalTarget]   = useState(null);
-  const [openDropdownId, setOpenDropdownId]         = useState(null);
-  const [dropdownDirection, setDropdownDirection]   = useState('down'); // 'down' | 'up'
-  const [activeTab, setActiveTab]       = useState('last_7_days'); // 'last_7_days' | 'all'
+  // Live stock & availability statistics for the 3 tabs
+  const [stockStats, setStockStats] = useState({
+    totalStock: 0,
+    availableToday: 0,
+    bookedToday: 0,
+  });
 
-  // Close dropdown on outside click
-  React.useEffect(() => {
+  // UI state
+  const todayYMD = useMemo(() => getTodayYMD(), []);
+  const [search, setSearch]                         = useState('');
+  const [page, setPage]                             = useState(1);
+  const [deleteTarget, setDeleteTarget]             = useState(null);
+  const [paymentModalTarget, setPaymentModalTarget] = useState(null);
+  const [dieselModalTarget, setDieselModalTarget]   = useState(null);
+  const [dropdownMenuState, setDropdownMenuState]   = useState(null);
+
+  // Close dropdown on outside click, window scroll or resize
+  useEffect(() => {
+    if (!dropdownMenuState) return;
+    const handleScroll = () => {
+      setDropdownMenuState(null);
+    };
     const handleOutsideClick = (e) => {
-      if (!e.target.closest('.go-dropdown-wrap')) {
-        setOpenDropdownId(null);
+      if (!e.target.closest('.go-dropdown-menu') && !e.target.closest('.go-action-btn')) {
+        setDropdownMenuState(null);
       }
     };
+    window.addEventListener('scroll', handleScroll, true);
+    window.addEventListener('resize', handleScroll);
     document.addEventListener('click', handleOutsideClick);
-    return () => document.removeEventListener('click', handleOutsideClick);
-  }, []);
+    return () => {
+      window.removeEventListener('scroll', handleScroll, true);
+      window.removeEventListener('resize', handleScroll);
+      document.removeEventListener('click', handleOutsideClick);
+    };
+  }, [dropdownMenuState]);
 
-  // Filters state
-  const [filterDate, setFilterDate]                   = useState('');
+  // Filters state (Defaults to Today's date as requested)
+  const [filterDate, setFilterDate]                   = useState(todayYMD);
   const [filterBillingStatus, setFilterBillingStatus] = useState('all');
-  const [markReturnedTarget, setMarkReturnedTarget] = useState(null);
-  const [markingReturned, setMarkingReturned]       = useState(false);
-  const hasFilters = search !== '' || filterDate !== '' || filterBillingStatus !== 'all' || activeTab !== 'last_7_days';
+  const [markReturnedTarget, setMarkReturnedTarget]   = useState(null);
+  const [markingReturned, setMarkingReturned]         = useState(false);
+  const [cancelOrderTarget, setCancelOrderTarget]     = useState(null);
+  const [cancellingOrder, setCancellingOrder]         = useState(false);
+  const hasFilters = search !== '' || filterDate !== todayYMD || filterBillingStatus !== 'all';
 
-  // Fetch data
-  React.useEffect(() => {
+  // Fetch live inventory availability breakdown for today
+  const fetchStockStats = async () => {
+    try {
+      const dailyAll = await generatorService.getDailyAvailabilityAll(todayYMD);
+      if (Array.isArray(dailyAll) && dailyAll.length > 0) {
+        const total = dailyAll.reduce((sum, g) => sum + (Number(g.totalStock) || 0), 0);
+        const avail = dailyAll.reduce((sum, g) => sum + (Number(g.availableQty) || 0), 0);
+        const booked = dailyAll.reduce((sum, g) => sum + (Number(g.bookedQty) || 0), 0);
+        setStockStats({
+          totalStock: total,
+          availableToday: avail,
+          bookedToday: booked,
+        });
+        return;
+      }
+    } catch (e) {
+      console.warn('Daily availability API failed, falling back to generator list:', e);
+    }
+
+    try {
+      const genRes = await generatorService.getAll({ size: 500 });
+      const gens = genRes?.data?.content || genRes?.content || [];
+      if (gens.length > 0) {
+        const total = gens.reduce((sum, g) => sum + (Number(g.stockQuantity) || 1), 0);
+        setStockStats(prev => ({
+          ...prev,
+          totalStock: total,
+        }));
+      } else if (MOCK_GENERATORS && MOCK_GENERATORS.length > 0) {
+        setStockStats(prev => ({
+          ...prev,
+          totalStock: MOCK_GENERATORS.length,
+        }));
+      }
+    } catch (e) {
+      if (MOCK_GENERATORS && MOCK_GENERATORS.length > 0) {
+        setStockStats(prev => ({
+          ...prev,
+          totalStock: MOCK_GENERATORS.length,
+        }));
+      }
+    }
+  };
+
+  useEffect(() => {
+    fetchStockStats();
+  }, [todayYMD]);
+
+  // Fetch orders from API with mock fallback
+  useEffect(() => {
     setLoading(true);
-    generatorOrderService.getAll(search, '', page - 1, PAGE_SIZE)
+    generatorOrderService.getAll(search, '', 0, 200)
       .then(res => {
         const fetched = res?.content || [];
-        if (fetched.length === 0 && (!search && filterBillingStatus === 'all' && filterBookingStatus === 'all' && !filterDate) && mockOrders && mockOrders.length > 0) {
+        if (fetched.length === 0 && (!search && filterBillingStatus === 'all') && mockOrders && mockOrders.length > 0) {
           setOrders(mockOrders);
           setTotalElements(mockOrders.length);
         } else {
@@ -755,59 +765,41 @@ export default function GeneratorOrderList() {
         }
       })
       .finally(() => setLoading(false));
-  }, [page, search, filterBillingStatus, filterDate]);
+  }, [search, filterBillingStatus]);
 
-  // Filtered locally for tab selection, billing status and date (safeguard)
+  // Reset pagination page on search, date, or billing changes
+  useEffect(() => {
+    setPage(1);
+  }, [search, filterDate, filterBillingStatus]);
+
+  // Filtered orders: single date match, billing status match, and search
   const filtered = useMemo(() => {
     let result = orders.filter(o => {
-      // Tab Filter
-      if (activeTab === 'last_7_days' && !isLast7DaysOrder(o)) return false;
+      // 1. Single Date Match: default to today or user selected date
+      if (filterDate && !isOrderMatchesDate(o, filterDate)) {
+        return false;
+      }
 
-      // 1. Billing Status Match
+      // 2. Billing Status Match
       const isBilled = o.billingStatus === 'COMPLETED';
       if (filterBillingStatus === 'pending' && isBilled) return false;
       if (filterBillingStatus === 'completed' && !isBilled) return false;
 
-      // 2. Function Date Range Match
-      if (filterDate && filterDate.includes(' to ')) {
-        const [selFromStr, selToStr] = filterDate.split(' to ');
-        const selFrom = parseDateStr(selFromStr);
-        const selTo = parseDateStr(selToStr);
-        if (selFrom) selFrom.setHours(0, 0, 0, 0);
-        if (selTo) selTo.setHours(23, 59, 59, 999);
-
-        const orderFrom = o.functionDateFrom ? parseDateStr(o.functionDateFrom) : (o.functionDate ? parseDateStr(o.functionDate.split(' to ')[0]) : null);
-        const orderTo = o.functionDateTo ? parseDateStr(o.functionDateTo) : (o.functionDate ? parseDateStr(o.functionDate.split(' to ')[1] || o.functionDate) : null);
-        if (orderFrom) orderFrom.setHours(0, 0, 0, 0);
-        if (orderTo) orderTo.setHours(23, 59, 59, 999);
-
-        if (orderFrom && orderTo && selFrom && selTo) {
-          const intersects = orderFrom <= selTo && orderTo >= selFrom;
-          if (!intersects) return false;
-        } else {
-          return false;
-        }
-      }
-
-      // 2. Search Filter (Client Name, Order No, Operator Name, Generator Name)
+      // 3. Search Filter (Client Name, Order No, Operator Name, Generator Name)
       if (search && search.trim()) {
         const q = search.toLowerCase().trim();
 
-        // Client Name
         const matchClient = (o.clientName && String(o.clientName).toLowerCase().includes(q)) ||
                             (o.customer?.name && String(o.customer.name).toLowerCase().includes(q));
 
-        // Order Number / Bill Number
         const matchOrderNo = (o.id != null && String(o.id).toLowerCase().includes(q)) ||
                              (o.orderNumber != null && String(o.orderNumber).toLowerCase().includes(q)) ||
                              (o.billNumber != null && String(o.billNumber).toLowerCase().includes(q));
 
-        // Operator Name
         const matchOperator = (o.operatorName && String(o.operatorName).toLowerCase().includes(q)) ||
                               (o.assignedToName && String(o.assignedToName).toLowerCase().includes(q)) ||
                               (o.generators && o.generators.some(g => g.operatorName && String(g.operatorName).toLowerCase().includes(q)));
 
-        // Generator Name / Model / Code
         const matchGenerator = (o.generatorName && String(o.generatorName).toLowerCase().includes(q)) ||
                                (o.generators && o.generators.some(g =>
                                  (g.generatorName && String(g.generatorName).toLowerCase().includes(q)) ||
@@ -827,27 +819,29 @@ export default function GeneratorOrderList() {
       return true;
     });
 
-    // If on Last 7 Days tab, prioritize ongoing orders at top, then recent function dates
-    if (activeTab === 'last_7_days') {
-      result.sort((a, b) => {
-        const aOngoing = (a.orderStatus === 'IN_PROGRESS' || a.status === 'IN_PROGRESS' || isTodayFunctionDate(a)) && a.orderStatus !== 'COMPLETED';
-        const bOngoing = (b.orderStatus === 'IN_PROGRESS' || b.status === 'IN_PROGRESS' || isTodayFunctionDate(b)) && b.orderStatus !== 'COMPLETED';
-        if (aOngoing && !bOngoing) return -1;
-        if (bOngoing && !aOngoing) return 1;
+    // Sort: Ongoing orders first, then recent function dates / order id
+    result.sort((a, b) => {
+      const aOngoing = (a.orderStatus === 'IN_PROGRESS' || a.status === 'IN_PROGRESS') && a.orderStatus !== 'COMPLETED';
+      const bOngoing = (b.orderStatus === 'IN_PROGRESS' || b.status === 'IN_PROGRESS') && b.orderStatus !== 'COMPLETED';
+      if (aOngoing && !bOngoing) return -1;
+      if (bOngoing && !aOngoing) return 1;
 
-        const aFrom = a.functionDateFrom ? parseDateStr(a.functionDateFrom) : (a.functionDate ? parseDateStr(a.functionDate.split(' to ')[0]) : null);
-        const bFrom = b.functionDateFrom ? parseDateStr(b.functionDateFrom) : (b.functionDate ? parseDateStr(b.functionDate.split(' to ')[0]) : null);
-        const aTime = aFrom ? aFrom.getTime() : 0;
-        const bTime = bFrom ? bFrom.getTime() : 0;
-        return bTime - aTime;
-      });
-    }
+      const aFrom = a.functionDateFrom ? parseDateStr(a.functionDateFrom) : (a.functionDate ? parseDateStr(a.functionDate.split(' to ')[0]) : null);
+      const bFrom = b.functionDateFrom ? parseDateStr(b.functionDateFrom) : (b.functionDate ? parseDateStr(b.functionDate.split(' to ')[0]) : null);
+      const aTime = aFrom ? aFrom.getTime() : 0;
+      const bTime = bFrom ? bFrom.getTime() : 0;
+      if (bTime !== aTime) return bTime - aTime;
+      return (b.id || 0) - (a.id || 0);
+    });
 
     return result;
-  }, [orders, search, activeTab, filterBillingStatus, filterDate]);
+  }, [orders, search, filterBillingStatus, filterDate]);
 
-  const totalPages = Math.max(1, Math.ceil(totalElements / PAGE_SIZE));
-  const paged = filtered; // Since we already paginate from backend, paged is just filtered orders
+  // Client-side pagination with exact 50 per page capacity
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const paged = useMemo(() => {
+    return filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  }, [filtered, page]);
 
   /* ── Delete ── */
   const handleDelete = () => {
@@ -859,20 +853,11 @@ export default function GeneratorOrderList() {
     });
   };
 
-  /* ── Mark Payment as Done ── */
-  const handleMarkPaymentDone = () => {
-    if (!paymentModalTarget) return;
-    setMarkingPaid(true);
-    generatorOrderService.markPaymentDone(paymentModalTarget.id)
-      .then(updated => {
-        setOrders(prev => prev.map(o => o.id === paymentModalTarget.id ? { ...o, paymentStatus: 'PAID' } : o));
-        setPaymentModalTarget(null);
-      })
-      .catch(err => {
-        console.error('Failed to mark payment as done:', err);
-        alert('Failed to update payment status. Please try again.');
-      })
-      .finally(() => setMarkingPaid(false));
+  /* ── Payment Recorded Success Handler ── */
+  const handlePaymentSuccess = (updatedOrder) => {
+    if (!updatedOrder) return;
+    setOrders(prev => prev.map(o => o.id === updatedOrder.id ? { ...o, ...updatedOrder } : o));
+    setPaymentModalTarget(prev => prev && prev.id === updatedOrder.id ? { ...prev, ...updatedOrder } : prev);
   };
 
   /* ── Mark as Returned (Generators Released) ── */
@@ -887,12 +872,35 @@ export default function GeneratorOrderList() {
             : o
         ));
         setMarkReturnedTarget(null);
+        fetchStockStats();
       })
       .catch(err => {
         console.error('Failed to mark as returned:', err);
         alert('Failed to mark generators as returned. Please try again.');
       })
       .finally(() => setMarkingReturned(false));
+  };
+
+  /* ── Cancel Order ── */
+  const handleCancelOrder = () => {
+    if (!cancelOrderTarget) return;
+    setCancellingOrder(true);
+    generatorOrderService.cancelOrder(cancelOrderTarget.id)
+      .then(() => {
+        setOrders(prev => prev.map(o =>
+          o.id === cancelOrderTarget.id
+            ? { ...o, orderStatus: 'CANCELLED', returnedAt: new Date().toISOString() }
+            : o
+        ));
+        setCancelOrderTarget(null);
+        fetchStockStats();
+      })
+      .catch(err => {
+        console.error('Failed to cancel order:', err);
+        const msg = err?.response?.data?.message || 'Failed to cancel order. Please try again.';
+        alert(msg);
+      })
+      .finally(() => setCancellingOrder(false));
   };
 
   /* ── Pagination pages ── */
@@ -903,10 +911,31 @@ export default function GeneratorOrderList() {
     return [1,'…',page-1,page,page+1,'…',totalPages];
   })();
 
-  /* ── Calculations for summary statistics / counts ── */
-  const last7DaysCount = useMemo(() => {
-    return orders.filter(isLast7DaysOrder).length;
-  }, [orders]);
+  /* ── Calculations for the 3 Main Tabs ── */
+  // 1. Total Stock
+  const totalGeneratorsCount = useMemo(() => {
+    if (stockStats.totalStock > 0) return stockStats.totalStock;
+    if (MOCK_GENERATORS && MOCK_GENERATORS.length > 0) return MOCK_GENERATORS.length;
+    return 14;
+  }, [stockStats.totalStock]);
+
+  // 2. Todays Booking count
+  const todayBookingCount = useMemo(() => {
+    return orders.filter(o => isOrderMatchesDate(o, todayYMD)).length;
+  }, [orders, todayYMD]);
+
+  // 3. Todays Available Stock
+  const availableStockCount = useMemo(() => {
+    if (stockStats.availableToday > 0) return stockStats.availableToday;
+    return Math.max(0, totalGeneratorsCount - todayBookingCount);
+  }, [stockStats.availableToday, totalGeneratorsCount, todayBookingCount]);
+
+  const handleResetFilters = () => {
+    setSearch('');
+    setFilterDate(todayYMD);
+    setFilterBillingStatus('all');
+    setPage(1);
+  };
 
   // Inject styles on mount to avoid re-rendering <style> tag which causes focus loss in some React versions
   React.useEffect(() => {
@@ -954,31 +983,38 @@ export default function GeneratorOrderList() {
           </div>
         </div>
 
-        {/* ── Tabs Section (Last 7 Days Orders & All Orders) ── */}
+        {/* ── 3 Main Stat Cards (Display Only) ───────────────────────────── */}
         <div className="go-stats-row">
+          {/* Card 1: Total Stock */}
           <StatCard
-            label="Last 7 Days Orders"
-            subtitle="Ongoing & recent bookings"
-            value={last7DaysCount}
-            icon={Icon.Calendar}
+            label="Total Stock"
+            subtitle="Total generators in fleet"
+            value={totalGeneratorsCount}
+            icon={Icon.Zap}
             iconBg="#EFF6FF"
             iconColor="var(--color-primary)"
-            active={activeTab === 'last_7_days'}
-            onClick={() => { setActiveTab('last_7_days'); setPage(1); }}
           />
+
+          {/* Card 2: Todays Available Stock */}
           <StatCard
-            label="All Orders"
-            subtitle="Total orders across all pages"
-            value={totalElements}
-            icon={Icon.ClipboardList}
-            iconBg="#F8FAFC"
-            iconColor="#334155"
-            active={activeTab === 'all'}
-            onClick={() => { setActiveTab('all'); setPage(1); }}
+            label="Todays Available Stock"
+            subtitle="Available generators today"
+            value={availableStockCount}
+            icon={Icon.CheckCircle}
+            iconBg="#F0FDF4"
+            iconColor="#16A34A"
+          />
+
+          {/* Card 3: Todays Booking count */}
+          <StatCard
+            label="Todays Booking count"
+            subtitle="Bookings scheduled today"
+            value={todayBookingCount}
+            icon={Icon.Calendar}
+            iconBg="#FEF3C7"
+            iconColor="#D97706"
           />
         </div>
-
-
 
         {/* ── Toolbar / Filters ───────────────────────────────── */}
         <div className="go-toolbar">
@@ -993,14 +1029,37 @@ export default function GeneratorOrderList() {
             />
           </div>
 
-          <div>
-            <DateRangePicker
-              value={filterDate}
-              onChange={val => { setFilterDate(val); setPage(1); }}
-              placeholder="Filter by Function Date"
-              minDate={null}
-              align="right"
-            />
+          <div className="go-date-picker-wrap">
+            <div className="go-single-date-box">
+              <span className="go-date-icon">
+                <Icon.Calendar />
+              </span>
+              <input
+                type="date"
+                id="input-single-date"
+                className="go-single-date-input"
+                value={filterDate}
+                onChange={e => {
+                  setFilterDate(e.target.value);
+                  setPage(1);
+                }}
+                title="Select date to check bookings"
+              />
+              {filterDate !== todayYMD && (
+                <button
+                  type="button"
+                  id="btn-quick-today"
+                  onClick={() => {
+                    setFilterDate(todayYMD);
+                    setPage(1);
+                  }}
+                  className="go-quick-today-btn"
+                  title="Jump to Today's Bookings"
+                >
+                  Today
+                </button>
+              )}
+            </div>
           </div>
 
           <div>
@@ -1019,13 +1078,7 @@ export default function GeneratorOrderList() {
           {hasFilters && (
             <button
               id="btn-clear-filters"
-              onClick={() => {
-                setSearch('');
-                setFilterDate('');
-                setFilterBillingStatus('all');
-                setActiveTab('last_7_days');
-                setPage(1);
-              }}
+              onClick={handleResetFilters}
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
@@ -1048,7 +1101,7 @@ export default function GeneratorOrderList() {
               <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
                 <path d="M18 6 6 18M6 6l12 12"/>
               </svg>
-              Clear Filters
+              Reset to Today
             </button>
           )}
         </div>
@@ -1086,13 +1139,21 @@ export default function GeneratorOrderList() {
                       <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:10, color:'var(--color-text-subtle)' }}>
                         <Icon.ClipboardEmpty />
                         <div style={{ fontWeight:600, color:'var(--color-text-muted)', fontSize:15 }}>
-                          {search || filterDate || filterBillingStatus !== 'all' || activeTab !== 'all'
-                            ? 'No orders match your search or filters'
-                            : 'No orders yet'}
+                          {search
+                            ? 'No orders match your search query'
+                            : filterDate === todayYMD
+                            ? "No bookings scheduled for today"
+                            : filterDate
+                            ? `No bookings scheduled for ${formatToDMY(filterDate)}`
+                            : 'No orders found'}
                         </div>
                         <div style={{ fontSize:13, color:'var(--color-text-subtle)' }}>
-                          {search || filterDate || filterBillingStatus !== 'all' || activeTab !== 'all'
+                          {search
                             ? 'Try adjusting your search query or clear filters'
+                            : filterDate === todayYMD
+                            ? 'No generator bookings are scheduled for today. Select another date from the calendar or click "✕ All" to view all orders.'
+                            : filterDate
+                            ? `No generator orders found for this date. Select another date or click "✕ All" to view all orders.`
                             : 'Click "Add New Order" to create your first generator order'}
                         </div>
                       </div>
@@ -1102,17 +1163,20 @@ export default function GeneratorOrderList() {
                   const gens = o.generators || [];
                   const firstName = gens[0]?.generatorName || '—';
                   const extra    = gens.length > 1 ? ` +${gens.length - 1} more` : '';
+                  const isCancelled = o.orderStatus === 'CANCELLED';
                   const isBilled = o.billingStatus === 'COMPLETED';
-                  const orderBookingStatus = o.orderStatus === 'CONFIRMED' ? 'Confirmed' : (o.bookingStatus || 'Booked');
+                  const orderBookingStatus = o.orderStatus === 'CONFIRMED' ? 'Confirmed'
+                    : o.orderStatus === 'CANCELLED' ? 'Cancelled'
+                    : (o.bookingStatus || 'Booked');
                   const isWithDiesel = o.withDiesel !== false && o.dieselType !== 'PARTY';
                   const hasCable = o.cableRequired !== false;
                   const billNum = o.billNumber || o.billingNumber;
-                  const rowBg = i % 2 === 0 ? 'var(--color-surface)' : 'var(--color-bg)';
+                  const rowBg = isCancelled ? '#FFF5F5' : (i % 2 === 0 ? 'var(--color-surface)' : 'var(--color-bg)');
 
                   return (
                   <tr
                     key={o.id}
-                    className="go-row"
+                    className={`go-row${isCancelled ? ' go-row-cancelled' : ''}`}
                     style={{ background: rowBg }}
                   >
                     {/* 1. Sr. No. (Sticky Left) */}
@@ -1208,7 +1272,9 @@ export default function GeneratorOrderList() {
 
                     {/* 11. Booking Status */}
                     <td style={{ ...tdStyle, textAlign:'center' }}>
-                      {o.orderStatus === 'COMPLETED' ? (
+                      {o.orderStatus === 'CANCELLED' ? (
+                        <StatusChip bg="#FEE2E2" color="#B91C1C" label="Cancelled" />
+                      ) : o.orderStatus === 'COMPLETED' ? (
                         <StatusChip bg="#ECFDF5" color="#059669" label="Returned" />
                       ) : (
                         <StatusChip
@@ -1231,9 +1297,9 @@ export default function GeneratorOrderList() {
                     {/* 13. Payment Status */}
                     <td style={{ ...tdStyle, textAlign:'center' }}>
                       <StatusChip
-                        bg={o.paymentStatus === 'PAID' ? '#D1FAE5' : o.paymentStatus === 'OVERDUE' ? '#FEE2E2' : '#FEF3C7'}
-                        color={o.paymentStatus === 'PAID' ? '#065F46' : o.paymentStatus === 'OVERDUE' ? '#991B1B' : '#92400E'}
-                        label={o.paymentStatus === 'PAID' ? 'Paid' : o.paymentStatus === 'OVERDUE' ? 'Overdue' : 'Pending'}
+                        bg={o.orderStatus === 'CANCELLED' ? '#F1F5F9' : o.paymentStatus === 'PAID' ? '#D1FAE5' : o.paymentStatus === 'OVERDUE' ? '#FEE2E2' : '#FEF3C7'}
+                        color={o.orderStatus === 'CANCELLED' ? '#64748B' : o.paymentStatus === 'PAID' ? '#065F46' : o.paymentStatus === 'OVERDUE' ? '#991B1B' : '#92400E'}
+                        label={o.orderStatus === 'CANCELLED' ? 'Cancelled' : o.paymentStatus === 'PAID' ? 'Paid' : o.paymentStatus === 'OVERDUE' ? 'Overdue' : 'Pending'}
                       />
                     </td>
 
@@ -1253,7 +1319,7 @@ export default function GeneratorOrderList() {
                     </td>
 
                     {/* 15. Actions (Sticky Right) */}
-                    <td className="go-td-sticky-right" style={{ ...tdStyle, textAlign:'center', minWidth: 155, width: 165, background: rowBg, zIndex: openDropdownId === o.id ? 20 : 2 }}>
+                    <td className="go-td-sticky-right" style={{ ...tdStyle, textAlign:'center', minWidth: 155, width: 165, background: rowBg, zIndex: 2 }}>
                       <div style={{ display:'flex', gap:6, justifyContent:'center', alignItems:'center' }}>
                         {/* 1. View */}
                         <button
@@ -1269,10 +1335,14 @@ export default function GeneratorOrderList() {
                         {/* 2. Billing */}
                         <button
                           className="go-action-btn"
-                          style={actionBtn('emerald')}
-                          title="Generator Order Billing"
+                          style={{
+                            ...actionBtn('emerald'),
+                            ...(isCancelled ? { opacity: 0.4, cursor: 'not-allowed' } : {}),
+                          }}
+                          title={isCancelled ? 'Billing disabled for cancelled orders' : 'Generator Order Billing'}
                           id={`btn-billing-${o.id}`}
-                          onClick={() => navigate(ROUTES.GENERATOR_ORDER_BILLING.replace(':id', o.id))}
+                          disabled={isCancelled}
+                          onClick={() => { if (!isCancelled) navigate(ROUTES.GENERATOR_ORDER_BILLING.replace(':id', o.id)); }}
                         >
                           <Icon.Receipt />
                         </button>
@@ -1301,95 +1371,33 @@ export default function GeneratorOrderList() {
                             className="go-action-btn"
                             style={{
                               ...actionBtn('slate'),
-                              background: openDropdownId === o.id ? 'var(--color-primary-50, #eff6ff)' : '#F1F5F9',
-                              color: openDropdownId === o.id ? 'var(--color-primary, #2563eb)' : '#475569',
-                              border: openDropdownId === o.id ? '1.5px solid #93C5FD' : '1.5px solid #CBD5E1',
+                              background: dropdownMenuState?.id === o.id ? 'var(--color-primary-50, #eff6ff)' : '#F1F5F9',
+                              color: dropdownMenuState?.id === o.id ? 'var(--color-primary, #2563eb)' : '#475569',
+                              border: dropdownMenuState?.id === o.id ? '1.5px solid #93C5FD' : '1.5px solid #CBD5E1',
                             }}
                             title="More Actions"
                             id={`btn-more-${o.id}`}
                             onClick={(e) => {
                               e.stopPropagation();
-                              if (openDropdownId === o.id) {
-                                setOpenDropdownId(null);
+                              if (dropdownMenuState?.id === o.id) {
+                                setDropdownMenuState(null);
                               } else {
                                 const rect = e.currentTarget.getBoundingClientRect();
                                 const spaceBelow = window.innerHeight - rect.bottom;
-                                setDropdownDirection(spaceBelow < 220 ? 'up' : 'down');
-                                setOpenDropdownId(o.id);
+                                const isUp = spaceBelow < 220;
+                                setDropdownMenuState({
+                                  id: o.id,
+                                  order: o,
+                                  top: isUp ? undefined : rect.bottom + 6,
+                                  bottom: isUp ? (window.innerHeight - rect.top + 6) : undefined,
+                                  right: Math.max(12, window.innerWidth - rect.right),
+                                  isUp,
+                                });
                               }
                             }}
                           >
                             <Icon.MoreVertical />
                           </button>
-
-                          {openDropdownId === o.id && (
-                            <div className={`go-dropdown-menu${dropdownDirection === 'up' ? ' up' : ''}`} onClick={e => e.stopPropagation()}>
-                              <button
-                                className="go-dropdown-item"
-                                onClick={() => {
-                                  setOpenDropdownId(null);
-                                  navigate(ROUTES.GENERATOR_ORDER_EDIT.replace(':id', o.id));
-                                }}
-                              >
-                                <Icon.Edit />
-                                <span>Edit Order</span>
-                              </button>
-
-                              <button
-                                className="go-dropdown-item"
-                                onClick={() => {
-                                  setOpenDropdownId(null);
-                                  setPaymentModalTarget(o);
-                                }}
-                              >
-                                <Icon.Wallet />
-                                <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: 6 }}>
-                                  <span>Payment</span>
-                                  <span style={{
-                                    fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 4,
-                                    background: o.paymentStatus === 'PAID' ? '#D1FAE5' : o.paymentStatus === 'OVERDUE' ? '#FEE2E2' : '#FEF3C7',
-                                    color: o.paymentStatus === 'PAID' ? '#065F46' : o.paymentStatus === 'OVERDUE' ? '#991B1B' : '#92400E',
-                                  }}>
-                                    {o.paymentStatus === 'PAID' ? 'Paid' : o.paymentStatus === 'OVERDUE' ? 'Overdue' : 'Pending'}
-                                  </span>
-                                </span>
-                              </button>
-
-                              {o.orderStatus !== 'CANCELLED' && (
-                                <button
-                                  className="go-dropdown-item"
-                                  disabled={o.orderStatus === 'COMPLETED'}
-                                  onClick={() => {
-                                    setOpenDropdownId(null);
-                                    if (o.orderStatus !== 'COMPLETED') {
-                                      setMarkReturnedTarget(o);
-                                    }
-                                  }}
-                                >
-                                  <Icon.CheckCircle />
-                                  <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: 6 }}>
-                                    <span>{o.orderStatus === 'COMPLETED' ? 'Generators Returned' : 'Mark as Returned'}</span>
-                                    {o.orderStatus === 'COMPLETED' && (
-                                      <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 5px', borderRadius: 4, background: '#D1FAE5', color: '#065F46' }}>✓</span>
-                                    )}
-                                  </span>
-                                </button>
-                              )}
-
-                              <div className="go-dropdown-divider" />
-
-                              <button
-                                className="go-dropdown-item danger"
-                                onClick={() => {
-                                  setOpenDropdownId(null);
-                                  setDeleteTarget(o);
-                                }}
-                              >
-                                <Icon.Trash />
-                                <span>Delete Order</span>
-                              </button>
-                            </div>
-                          )}
                         </div>
                       </div>
                     </td>
@@ -1512,9 +1520,9 @@ export default function GeneratorOrderList() {
                   <div className="go-mc-field">
                     <label>Payment Status</label>
                     <StatusChip
-                      bg={o.paymentStatus === 'PAID' ? '#D1FAE5' : o.paymentStatus === 'OVERDUE' ? '#FEE2E2' : '#FEF3C7'}
-                      color={o.paymentStatus === 'PAID' ? '#065F46' : o.paymentStatus === 'OVERDUE' ? '#991B1B' : '#92400E'}
-                      label={o.paymentStatus === 'PAID' ? 'Paid' : o.paymentStatus === 'OVERDUE' ? 'Overdue' : 'Pending'}
+                      bg={o.orderStatus === 'CANCELLED' ? '#F1F5F9' : o.paymentStatus === 'PAID' ? '#D1FAE5' : o.paymentStatus === 'OVERDUE' ? '#FEE2E2' : '#FEF3C7'}
+                      color={o.orderStatus === 'CANCELLED' ? '#64748B' : o.paymentStatus === 'PAID' ? '#065F46' : o.paymentStatus === 'OVERDUE' ? '#991B1B' : '#92400E'}
+                      label={o.orderStatus === 'CANCELLED' ? 'Cancelled' : o.paymentStatus === 'PAID' ? 'Paid' : o.paymentStatus === 'OVERDUE' ? 'Overdue' : 'Pending'}
                     />
                   </div>
                   <div className="go-mc-field" style={{ gridColumn:'span 2' }}>
@@ -1538,8 +1546,16 @@ export default function GeneratorOrderList() {
                     <Icon.Eye />
                   </button>
 
-                  <button className="go-action-btn" style={actionBtn('emerald')} title="Billing"
-                    onClick={() => navigate(ROUTES.GENERATOR_ORDER_BILLING.replace(':id', o.id))}>
+                  <button
+                    className="go-action-btn"
+                    style={{
+                      ...actionBtn('emerald'),
+                      ...(o.orderStatus === 'CANCELLED' ? { opacity: 0.4, cursor: 'not-allowed' } : {}),
+                    }}
+                    title={o.orderStatus === 'CANCELLED' ? 'Billing disabled for cancelled orders' : 'Billing'}
+                    disabled={o.orderStatus === 'CANCELLED'}
+                    onClick={() => { if (o.orderStatus !== 'CANCELLED') navigate(ROUTES.GENERATOR_ORDER_BILLING.replace(':id', o.id)); }}
+                  >
                     <Icon.Receipt />
                   </button>
                   {isWithDiesel && (
@@ -1564,94 +1580,33 @@ export default function GeneratorOrderList() {
                       className="go-action-btn"
                       style={{
                         ...actionBtn('slate'),
-                        background: openDropdownId === `mob-${o.id}` ? 'var(--color-primary-50, #eff6ff)' : '#F1F5F9',
-                        color: openDropdownId === `mob-${o.id}` ? 'var(--color-primary, #2563eb)' : '#475569',
-                        border: openDropdownId === `mob-${o.id}` ? '1.5px solid #93C5FD' : '1.5px solid #CBD5E1',
+                        background: dropdownMenuState?.id === `mob-${o.id}` ? 'var(--color-primary-50, #eff6ff)' : '#F1F5F9',
+                        color: dropdownMenuState?.id === `mob-${o.id}` ? 'var(--color-primary, #2563eb)' : '#475569',
+                        border: dropdownMenuState?.id === `mob-${o.id}` ? '1.5px solid #93C5FD' : '1.5px solid #CBD5E1',
                       }}
                       title="More Actions"
+                      id={`btn-mob-more-${o.id}`}
                       onClick={(e) => {
                         e.stopPropagation();
-                        if (openDropdownId === `mob-${o.id}`) {
-                          setOpenDropdownId(null);
+                        if (dropdownMenuState?.id === `mob-${o.id}`) {
+                          setDropdownMenuState(null);
                         } else {
                           const rect = e.currentTarget.getBoundingClientRect();
                           const spaceBelow = window.innerHeight - rect.bottom;
-                          setDropdownDirection(spaceBelow < 220 ? 'up' : 'down');
-                          setOpenDropdownId(`mob-${o.id}`);
+                          const isUp = spaceBelow < 220;
+                          setDropdownMenuState({
+                            id: `mob-${o.id}`,
+                            order: o,
+                            top: isUp ? undefined : rect.bottom + 6,
+                            bottom: isUp ? (window.innerHeight - rect.top + 6) : undefined,
+                            right: Math.max(12, window.innerWidth - rect.right),
+                            isUp,
+                          });
                         }
                       }}
                     >
                       <Icon.MoreVertical />
                     </button>
-
-                    {openDropdownId === `mob-${o.id}` && (
-                      <div className={`go-dropdown-menu${dropdownDirection === 'up' ? ' up' : ''}`} onClick={e => e.stopPropagation()}>
-                        <button
-                          className="go-dropdown-item"
-                          onClick={() => {
-                            setOpenDropdownId(null);
-                            navigate(ROUTES.GENERATOR_ORDER_EDIT.replace(':id', o.id));
-                          }}
-                        >
-                          <Icon.Edit />
-                          <span>Edit Order</span>
-                        </button>
-
-                        <button
-                          className="go-dropdown-item"
-                          onClick={() => {
-                            setOpenDropdownId(null);
-                            setPaymentModalTarget(o);
-                          }}
-                        >
-                          <Icon.Wallet />
-                          <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: 6 }}>
-                            <span>Payment</span>
-                            <span style={{
-                              fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 4,
-                              background: o.paymentStatus === 'PAID' ? '#D1FAE5' : o.paymentStatus === 'OVERDUE' ? '#FEE2E2' : '#FEF3C7',
-                              color: o.paymentStatus === 'PAID' ? '#065F46' : o.paymentStatus === 'OVERDUE' ? '#991B1B' : '#92400E',
-                            }}>
-                              {o.paymentStatus === 'PAID' ? 'Paid' : o.paymentStatus === 'OVERDUE' ? 'Overdue' : 'Pending'}
-                            </span>
-                          </span>
-                        </button>
-
-                        {o.orderStatus !== 'CANCELLED' && (
-                          <button
-                            className="go-dropdown-item"
-                            disabled={o.orderStatus === 'COMPLETED'}
-                            onClick={() => {
-                              setOpenDropdownId(null);
-                              if (o.orderStatus !== 'COMPLETED') {
-                                setMarkReturnedTarget(o);
-                              }
-                            }}
-                          >
-                            <Icon.CheckCircle />
-                            <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: 6 }}>
-                              <span>{o.orderStatus === 'COMPLETED' ? 'Generators Returned' : 'Mark as Returned'}</span>
-                              {o.orderStatus === 'COMPLETED' && (
-                                <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 5px', borderRadius: 4, background: '#D1FAE5', color: '#065F46' }}>✓</span>
-                              )}
-                            </span>
-                          </button>
-                        )}
-
-                        <div className="go-dropdown-divider" />
-
-                        <button
-                          className="go-dropdown-item danger"
-                          onClick={() => {
-                            setOpenDropdownId(null);
-                            setDeleteTarget(o);
-                          }}
-                        >
-                          <Icon.Trash />
-                          <span>Delete Order</span>
-                        </button>
-                      </div>
-                    )}
                   </div>
 
 
@@ -1706,46 +1661,13 @@ export default function GeneratorOrderList() {
         </div>
       </div>
 
-      {/* ── Payment Done Modal ───────────────────────── */}
+      {/* ── Record Payment / History Modal ───────────────────────── */}
       {paymentModalTarget && (
-        <div className="go-overlay" onClick={() => setPaymentModalTarget(null)}>
-          <div className="go-modal" onClick={e => e.stopPropagation()}>
-            <div className="go-modal-icon" style={{ background: '#D1FAE5', color: '#065F46' }}>
-              <Icon.Wallet />
-            </div>
-            <h3 className="go-modal-title">Mark Payment as Done</h3>
-            <p className="go-modal-body">
-              Are you sure you want to mark payment for order <strong>{paymentModalTarget.orderNumber || `#${paymentModalTarget.id}`}</strong> ({paymentModalTarget.clientName}) as <strong>PAID</strong>?
-            </p>
-            <div className="go-modal-actions">
-              <button
-                id="btn-cancel-pay"
-                style={{
-                  padding: '9px 18px', borderRadius: 'var(--radius-md)',
-                  border: '1.5px solid var(--color-border)', background: 'var(--color-surface)',
-                  fontSize: 14, fontWeight: 600, color: 'var(--color-text)', cursor: 'pointer'
-                }}
-                onClick={() => setPaymentModalTarget(null)}
-                disabled={markingPaid}
-              >
-                Cancel
-              </button>
-              <button
-                id="btn-confirm-pay"
-                style={{
-                  padding: '9px 18px', borderRadius: 'var(--radius-md)',
-                  border: 'none', background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
-                  fontSize: 14, fontWeight: 600, color: '#fff', cursor: 'pointer',
-                  opacity: markingPaid ? 0.7 : 1
-                }}
-                onClick={handleMarkPaymentDone}
-                disabled={markingPaid}
-              >
-                {markingPaid ? 'Updating...' : 'Yes, Mark as Paid'}
-              </button>
-            </div>
-          </div>
-        </div>
+        <OrderPaymentModal
+          order={paymentModalTarget}
+          onClose={() => setPaymentModalTarget(null)}
+          onSuccess={handlePaymentSuccess}
+        />
       )}
 
       {/* ── Mark as Returned Confirmation Modal ─────────────── */}
@@ -1791,6 +1713,59 @@ export default function GeneratorOrderList() {
                 disabled={markingReturned}
               >
                 {markingReturned ? 'Releasing Stock...' : '✓ Yes, Mark as Returned'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Cancel Order Confirmation Modal ───────────────────── */}
+      {cancelOrderTarget && (
+        <div className="go-overlay" onClick={() => setCancelOrderTarget(null)}>
+          <div className="go-modal" onClick={e => e.stopPropagation()}>
+            <div className="go-modal-icon" style={{ background: '#FFF7ED', color: '#EA580C' }}>
+              <svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="8" y1="8" x2="16" y2="16"/>
+                <line x1="16" y1="8" x2="8" y2="16"/>
+              </svg>
+            </div>
+            <h3 className="go-modal-title">Cancel Order?</h3>
+            <p className="go-modal-body">
+              Are you sure you want to cancel order{' '}
+              <strong>{cancelOrderTarget.orderNumber || `#${cancelOrderTarget.id}`}</strong>{' '}
+              ({cancelOrderTarget.clientName})?
+              <br /><br />
+              The <strong>Booking Status</strong> will change to <span style={{ color: '#B91C1C', fontWeight: 700 }}>Cancelled</span> and the booked generator stock will be{' '}
+              <strong>immediately released</strong> for new bookings.
+              <br />
+              <span style={{ color: '#EA580C', fontWeight: 600 }}>This action cannot be undone.</span>
+            </p>
+            <div className="go-modal-actions">
+              <button
+                id="btn-cancel-cancel-order"
+                style={{
+                  padding: '9px 18px', borderRadius: 'var(--radius-md)',
+                  border: '1.5px solid var(--color-border)', background: 'var(--color-surface)',
+                  fontSize: 14, fontWeight: 600, color: 'var(--color-text)', cursor: 'pointer'
+                }}
+                onClick={() => setCancelOrderTarget(null)}
+                disabled={cancellingOrder}
+              >
+                Keep Order
+              </button>
+              <button
+                id="btn-confirm-cancel-order"
+                style={{
+                  padding: '9px 18px', borderRadius: 'var(--radius-md)',
+                  border: 'none', background: 'linear-gradient(135deg, #EA580C 0%, #C2410C 100%)',
+                  fontSize: 14, fontWeight: 600, color: '#fff', cursor: 'pointer',
+                  opacity: cancellingOrder ? 0.7 : 1
+                }}
+                onClick={handleCancelOrder}
+                disabled={cancellingOrder}
+              >
+                {cancellingOrder ? 'Cancelling...' : '✕ Yes, Cancel Order'}
               </button>
             </div>
           </div>
@@ -1848,6 +1823,161 @@ export default function GeneratorOrderList() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* ── Portaled Action Dropdown (Immune to table overflow / single-row clipping) ── */}
+      {dropdownMenuState && createPortal(
+        <div
+          className={`go-dropdown-menu${dropdownMenuState.isUp ? ' up' : ''}`}
+          style={{
+            position: 'fixed',
+            top: dropdownMenuState.top !== undefined ? `${dropdownMenuState.top}px` : 'auto',
+            bottom: dropdownMenuState.bottom !== undefined ? `${dropdownMenuState.bottom}px` : 'auto',
+            right: `${dropdownMenuState.right}px`,
+            zIndex: 99999,
+          }}
+          onClick={e => e.stopPropagation()}
+        >
+          <button
+            className="go-dropdown-item"
+            id="menu-item-edit-order"
+            disabled={dropdownMenuState.order.orderStatus === 'CANCELLED'}
+            style={dropdownMenuState.order.orderStatus === 'CANCELLED' ? { opacity: 0.45, cursor: 'default' } : {}}
+            onClick={() => {
+              if (dropdownMenuState.order.orderStatus === 'CANCELLED') return;
+              const orderId = dropdownMenuState.order.id;
+              setDropdownMenuState(null);
+              navigate(ROUTES.GENERATOR_ORDER_EDIT.replace(':id', orderId));
+            }}
+          >
+            <Icon.Edit />
+            <span>Edit Order</span>
+          </button>
+
+          <button
+            className="go-dropdown-item"
+            id="menu-item-payment"
+            disabled={dropdownMenuState.order.orderStatus === 'CANCELLED' || dropdownMenuState.order.billingStatus !== 'COMPLETED'}
+            onClick={() => {
+              if (dropdownMenuState.order.orderStatus === 'CANCELLED') return;
+              if (dropdownMenuState.order.billingStatus !== 'COMPLETED') return;
+              const o = dropdownMenuState.order;
+              setDropdownMenuState(null);
+              setPaymentModalTarget(o);
+            }}
+            title={
+              dropdownMenuState.order.orderStatus === 'CANCELLED'
+                ? 'Payment disabled for cancelled orders'
+                : dropdownMenuState.order.billingStatus !== 'COMPLETED'
+                ? 'Billing must be completed before recording payment'
+                : 'Make Payment'
+            }
+            style={
+              dropdownMenuState.order.orderStatus === 'CANCELLED' || dropdownMenuState.order.billingStatus !== 'COMPLETED'
+                ? { opacity: 0.55, cursor: 'not-allowed' }
+                : {}
+            }
+          >
+            <Icon.Wallet />
+            <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: 6 }}>
+              <span>Payment</span>
+              {dropdownMenuState.order.orderStatus === 'CANCELLED' ? (
+                <span style={{
+                  fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 4,
+                  background: '#F1F5F9', color: '#64748B',
+                }}>
+                  Cancelled
+                </span>
+              ) : dropdownMenuState.order.billingStatus !== 'COMPLETED' ? (
+                <span style={{
+                  fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 4,
+                  background: '#FEF3C7', color: '#92400E',
+                }}>
+                  Billing Pending
+                </span>
+              ) : (
+                <span style={{
+                  fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 4,
+                  background: dropdownMenuState.order.paymentStatus === 'PAID' ? '#D1FAE5' : dropdownMenuState.order.paymentStatus === 'OVERDUE' ? '#FEE2E2' : '#FEF3C7',
+                  color: dropdownMenuState.order.paymentStatus === 'PAID' ? '#065F46' : dropdownMenuState.order.paymentStatus === 'OVERDUE' ? '#991B1B' : '#92400E',
+                }}>
+                  {dropdownMenuState.order.paymentStatus === 'PAID' ? 'Paid' : dropdownMenuState.order.paymentStatus === 'OVERDUE' ? 'Overdue' : 'Pending'}
+                </span>
+              )}
+            </span>
+          </button>
+
+          {dropdownMenuState.order.orderStatus !== 'CANCELLED' && (
+            <button
+              className="go-dropdown-item"
+              id="menu-item-mark-returned"
+              disabled={dropdownMenuState.order.orderStatus === 'COMPLETED'}
+              onClick={() => {
+                const o = dropdownMenuState.order;
+                setDropdownMenuState(null);
+                if (o.orderStatus !== 'COMPLETED') {
+                  setMarkReturnedTarget(o);
+                }
+              }}
+            >
+              <Icon.CheckCircle />
+              <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: 6 }}>
+                <span>{dropdownMenuState.order.orderStatus === 'COMPLETED' ? 'Generators Returned' : 'Mark as Returned'}</span>
+                {dropdownMenuState.order.orderStatus === 'COMPLETED' && (
+                  <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 5px', borderRadius: 4, background: '#D1FAE5', color: '#065F46' }}>✓</span>
+                )}
+              </span>
+            </button>
+          )}
+
+          {/* Cancel Order — only visible if not already cancelled/completed */}
+          {dropdownMenuState.order.orderStatus !== 'CANCELLED' && dropdownMenuState.order.orderStatus !== 'COMPLETED' && (
+            <button
+              className="go-dropdown-item cancel-item"
+              id="menu-item-cancel-order"
+              onClick={() => {
+                const o = dropdownMenuState.order;
+                setDropdownMenuState(null);
+                setCancelOrderTarget(o);
+              }}
+            >
+              <svg width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="8" y1="8" x2="16" y2="16"/>
+                <line x1="16" y1="8" x2="8" y2="16"/>
+              </svg>
+              <span>Cancel Order</span>
+            </button>
+          )}
+
+          {/* Cancelled badge — shown when already cancelled */}
+          {dropdownMenuState.order.orderStatus === 'CANCELLED' && (
+            <button className="go-dropdown-item" disabled style={{ opacity: 0.5, cursor: 'default' }}>
+              <svg width="15" height="15" fill="none" stroke="#B91C1C" strokeWidth="2" viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="8" y1="8" x2="16" y2="16"/>
+                <line x1="16" y1="8" x2="8" y2="16"/>
+              </svg>
+              <span style={{ color: '#B91C1C', fontWeight: 700 }}>Order Cancelled</span>
+            </button>
+          )}
+
+          <div className="go-dropdown-divider" />
+
+          <button
+            className="go-dropdown-item danger"
+            id="menu-item-delete-order"
+            onClick={() => {
+              const o = dropdownMenuState.order;
+              setDropdownMenuState(null);
+              setDeleteTarget(o);
+            }}
+          >
+            <Icon.Trash />
+            <span>Delete Order</span>
+          </button>
+        </div>,
+        document.body
       )}
     </>
   );

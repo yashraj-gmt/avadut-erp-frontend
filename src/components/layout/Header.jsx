@@ -27,9 +27,13 @@ export default function Header() {
     setCurrentDate(today.toLocaleDateString('en-US', options));
   }, []);
 
-  // Fetch unread notifications & check overdue
+  // Fetch unread notifications & check overdue (admin/super-admin only)
   const fetchNotifications = async () => {
     if (!user) return;
+    // /api/admin/notifications/** is restricted to ADMIN and SUPER_ADMIN roles
+    const isAdmin = user.role === 'ROLE_ADMIN' || user.role === 'ROLE_SUPER_ADMIN'
+                 || user.role === 'ADMIN'       || user.role === 'SUPER_ADMIN';
+    if (!isAdmin) return;
     try {
       // First check for overdue payments and create notifications
       await notificationService.checkOverdue();

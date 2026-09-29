@@ -13,6 +13,7 @@ import {
 import { generatorOrderService } from '@/services/generatorOrderService';
 import { generatorService } from '@/services/generatorService';
 import { userService } from '@/services/userService';
+import { customerService } from '@/services/customerService';
 import InvoiceShareModal from '@/components/shared/InvoiceShareModal';
 
 /* ─── Icons ─────────────────────────────────────────────────────────────── */
@@ -201,6 +202,42 @@ const STYLES = `
     color:var(--color-text-muted); pointer-events:none;
   }
   .gf2-combo-wrap .gf2-input { padding-right:32px; }
+
+  /* ── Customer search dropdown ── */
+  .gf2-cust-dropdown {
+    position:absolute; top:calc(100% + 4px); left:0; right:0; z-index:2000;
+    background:var(--color-surface); border:1.5px solid var(--color-primary);
+    border-radius:var(--radius-md); box-shadow:0 8px 24px rgba(0,0,0,.15);
+    max-height:220px; overflow-y:auto;
+    animation:gf2-slide-down .15s ease;
+  }
+  .gf2-cust-option {
+    padding:9px 13px; cursor:pointer; font-size:13px; color:var(--color-text);
+    border-bottom:1px solid var(--color-border); transition:background .12s;
+    display:flex; flex-direction:column; gap:2px;
+  }
+  .gf2-cust-option:last-child { border-bottom:none; }
+  .gf2-cust-option:hover, .gf2-cust-option.focused { background:var(--color-primary-50); }
+  .gf2-cust-option .opt-name { font-weight:600; }
+  .gf2-cust-option .opt-sub { font-size:11.5px; color:var(--color-text-muted); }
+  .gf2-cust-badge {
+    display:inline-flex; align-items:center; gap:6px;
+    background:var(--color-primary-50); border:1.5px solid var(--color-primary-100);
+    color:var(--color-primary-dark); border-radius:20px;
+    font-size:12px; font-weight:600; padding:3px 10px; margin-top:4px;
+  }
+  .gf2-cust-badge-x {
+    display:inline-flex; align-items:center; justify-content:center;
+    width:16px; height:16px; border-radius:50%; cursor:pointer;
+    background:var(--color-primary-100); color:var(--color-primary-dark);
+    font-size:11px; font-weight:700; line-height:1; transition:background .15s;
+  }
+  .gf2-cust-badge-x:hover { background:var(--color-danger-light); color:var(--color-danger); }
+  .gf2-locked {
+    background:var(--color-surface-2) !important;
+    cursor:not-allowed !important;
+    opacity:.85 !important;
+  }
 
   /* ── Generator rows ── */
   .gf2-gen-row {
@@ -463,8 +500,10 @@ const parseFunctionDate = str => {
 const INITIAL_ORDER = {
   orderNumber:            '',
   clientName:             '',
+  firmName:               '',
   contactNumber:          '',
   alternateContactNumber: '',
+  telephoneNumber:        '',
   operators:               [],
   operatorMobile:         '',
   cableRequired:          true,
@@ -496,6 +535,13 @@ export default function GeneratorOrderForm() {
   const [showShareModal, setShowShareModal]     = useState(false);
   const isDisabled = isEdit && order.billingStatus === 'COMPLETED';
 
+  // ── Customer Dropdown State ──
+  const [customerOptions, setCustomerOptions]   = useState([]);  // full customer objects
+  const [custSearch, setCustSearch]             = useState('');   // text in the input
+  const [custDropOpen, setCustDropOpen]         = useState(false);
+  const [selectedCustomer, setSelectedCustomer] = useState(null); // customer object or null
+  const custWrapRef = React.useRef(null);
+
   /* ── Disable Browser Inspect (F12, Right-Click, Ctrl+Shift+I, etc.) ── */
   useEffect(() => {
     const handleContextMenu = (e) => e.preventDefault();
@@ -519,6 +565,32 @@ export default function GeneratorOrderForm() {
       document.removeEventListener('keydown', handleKeyDown);
     };
   }, []);
+
+  /* ── Load customers for dropdown ── */
+  useEffect(() => {
+    customerService.getAll({ size: 500, sortBy: 'name', sortDir: 'asc' })
+      .then(res => {
+        const content =
+          res?.data?.content ||
+          res?.content ||
+          (Array.isArray(res?.data) ? res.data : null) ||
+          (Array.isArray(res) ? res : []);
+        setCustomerOptions(Array.isArray(content) ? content : []);
+      })
+      .catch(() => setCustomerOptions([]));
+  }, []);
+
+  /* ── Close customer dropdown on outside click ── */
+  useEffect(() => {
+    if (!custDropOpen) return;
+    const handler = e => {
+      if (custWrapRef.current && !custWrapRef.current.contains(e.target)) {
+        setCustDropOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [custDropOpen]);
 
   /* ── Load operators from Users API ── */
   useEffect(() => {
@@ -567,8 +639,10 @@ export default function GeneratorOrderForm() {
         setOrder({
           orderNumber:            o.orderNumber     || '',
           clientName:             o.clientName      || '',
+          firmName:               o.firmName        || '',
           contactNumber:          o.contactNumber   || '',
           alternateContactNumber: o.alternateMobile || '',
+          telephoneNumber:        o.telephoneNumber || '',
           operators:              o.operatorName
             ? o.operatorName.split(',').map(s => s.trim()).filter(Boolean)
             : (o.operators || []),
@@ -582,6 +656,7 @@ export default function GeneratorOrderForm() {
             ? `${formatToDMY(o.functionDateFrom)} to ${formatToDMY(o.functionDateTo)}`
             : (formatRangeToDMY(o.functionDate) || ''),
           billingStatus:          o.billingStatus   || '',
+          assignedToId:           o.assignedToId    || null,
         });
         if (o.generators?.length) {
           setGens(o.generators.map(item => ({
@@ -606,6 +681,40 @@ export default function GeneratorOrderForm() {
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, [shareOpen]);
+
+  /* ── Customer select handler ── */
+  const handleSelectCustomer = (cust) => {
+    setSelectedCustomer(cust);
+    setCustSearch(cust.name || '');
+    setCustDropOpen(false);
+    setOrder(prev => ({
+      ...prev,
+      clientName:             cust.name             || '',
+      firmName:               cust.firmName         || '',
+      contactNumber:          cust.mobile           || '',
+      alternateContactNumber: cust.alternateMobile  || '',
+      telephoneNumber:        cust.telephoneNumber  || '',
+      siteAddress:            cust.address          || '',
+      siteAddressLink:        cust.addressLocationLink || '',
+      remarks:                cust.remarks          || '',
+    }));
+    // Clear relevant errors
+    setOErr(prev => ({
+      ...prev,
+      clientName: '', contactNumber: '', siteAddress: '',
+    }));
+  };
+
+  const handleClearCustomer = () => {
+    setSelectedCustomer(null);
+    setCustSearch('');
+    setOrder(prev => ({
+      ...prev,
+      clientName: '', firmName: '', contactNumber: '',
+      alternateContactNumber: '', telephoneNumber: '',
+      siteAddress: '', siteAddressLink: '', remarks: '',
+    }));
+  };
 
   /* ── Field change handlers ── */
   const handleOrderChange = (field, value) => {
@@ -704,12 +813,20 @@ export default function GeneratorOrderForm() {
 
     const { from: functionDateFrom, to: functionDateTo } = parseFunctionDate(order.functionDate);
 
+    const selectedOpObj = operatorOptions.find(op => order.operators && order.operators.includes(op.name));
+    const assignedToId = (selectedOpObj && typeof selectedOpObj.id === 'number')
+      ? selectedOpObj.id
+      : (order.assignedToId || null);
+
     const payload = {
       clientName:      order.clientName.trim(),
+      firmName:        order.firmName?.trim()        || null,
       contactNumber:   order.contactNumber.trim(),
       alternateMobile: order.alternateContactNumber.trim() || null,
+      telephoneNumber: order.telephoneNumber?.trim()  || null,
       operators:       order.operators,
       operatorMobile:  order.operatorMobile.trim() || null,
+      assignedToId,
       cableRequired:   order.cableRequired,
       dieselType:      order.dieselType,
       siteAddress:     order.siteAddress.trim(),
@@ -729,6 +846,23 @@ export default function GeneratorOrderForm() {
         await generatorOrderService.update(id, payload);
         setToast({ title: 'Order Updated!', msg: `Order ${id} updated successfully.` });
       } else {
+        // Auto-create customer if no existing customer was selected
+        if (!selectedCustomer && order.clientName.trim()) {
+          try {
+            await customerService.create({
+              name:                order.clientName.trim(),
+              firmName:            order.firmName?.trim()               || undefined,
+              mobile:              order.contactNumber.trim(),
+              alternateMobile:     order.alternateContactNumber.trim()  || undefined,
+              telephoneNumber:     order.telephoneNumber?.trim()        || undefined,
+              address:             order.siteAddress.trim()             || undefined,
+              addressLocationLink: order.siteAddressLink.trim()         || undefined,
+              remarks:             order.remarks.trim()                 || undefined,
+            });
+          } catch (_) {
+            // Silently ignore if customer creation fails (order still saves)
+          }
+        }
         await generatorOrderService.create(payload);
         setToast({ title: 'Order Saved!', msg: 'New generator order created successfully.' });
       }
@@ -891,6 +1025,8 @@ export default function GeneratorOrderForm() {
     setGens(INITIAL_GENERATORS());
     setOErr({});
     setGErr([]);
+    setSelectedCustomer(null);
+    setCustSearch('');
   };
 
   /* ── Render ── */
@@ -948,19 +1084,91 @@ export default function GeneratorOrderForm() {
         {/* ── SECTION 1: ORDER DETAILS ── */}
         <CardSection icon={Icon.User} title="Order Details">
 
-          {/* Row 1: Client Name | Order Number | Function Date */}
-          <div className="gf2-grid-3" style={{ marginBottom: 20 }}>
-            <div className="gf2-field">
+          {/* Row 1: Client Name | Firm/Company Name | Order Number | Function Date */}
+          <div className="gf2-grid-2" style={{ marginBottom: 20 }}>
+
+            {/* Client Name — searchable customer dropdown */}
+            <div className="gf2-field" style={{ position: 'relative' }} ref={custWrapRef}>
               <Label required>Client Name</Label>
-              <input
-                id="inp-client-name"
-                className={`gf2-input${orderErrors.clientName ? ' err' : ''}`}
-                placeholder="e.g. Rajesh Construction Co."
-                value={order.clientName}
-                onChange={e => handleOrderChange('clientName', e.target.value)}
-                disabled={isDisabled}
-              />
+              {!selectedCustomer ? (
+                <div className="gf2-combo-wrap">
+                  <input
+                    id="inp-client-name"
+                    className={`gf2-input${orderErrors.clientName ? ' err' : ''}`}
+                    placeholder="Search or type client name…"
+                    value={custSearch}
+                    autoComplete="off"
+                    disabled={isDisabled}
+                    onChange={e => {
+                      setCustSearch(e.target.value);
+                      handleOrderChange('clientName', e.target.value);
+                      setCustDropOpen(true);
+                    }}
+                    onFocus={() => setCustDropOpen(true)}
+                  />
+                  <span className="gf2-combo-icon"><Icon.ChevronDown /></span>
+                  {custDropOpen && (
+                    <div className="gf2-cust-dropdown">
+                      {(() => {
+                        const q = custSearch.trim().toLowerCase();
+                        const filtered = customerOptions.filter(c =>
+                          !q ||
+                          (c.name || '').toLowerCase().includes(q) ||
+                          (c.firmName || '').toLowerCase().includes(q) ||
+                          (c.mobile || '').includes(q)
+                        ).slice(0, 50);
+                        if (filtered.length === 0) {
+                          return (
+                            <div style={{ padding: '10px 13px', fontSize: 13, color: 'var(--color-text-muted)' }}>
+                              {custSearch.trim() ? 'No existing customer found — will be created as new.' : 'Start typing to search customers…'}
+                            </div>
+                          );
+                        }
+                        return filtered.map(c => (
+                          <div
+                            key={c.id}
+                            className="gf2-cust-option"
+                            onMouseDown={e => { e.preventDefault(); handleSelectCustomer(c); }}
+                          >
+                            <span className="opt-name">{c.name}</span>
+                            <span className="opt-sub">
+                              {[c.firmName, c.mobile].filter(Boolean).join(' · ')}
+                            </span>
+                          </div>
+                        ));
+                      })()}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div>
+                  <input
+                    className="gf2-input gf2-locked"
+                    value={order.clientName}
+                    readOnly disabled
+                  />
+                  <div className="gf2-cust-badge" style={{ marginTop: 6 }}>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><polyline points="20 6 9 17 4 12"/></svg>
+                    Existing customer linked
+                    <span className="gf2-cust-badge-x" onClick={!isDisabled ? handleClearCustomer : undefined} title="Unlink customer">✕</span>
+                  </div>
+                </div>
+              )}
               <ErrMsg msg={orderErrors.clientName} />
+            </div>
+
+            {/* Firm / Company Name */}
+            <div className="gf2-field">
+              <Label>Firm / Company Name</Label>
+              <input
+                id="inp-firm-name"
+                className={`gf2-input${selectedCustomer ? ' gf2-locked' : ''}`}
+                placeholder="e.g. Rajesh Enterprises Pvt. Ltd."
+                value={order.firmName}
+                onChange={e => !selectedCustomer && handleOrderChange('firmName', e.target.value)}
+                disabled={isDisabled || !!selectedCustomer}
+                readOnly={!!selectedCustomer}
+              />
             </div>
 
             <div className="gf2-field">
@@ -988,38 +1196,54 @@ export default function GeneratorOrderForm() {
             </div>
           </div>
 
-          {/* Row 2: Contact | Alternate Contact | Operator */}
+          {/* Row 2: Contact | Alternate Contact | Telephone | Operator */}
           <div className="gf2-grid-3" style={{ marginBottom: 20 }}>
             <div className="gf2-field">
-              <Label required>Contact Number</Label>
+              <Label required>Mobile Number</Label>
               <input
                 id="inp-contact"
                 type="tel"
                 maxLength={10}
                 inputMode="numeric"
-                className={`gf2-input${orderErrors.contactNumber ? ' err' : ''}`}
+                className={`gf2-input${orderErrors.contactNumber ? ' err' : ''}${selectedCustomer ? ' gf2-locked' : ''}`}
                 placeholder="e.g. 9876543210"
                 value={order.contactNumber}
-                onChange={e => handlePhoneChange('contactNumber', e.target.value)}
-                disabled={isDisabled}
+                onChange={e => !selectedCustomer && handlePhoneChange('contactNumber', e.target.value)}
+                disabled={isDisabled || !!selectedCustomer}
+                readOnly={!!selectedCustomer}
               />
               <ErrMsg msg={orderErrors.contactNumber} />
             </div>
 
             <div className="gf2-field">
-              <Label>Alternate Contact Number</Label>
+              <Label>Alternate Number</Label>
               <input
                 id="inp-alt-contact"
                 type="tel"
                 maxLength={10}
                 inputMode="numeric"
-                className={`gf2-input${orderErrors.alternateContactNumber ? ' err' : ''}`}
+                className={`gf2-input${orderErrors.alternateContactNumber ? ' err' : ''}${selectedCustomer ? ' gf2-locked' : ''}`}
                 placeholder="e.g. 9876543210"
                 value={order.alternateContactNumber}
-                onChange={e => handlePhoneChange('alternateContactNumber', e.target.value)}
-                disabled={isDisabled}
+                onChange={e => !selectedCustomer && handlePhoneChange('alternateContactNumber', e.target.value)}
+                disabled={isDisabled || !!selectedCustomer}
+                readOnly={!!selectedCustomer}
               />
               <ErrMsg msg={orderErrors.alternateContactNumber} />
+            </div>
+
+            <div className="gf2-field">
+              <Label>Telephone Number</Label>
+              <input
+                id="inp-telephone"
+                type="tel"
+                className={`gf2-input${selectedCustomer ? ' gf2-locked' : ''}`}
+                placeholder="e.g. 020-27654321"
+                value={order.telephoneNumber}
+                onChange={e => !selectedCustomer && handleOrderChange('telephoneNumber', e.target.value)}
+                disabled={isDisabled || !!selectedCustomer}
+                readOnly={!!selectedCustomer}
+              />
             </div>
 
             <div className="gf2-field" style={{ gridColumn: '1 / -1' }}>
@@ -1169,12 +1393,13 @@ export default function GeneratorOrderForm() {
               <Label required>Site Address</Label>
               <textarea
                 id="inp-site-address"
-                className={`gf2-textarea${orderErrors.siteAddress ? ' err' : ''}`}
+                className={`gf2-textarea${orderErrors.siteAddress ? ' err' : ''}${selectedCustomer ? ' gf2-locked' : ''}`}
                 placeholder="Enter the full site address…"
                 value={order.siteAddress}
-                onChange={e => handleOrderChange('siteAddress', e.target.value)}
+                onChange={e => !selectedCustomer && handleOrderChange('siteAddress', e.target.value)}
                 rows={3}
-                disabled={isDisabled}
+                disabled={isDisabled || !!selectedCustomer}
+                readOnly={!!selectedCustomer}
               />
               <ErrMsg msg={orderErrors.siteAddress} />
             </div>
@@ -1184,11 +1409,12 @@ export default function GeneratorOrderForm() {
               <input
                 id="inp-site-link"
                 type="url"
-                className="gf2-input"
+                className={`gf2-input${selectedCustomer ? ' gf2-locked' : ''}`}
                 placeholder="e.g. https://maps.google.com/..."
                 value={order.siteAddressLink}
-                onChange={e => handleOrderChange('siteAddressLink', e.target.value)}
-                disabled={isDisabled}
+                onChange={e => !selectedCustomer && handleOrderChange('siteAddressLink', e.target.value)}
+                disabled={isDisabled || !!selectedCustomer}
+                readOnly={!!selectedCustomer}
               />
             </div>
 
@@ -1196,14 +1422,31 @@ export default function GeneratorOrderForm() {
               <Label>Remarks</Label>
               <textarea
                 id="inp-remarks"
-                className="gf2-textarea"
+                className={`gf2-textarea${selectedCustomer ? ' gf2-locked' : ''}`}
                 placeholder="Any additional notes or special instructions…"
                 value={order.remarks}
-                onChange={e => handleOrderChange('remarks', e.target.value)}
+                onChange={e => !selectedCustomer && handleOrderChange('remarks', e.target.value)}
                 rows={4}
-                disabled={isDisabled}
+                disabled={isDisabled || !!selectedCustomer}
+                readOnly={!!selectedCustomer}
               />
             </div>
+
+            {selectedCustomer && (
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 8,
+                background: 'var(--color-primary-50)', border: '1.5px solid var(--color-primary-100)',
+                borderRadius: 'var(--radius-md)', padding: '10px 14px', fontSize: 13,
+                color: 'var(--color-primary-dark)', fontWeight: 500,
+              }}>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <circle cx="12" cy="12" r="10"/>
+                  <line x1="12" y1="8" x2="12" y2="12"/>
+                  <line x1="12" y1="16" x2="12.01" y2="16"/>
+                </svg>
+                Fields are pre-filled from the selected customer and are read-only. Click ✕ on the badge above to enter different details.
+              </div>
+            )}
           </div>
         </CardSection>
 

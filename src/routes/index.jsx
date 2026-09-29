@@ -35,9 +35,13 @@ const GeneratorBillingHistory = lazy(() => import('@/pages/generators/billing/Ge
 // ── Roles ─────────────────────────────────────────────────────────────────
 const RolesPermissions = lazy(() => import('@/pages/roles/RolesPermissions'))
 
-// ── Staff Portal ──────────────────────────────────────────────────────────
+// ── Staff Portal (Staff role) ─────────────────────────────────────────────
 const StaffOrderList   = lazy(() => import('@/pages/staff/StaffOrderList'))
 const StaffOrderDetail = lazy(() => import('@/pages/staff/StaffOrderDetail'))
+
+// ── Staff Management (Super Admin & Admin) ────────────────────────────────
+const StaffManagementList   = lazy(() => import('@/pages/staff-management/StaffList'))
+const StaffManagementDetail = lazy(() => import('@/pages/staff-management/StaffDetail'))
 
 // ── Misc ──────────────────────────────────────────────────────────────────
 const ProfilePage  = lazy(() => import('@/pages/profile/ProfilePage'))
@@ -121,6 +125,10 @@ export const router = createBrowserRouter([
       // Staff Portal
       rr(ROUTES.STAFF_ORDERS,       StaffOrderList),
       rr(ROUTES.STAFF_ORDER_DETAIL, StaffOrderDetail),
+
+      // Staff Management (Super Admin & Admin)
+      rr(ROUTES.STAFF_MANAGEMENT,   StaffManagementList),
+      rr(ROUTES.STAFF_DETAIL,       StaffManagementDetail),
 
       // Customer Management
       rr(ROUTES.CUSTOMERS,         CustomerList),

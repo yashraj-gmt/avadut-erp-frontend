@@ -17,13 +17,17 @@ const ICONS = {
 export function ToastProvider({ children }) {
   const [toasts, setToasts] = useState([])
 
-  const toast = useCallback(({ type = 'info', title, message, duration = 3500 }) => {
+  const toast = useCallback(({ type, variant, title, message, description, duration = 4000 }) => {
     const id = ++toastId
-    setToasts((prev) => [...prev, { id, type, title, message }])
+    const toastType = type || variant || 'info'
+    const toastMessage = message || description || ''
+    setToasts((prev) => [...prev, { id, type: toastType, title, message: toastMessage }])
     setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), duration)
   }, [])
 
   const dismiss = (id) => setToasts((prev) => prev.filter((t) => t.id !== id))
+
+  toast.toast = toast
 
   return (
     <ToastContext.Provider value={{ toast }}>
@@ -40,7 +44,7 @@ export function ToastProvider({ children }) {
             )}
             style={{ borderColor: 'var(--color-border)' }}
           >
-            <div className="shrink-0 mt-0.5">{ICONS[t.type]}</div>
+            <div className="shrink-0 mt-0.5">{ICONS[t.type] || ICONS.info}</div>
             <div className="flex-1 min-w-0">
               {t.title   && <p className="text-sm font-semibold text-slate-800">{t.title}</p>}
               {t.message && <p className="text-sm text-slate-500 mt-0.5">{t.message}</p>}
@@ -58,5 +62,7 @@ export function ToastProvider({ children }) {
 export function useToast() {
   const ctx = useContext(ToastContext)
   if (!ctx) throw new Error('useToast must be used inside <ToastProvider>')
-  return ctx.toast
+  const fn = ctx.toast
+  if (fn) fn.toast = fn
+  return fn
 }

@@ -42,4 +42,8 @@ export const ROUTES = {
   CUSTOMER_EDIT:          '/customers/:id/edit',
   CUSTOMER_PROFILE:       '/customers/details',
   CUSTOMER_PENDING:       '/customers/pending-payments',
+
+  // ── Staff Management (Admin / Super Admin) ──────────────────────────────
+  STAFF_MANAGEMENT:       '/super-admin/staff',
+  STAFF_DETAIL:           '/super-admin/staff/:id',
 };

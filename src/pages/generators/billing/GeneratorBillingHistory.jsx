@@ -523,16 +523,6 @@ export default function GeneratorBillingHistory() {
   }, [allOrders, search, filterGenerator, filterDateFrom, filterDateTo,
       filterDiesel, filterCable, filterOperator, filterAmtMin, filterAmtMax, filterPaymentStatus]);
 
-  const stats = useMemo(() => {
-    const total = filtered.reduce((s, o) => s + (parseFloat(o.finalAmount) || 0), 0);
-    return {
-      count: filtered.length,
-      total,
-      withDiesel: filtered.filter(o => o.dieselType !== 'PARTY').length,
-      withCable:  filtered.filter(o => o.cableRequired).length,
-    };
-  }, [filtered]);
-
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
   const paginated  = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
 
@@ -676,29 +666,6 @@ export default function GeneratorBillingHistory() {
           </div>
         </div>
 
-        {/* Stats Bar */}
-        <div className="bh-stats-bar">
-          <div className="bh-stat-card">
-            <div className="bh-stat-label">Bills Shown</div>
-            <div className="bh-stat-value">{stats.count}</div>
-            <div className="bh-stat-sub">Completed invoices</div>
-          </div>
-          <div className="bh-stat-card">
-            <div className="bh-stat-label">Total Revenue</div>
-            <div className="bh-stat-value" style={{ fontSize: 17 }}>{fmt(stats.total)}</div>
-            <div className="bh-stat-sub">Net after discount</div>
-          </div>
-          <div className="bh-stat-card">
-            <div className="bh-stat-label">With Diesel</div>
-            <div className="bh-stat-value">{stats.withDiesel}</div>
-            <div className="bh-stat-sub">Owner diesel orders</div>
-          </div>
-          <div className="bh-stat-card">
-            <div className="bh-stat-label">With Cable</div>
-            <div className="bh-stat-value">{stats.withCable}</div>
-            <div className="bh-stat-sub">Cable charges applied</div>
-          </div>
-        </div>
 
         {/* Table */}
         {loading ? (

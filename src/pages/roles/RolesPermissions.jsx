@@ -1,13 +1,9 @@
-// src/pages/roles/RolesPermissions.jsx
 import { useState, useMemo, useEffect, useCallback } from 'react'
 import {
   Shield, Users, UserPlus, Edit2, Trash2,
   CheckCircle, XCircle, X,
-  ShieldCheck, Crown, UserCog
+  Crown, UserCog
 } from 'lucide-react'
-import { ROLES } from '@/constants/roles'
-import { ROUTE_PERMISSIONS } from '@/utils/permissions'
-import { ROUTES } from '@/constants/routes'
 import {
   Button, IconButton, Badge, DataTable,
   StatCard, SearchInput, PageHeader, Input
@@ -17,40 +13,24 @@ import { useToast } from '@/components/shared/toast/ToastProvider'
 import { userService } from '@/services/userService'
 import { useAuthStore } from '@/store/authStore'
 
-const ROUTE_LABELS = {
-  [ROUTES.DASHBOARD]:      'Dashboard',
-  [ROUTES.PRODUCTS]:       'Products',
-  [ROUTES.PRODUCT_ADD]:    'Add Product',
-  [ROUTES.PRODUCT_EDIT]:   'Edit Product',
-  [ROUTES.PRODUCT_DETAIL]: 'Product Detail',
-  [ROUTES.GENERATORS]:     'Generators',
-  [ROUTES.GENERATOR_ADD]:  'Add Generator',
-  [ROUTES.GENERATOR_EDIT]: 'Edit Generator',
-  [ROUTES.GENERATOR_DETAIL]: 'Generator Detail',
-  [ROUTES.ROLES]:          'Roles & Permissions',
-  [ROUTES.PROFILE]:        'Profile',
-  [ROUTES.STAFF_ORDERS]:       'My Orders (Staff)',
-  [ROUTES.STAFF_ORDER_DETAIL]: 'Order Detail (Staff)',
-}
-
-// ── Role config — covers all possible UserRole enum values ───────────────────
+// ── Role config — Super Admin & Staff only ───────────────────────────────────
 const ROLE_CONFIG = {
   SUPER_ADMIN: {
     label: 'Super Admin',
     icon:  <Crown size={12} />,
   },
-  ADMIN: {
-    label: 'Admin',
-    icon:  <ShieldCheck size={12} />,
-  },
   STAFF: {
     label: 'Staff',
     icon:  <Users size={12} />,
   },
+  ADMIN: {
+    label: 'Admin',
+    icon:  <Shield size={12} />,
+  },
 }
 
-// ADMIN, SUPER_ADMIN, and STAFF can all be created through the user form
-const ASSIGNABLE_ROLES = ['ADMIN', 'SUPER_ADMIN', 'STAFF']
+// Only SUPER_ADMIN and STAFF can be created/assigned
+const ASSIGNABLE_ROLES = ['SUPER_ADMIN', 'STAFF']
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const formatDate = (iso) => {
@@ -83,7 +63,7 @@ function Avatar({ name, id }) {
   )
 }
 
-const EMPTY_FORM = { name:'', email:'', mobile:'', password:'', role:'ADMIN', isActive:true }
+const EMPTY_FORM = { name:'', email:'', mobile:'', password:'', role:'STAFF', isActive:true }
 
 // ── User Add/Edit Modal ───────────────────────────────────────────────────────
 function UserModal({ isOpen, onClose, onSubmit, editUser, loading }) {
@@ -238,7 +218,7 @@ function UserModal({ isOpen, onClose, onSubmit, editUser, loading }) {
             <span className="text-sm font-medium" style={{ color:'var(--color-text)' }}>
               Role <span style={{ color:'var(--color-danger)' }}>*</span>
             </span>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 gap-3">
               {ASSIGNABLE_ROLES.map((r) => {
                 const cfg      = ROLE_CONFIG[r]
                 const selected = form.role === r
@@ -296,7 +276,7 @@ function UserModal({ isOpen, onClose, onSubmit, editUser, loading }) {
 
 // ── Role Change Modal ─────────────────────────────────────────────────────────
 function RoleChangeModal({ isOpen, user, onClose, onConfirm, loading }) {
-  const [selectedRole, setSelectedRole] = useState(user?.role ?? 'ADMIN')
+  const [selectedRole, setSelectedRole] = useState(user?.role ?? 'STAFF')
 
   useEffect(() => {
     if (isOpen && user) setSelectedRole(user.role)
@@ -368,7 +348,7 @@ function RoleChangeModal({ isOpen, user, onClose, onConfirm, loading }) {
                     display:'flex', alignItems:'center', justifyContent:'center',
                     color: selected ? 'var(--color-primary)' : 'var(--color-text-muted)',
                   }}>
-                    {r === 'SUPER_ADMIN' ? <Crown size={16} /> : <ShieldCheck size={16} />}
+                    {r === 'SUPER_ADMIN' ? <Crown size={16} /> : <Users size={16} />}
                   </span>
                   {cfg.label}
                 </button>
@@ -386,84 +366,6 @@ function RoleChangeModal({ isOpen, user, onClose, onConfirm, loading }) {
             Apply Role
           </Button>
         </div>
-      </div>
-    </div>
-  )
-}
-
-// ── Permissions Matrix ────────────────────────────────────────────────────────
-function PermissionsMatrix() {
-  const roleList  = Object.values(ROLES)
-  const routeList = Object.keys(ROUTE_PERMISSIONS)
-
-  return (
-    <div>
-      {/* Legend */}
-      <div className="flex items-center gap-4 mb-4">
-        {[
-          { label:'Has Access', bg:'var(--color-success-light)', color:'var(--color-success)', mark:'✓' },
-          { label:'No Access',  bg:'var(--color-surface-2)',     color:'var(--color-text-subtle)', mark:'—' },
-        ].map(({ label, bg, color, mark }) => (
-          <div key={label} className="flex items-center gap-1.5 text-xs" style={{ color:'var(--color-text-muted)' }}>
-            <span className="inline-flex items-center justify-center w-5 h-5 rounded-full font-bold"
-              style={{ background:bg, color }}>{mark}</span>
-            {label}
-          </div>
-        ))}
-      </div>
-
-      <div className="rounded-xl overflow-auto shadow-sm"
-        style={{ border:'1px solid var(--color-border)', background:'var(--color-surface)' }}>
-        <table className="w-full text-sm min-w-[480px]">
-          <thead style={{ background:'var(--color-surface-2)' }}>
-            <tr>
-              <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-widest"
-                style={{ color:'var(--color-text-muted)', borderBottom:'1px solid var(--color-border)' }}>
-                Route / Module
-              </th>
-              {roleList.map((role) => {
-                const cfg = ROLE_CONFIG[role] ?? { label: role, icon: <Shield size={12} /> }
-                return (
-                  <th key={role}
-                    className="text-center px-4 py-3 text-xs font-semibold uppercase tracking-widest"
-                    style={{ color:'var(--color-text-muted)', borderBottom:'1px solid var(--color-border)' }}>
-                    <div className="flex flex-col items-center gap-1">
-                      {cfg.icon}
-                      {cfg.label}
-                    </div>
-                  </th>
-                )
-              })}
-            </tr>
-          </thead>
-          <tbody>
-            {routeList.map((route, idx) => (
-              <tr key={route}
-                style={{
-                  borderTop:'1px solid var(--color-border)',
-                  background: idx % 2 === 1 ? 'var(--color-surface-2)' : 'var(--color-surface)',
-                }}>
-                <td className="px-4 py-3 font-medium text-sm" style={{ color:'var(--color-text)' }}>
-                  {ROUTE_LABELS[route] ?? route}
-                </td>
-                {roleList.map((role) => {
-                  const allowed = ROUTE_PERMISSIONS[route]?.includes(role)
-                  return (
-                    <td key={role} className="px-4 py-3 text-center">
-                      {allowed ? (
-                        <span className="inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold"
-                          style={{ background:'var(--color-success-light)', color:'var(--color-success)' }}>✓</span>
-                      ) : (
-                        <span className="inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold"
-                          style={{ background:'var(--color-surface-2)', color:'var(--color-text-subtle)' }}>—</span>
-                      )}
-                    </td>
-                  )
-                })}
-              </tr>
-            ))}
-          </tbody>
-        </table>
       </div>
     </div>
   )
@@ -508,7 +410,7 @@ function UserManagement() {
   // ── Stats ─────────────────────────────────────────────────────────────
   const total       = users.length
   const superAdmins = users.filter((u) => u?.role === 'SUPER_ADMIN').length
-  const admins      = users.filter((u) => u?.role === 'ADMIN').length
+  const staffCount  = users.filter((u) => u?.role === 'STAFF').length
   const active      = users.filter((u) => u?.isActive).length
 
   const filtered = useMemo(() => {
@@ -654,7 +556,7 @@ function UserManagement() {
               cursor: isSuperAdmin ? 'pointer' : 'default',
             }}
           >
-            {isSA ? <Crown size={11} /> : <ShieldCheck size={11} />}
+            {isSA ? <Crown size={11} /> : <Users size={11} />}
             {ROLE_CONFIG[val]?.label ?? val}
             {isSuperAdmin && <Edit2 size={10} className="ml-0.5 opacity-60" />}
           </button>
@@ -712,7 +614,7 @@ function UserManagement() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <StatCard value={loading ? '—' : total}       label="Total Users"  accent="primary" icon={<Users size={20} />} />
         <StatCard value={loading ? '—' : superAdmins} label="Super Admins" accent="danger"  icon={<Crown size={20} />} />
-        <StatCard value={loading ? '—' : admins}      label="Admins"       accent="info"    icon={<ShieldCheck size={20} />} />
+        <StatCard value={loading ? '—' : staffCount}  label="Staff"        accent="info"    icon={<Users size={20} />} />
         <StatCard value={loading ? '—' : active}      label="Active Users" accent="success" icon={<CheckCircle size={20} />} />
       </div>
 
@@ -730,7 +632,7 @@ function UserManagement() {
             {[
               { key:'ALL',         label:'All'         },
               { key:'SUPER_ADMIN', label:'Super Admin' },
-              { key:'ADMIN',       label:'Admin'       },
+              { key:'STAFF',       label:'Staff'       },
             ].map((tab) => (
               <button key={tab.key} onClick={() => setFilterRole(tab.key)}
                 className="px-3 py-2 text-xs font-semibold transition-all"
@@ -799,44 +701,16 @@ function UserManagement() {
 }
 
 // ── Page ──────────────────────────────────────────────────────────────────────
-const TABS = [
-  { key:'users',       label:'User Management',   icon:<Users size={15} />  },
-  { key:'permissions', label:'Permissions Matrix', icon:<Shield size={15} /> },
-]
-
 export default function RolesPermissions() {
-  const [activeTab, setActiveTab] = useState('users')
-
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
         title="Roles & Permissions"
-        subtitle="Manage system users and configure access control."
+        subtitle="Manage system users and configure roles."
         breadcrumbs={[{ label:'Dashboard', href:'/dashboard' }, { label:'Roles & Permissions' }]}
       />
 
-      {/* Tab bar */}
-      <div className="flex items-center gap-1 p-1 rounded-xl self-start"
-        style={{ background:'var(--color-surface-2)', border:'1px solid var(--color-border)' }}>
-        {TABS.map((tab) => {
-          const active = activeTab === tab.key
-          return (
-            <button key={tab.key} onClick={() => setActiveTab(tab.key)}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all"
-              style={{
-                background:  active ? 'var(--color-surface)' : 'transparent',
-                color:       active ? 'var(--color-text)'    : 'var(--color-text-muted)',
-                boxShadow:   active ? 'var(--shadow-sm)'     : 'none',
-                border:      active ? '1px solid var(--color-border)' : '1px solid transparent',
-              }}>
-              {tab.icon}
-              {tab.label}
-            </button>
-          )
-        })}
-      </div>
-
-      {activeTab === 'users' ? <UserManagement /> : <PermissionsMatrix />}
+      <UserManagement />
     </div>
   )
 }

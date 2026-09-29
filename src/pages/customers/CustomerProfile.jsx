@@ -6,6 +6,7 @@ import {
   ShoppingCart, FileText, CreditCard, TrendingUp, Clock, ChevronDown,
   Pencil, Trash2, RefreshCw, Building2, Link2, Plus,
   AlertTriangle, Eye, ArrowUpRight, History, X, IndianRupee, Layers,
+  CheckCircle2,
 } from 'lucide-react';
 import { customerService } from '@/services/customerService';
 import { generatorOrderService } from '@/services/generatorOrderService';
@@ -53,7 +54,7 @@ function RecordPaymentModal({ order, onClose, onSuccess }) {
   const [loading, setLoading]             = useState(false);
   const [error, setError]                 = useState('');
 
-  const totalAmount   = Number(order.finalAmount) || 0;
+  const totalAmount   = Number(order.finalAmount) || Number(order.subtotal) || 0;
   const currentPaid   = Number(order.paidAmount) || 0;
   const currentPending = Math.max(0, totalAmount - currentPaid);
 
@@ -64,6 +65,10 @@ function RecordPaymentModal({ order, onClose, onSuccess }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (order.billingStatus !== 'COMPLETED') {
+      setError('Payment can only be recorded after billing status is completed.');
+      return;
+    }
     if (!enteredAmt || enteredAmt <= 0) {
       setError('Please enter a valid positive payment amount.');
       return;
@@ -135,11 +140,27 @@ function RecordPaymentModal({ order, onClose, onSuccess }) {
             </div>
           )}
 
+          {order.billingStatus !== 'COMPLETED' && (
+            <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 text-xs text-amber-700 dark:text-amber-400 flex items-start gap-2">
+              <AlertTriangle size={15} className="shrink-0 mt-0.5" />
+              <span>Billing is not yet completed for this order. Payments can only be recorded after billing status is completed.</span>
+            </div>
+          )}
+
           <div>
             <div className="flex items-center justify-between mb-1.5">
               <label className="text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">
                 Amount Paid (₹) <span className="text-rose-500">*</span>
               </label>
+              {currentPending > 0 && order.billingStatus === 'COMPLETED' && (
+                <button
+                  type="button"
+                  onClick={() => setAmount(String(currentPending))}
+                  className="text-[11px] font-semibold text-[var(--color-primary)] hover:underline"
+                >
+                  Pay Full Balance ({inr(currentPending)})
+                </button>
+              )}
             </div>
             <div className="relative">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 font-bold text-sm text-[var(--color-text-subtle)]">₹</span>
@@ -149,10 +170,11 @@ function RecordPaymentModal({ order, onClose, onSuccess }) {
                 min="0.01"
                 max={currentPending}
                 required
+                disabled={order.billingStatus !== 'COMPLETED'}
                 value={amount}
                 onChange={e => setAmount(e.target.value)}
                 placeholder="0.00"
-                className="w-full pl-8 pr-3 py-2 text-base font-bold rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
+                className="w-full pl-8 pr-3 py-2 text-base font-bold rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] disabled:opacity-50 disabled:cursor-not-allowed"
               />
             </div>
             {enteredAmt > 0 && (
@@ -172,8 +194,9 @@ function RecordPaymentModal({ order, onClose, onSuccess }) {
               </label>
               <select
                 value={paymentMode}
+                disabled={order.billingStatus !== 'COMPLETED'}
                 onChange={e => setPaymentMode(e.target.value)}
-                className="w-full px-3 py-2 text-sm rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
+                className="w-full px-3 py-2 text-sm rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <option value="CASH">Cash</option>
                 <option value="UPI">UPI / GPay / PhonePe</option>
@@ -190,9 +213,10 @@ function RecordPaymentModal({ order, onClose, onSuccess }) {
               <input
                 type="date"
                 required
+                disabled={order.billingStatus !== 'COMPLETED'}
                 value={paymentDate}
                 onChange={e => setPaymentDate(e.target.value)}
-                className="w-full px-3 py-2 text-sm rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
+                className="w-full px-3 py-2 text-sm rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] disabled:opacity-50 disabled:cursor-not-allowed"
               />
             </div>
           </div>
@@ -204,9 +228,10 @@ function RecordPaymentModal({ order, onClose, onSuccess }) {
             <input
               type="text"
               placeholder="e.g. UPI Ref #, Cheque #, NEFT UTR"
+              disabled={order.billingStatus !== 'COMPLETED'}
               value={reference}
               onChange={e => setReference(e.target.value)}
-              className="w-full px-3 py-2 text-sm rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
+              className="w-full px-3 py-2 text-sm rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] disabled:opacity-50 disabled:cursor-not-allowed"
               maxLength={100}
             />
           </div>
@@ -217,17 +242,24 @@ function RecordPaymentModal({ order, onClose, onSuccess }) {
             </label>
             <textarea
               placeholder="e.g. Received advance on booking / party settled balance"
+              disabled={order.billingStatus !== 'COMPLETED'}
               value={notes}
               onChange={e => setNotes(e.target.value)}
               rows={2}
-              className="w-full px-3 py-2 text-sm rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] resize-none"
+              className="w-full px-3 py-2 text-sm rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] resize-none disabled:opacity-50 disabled:cursor-not-allowed"
             />
           </div>
 
           {/* Actions */}
           <div className="flex gap-2.5 pt-2 justify-end">
             <Button variant="ghost" onClick={onClose} disabled={loading}>Cancel</Button>
-            <Button variant="primary" type="submit" loading={loading} icon={<CheckCircle2 size={16} />}>
+            <Button
+              variant="primary"
+              type="submit"
+              loading={loading}
+              disabled={loading || order.billingStatus !== 'COMPLETED'}
+              icon={<CheckCircle2 size={16} />}
+            >
               Save Payment
             </Button>
           </div>
@@ -268,7 +300,7 @@ function PaymentHistoryModal({ order, onClose }) {
           ) : (
             <div className="space-y-3">
               {payments.map((p, idx) => (
-                <div key={p.id || idx} className="p-3.5 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div key={p.id || idx} className="p-3.5 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] flex items-center justify-between gap-3">
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
                       <span className="font-bold text-sm text-emerald-600 dark:text-emerald-400">+{inr(p.amount)}</span>
@@ -281,12 +313,6 @@ function PaymentHistoryModal({ order, onClose }) {
                     {p.notes && (
                       <p className="text-xs text-[var(--color-text-muted)] italic">"{p.notes}"</p>
                     )}
-                  </div>
-                  <div className="text-left sm:text-right border-t sm:border-t-0 pt-2 sm:pt-0 border-[var(--color-border)]">
-                    <p className="text-[10px] uppercase font-semibold text-[var(--color-text-subtle)]">Balance After</p>
-                    <p className={`text-xs font-bold ${Number(p.pendingAfterPayment) === 0 ? 'text-emerald-600' : 'text-amber-600'}`}>
-                      {inr(p.pendingAfterPayment)}
-                    </p>
                   </div>
                 </div>
               ))}
@@ -635,9 +661,17 @@ export default function CustomerProfile() {
                           {/* Record Payment Button */}
                           {!isFullyPaid && (
                             <button
-                              onClick={() => setPaymentTarget(ord)}
-                              title="Record Partial or Full Payment"
-                              className="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-emerald-600 text-white hover:bg-emerald-700 transition shadow-sm inline-flex items-center gap-1"
+                              onClick={() => {
+                                if (ord.billingStatus !== 'COMPLETED') return;
+                                setPaymentTarget(ord);
+                              }}
+                              disabled={ord.billingStatus !== 'COMPLETED'}
+                              title={ord.billingStatus !== 'COMPLETED' ? "Billing must be completed before recording payment" : "Record Partial or Full Payment"}
+                              className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition shadow-sm inline-flex items-center gap-1 ${
+                                ord.billingStatus === 'COMPLETED'
+                                  ? "bg-emerald-600 text-white hover:bg-emerald-700 cursor-pointer"
+                                  : "bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-500 cursor-not-allowed shadow-none opacity-60"
+                              }`}
                             >
                               <Plus size={12} /> Pay
                             </button>

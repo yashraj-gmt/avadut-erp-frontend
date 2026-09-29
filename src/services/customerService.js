@@ -67,10 +67,16 @@ export const customerService = {
 
   /**
    * GET /customers/pending-payments — customers with outstanding dues.
-   * Params: page, size, sortBy (totalDueAmount|maxOverdueDays), sortDir
+   * Params: page, size, sortBy (totalDueAmount|maxOverdueDays|customerName|lastPaymentDate), sortDir, search, status
    */
   getPendingPayments: (params = {}) =>
     api.get('/customers/pending-payments', { params: clean(params) }),
+
+  /**
+   * GET /customers/pending-payments/stats — aggregate summary across all dues.
+   */
+  getPendingPaymentStats: () =>
+    api.get('/customers/pending-payments/stats'),
 
   /**
    * GET /customers/by-area — area-wise grouped customer stats.

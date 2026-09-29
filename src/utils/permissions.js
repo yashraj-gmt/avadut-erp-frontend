@@ -49,6 +49,10 @@ export const ROUTE_PERMISSIONS = {
   [ROUTES.CUSTOMER_EDIT]:     [ROLES.SUPER_ADMIN, ROLES.ADMIN],
   [ROUTES.CUSTOMER_PROFILE]:  [ROLES.SUPER_ADMIN, ROLES.ADMIN],
   [ROUTES.CUSTOMER_PENDING]:  [ROLES.SUPER_ADMIN, ROLES.ADMIN],
+
+  // ── Staff Management (Admin + Super Admin) ─────────────────────────
+  [ROUTES.STAFF_MANAGEMENT]:  [ROLES.SUPER_ADMIN, ROLES.ADMIN],
+  [ROUTES.STAFF_DETAIL]:      [ROLES.SUPER_ADMIN, ROLES.ADMIN],
 }
 
 /** Returns true if role is allowed on the given route */

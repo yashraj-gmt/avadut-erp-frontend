@@ -65,4 +65,34 @@ export const userService = {
    */
   delete: (id) =>
     api.delete(`/admin/users/${id}`),
+
+  // ── Staff Management ──────────────────────────────────────────────────
+
+  /**
+   * GET /api/admin/users/staff
+   * Returns: UserResponse[] with assignedOrdersCount & completedOrdersCount
+   */
+  getAllStaff: () =>
+    api.get('/admin/users/staff').then((r) => r.data),
+
+  /**
+   * GET /api/admin/users/staff/:id
+   * Returns: UserResponse with assignedOrdersCount & completedOrdersCount
+   */
+  getStaffById: (id) =>
+    api.get(`/admin/users/staff/${id}`).then((r) => r.data),
+
+  /**
+   * GET /api/admin/users/staff/:id/orders
+   * Returns: StaffOrderResponse[]
+   */
+  getStaffOrders: (id) =>
+    api.get(`/admin/users/staff/${id}/orders`).then((r) => r.data),
+
+  /**
+   * GET /api/admin/users/staff/stats
+   * Returns: StaffSummaryStatsResponse
+   */
+  getStaffStats: () =>
+    api.get('/admin/users/staff/stats').then((r) => r.data),
 }

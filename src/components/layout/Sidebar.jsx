@@ -3,7 +3,7 @@ import {
   LayoutDashboard, Package, ShieldCheck,
   ChevronLeft, ChevronRight, ChevronDown, ChevronUp,
   Zap, ClipboardList, Box, Receipt,
-  Users, Wallet,
+  Users, Wallet, UserCog,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useUIStore }     from '@/store/uiStore';
@@ -16,20 +16,21 @@ import { cn }             from '@/utils/cn';
 /* ────────────────────────────────────────────────────────────────────────
    NavItem — a single flat sidebar link
 ──────────────────────────────────────────────────────────────────────── */
-function NavItem({ label, icon: Icon, route, collapsed }) {
+function NavItem({ label, icon: Icon, route, collapsed, isActive: customIsActive }) {
   return (
     <NavLink
       to={route}
       title={collapsed ? label : undefined}
-      className={({ isActive }) =>
-        cn(
+      className={({ isActive }) => {
+        const active = customIsActive !== undefined ? customIsActive : isActive;
+        return cn(
           'flex items-center rounded-lg text-sm font-semibold w-full transition-all duration-200',
           collapsed ? 'justify-center py-2.5 px-0' : 'py-3 px-4',
-          isActive
+          active
             ? 'bg-[#0052cc] text-white hover:bg-[#0041a3]'
             : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
-        )
-      }
+        );
+      }}
       style={{ marginBottom: '6px', textDecoration: 'none' }}
     >
       <div className="flex items-center gap-3">
@@ -315,6 +316,17 @@ export default function Sidebar() {
                   </>
                 )}
               </DropdownGroup>
+            )}
+
+            {/* Staff Management */}
+            {canAccess(ROUTES.STAFF_MANAGEMENT) && (
+              <NavItem
+                label="Staff Management"
+                icon={UserCog}
+                route={ROUTES.STAFF_MANAGEMENT}
+                collapsed={sc}
+                isActive={location.pathname.startsWith('/super-admin/staff')}
+              />
             )}
 
             {/* Roles */}

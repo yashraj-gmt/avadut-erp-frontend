@@ -3,58 +3,16 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Plus, Search, X, RefreshCw, User, Phone,
-  Eye, Pencil, Trash2, Users, Star, ShieldX, CheckCircle2,
-  Building2, MapPin,
+  Eye, Pencil, Trash2, Building2, MapPin, Users, Star,
 } from 'lucide-react';
 import { customerService } from '@/services/customerService';
 import PageHeader from '@/components/shared/PageHeader';
-import Badge from '@/components/shared/Badge';
 import Button from '@/components/shared/Button';
 import DataTable from '@/components/shared/DataTable';
 import EmptyState from '@/components/shared/EmptyState';
 import { useToast } from '@/components/shared/toast/ToastProvider';
 import { ROUTES } from '@/constants/routes';
 import CustomerFormModal from './CustomerFormModal';
-
-// ── Helpers ────────────────────────────────────────────────────────────────
-const statusVariant = (s) => ({ ACTIVE: 'success', INACTIVE: 'warning', BLOCKED: 'danger' }[s] ?? 'neutral');
-const fmt = (d) => d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
-
-// ── Tab definitions ────────────────────────────────────────────────────────
-const TABS = [
-  {
-    key:   'all',
-    label: 'Total Customers',
-    icon:  Users,
-    color: 'var(--color-primary)',
-    bg:    'var(--color-primary-50)',
-    filter: {},
-  },
-  {
-    key:   'active',
-    label: 'Active',
-    icon:  CheckCircle2,
-    color: '#16a34a',
-    bg:    '#dcfce7',
-    filter: { customerStatus: 'ACTIVE' },
-  },
-  {
-    key:   'regular',
-    label: 'Regular ⭐',
-    icon:  Star,
-    color: '#d97706',
-    bg:    '#fef3c7',
-    filter: { isRegular: true },
-  },
-  {
-    key:   'inactive',
-    label: 'Inactive',
-    icon:  ShieldX,
-    color: '#dc2626',
-    bg:    '#fee2e2',
-    filter: { customerStatus: 'INACTIVE' },
-  },
-];
 
 // ── Delete Confirm Modal ───────────────────────────────────────────────────
 function DeleteConfirmModal({ customer, onConfirm, onCancel, loading }) {
@@ -84,7 +42,7 @@ function DeleteConfirmModal({ customer, onConfirm, onCancel, loading }) {
 }
 
 // ── CustomerList Page ──────────────────────────────────────────────────────
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 50;
 
 export default function CustomerList() {
   const navigate    = useNavigate();
@@ -92,15 +50,17 @@ export default function CustomerList() {
   const debounceRef = useRef(null);
 
   const [customers, setCustomers]   = useState([]);
-  const [counts, setCounts]         = useState({ all: 0, active: 0, regular: 0, inactive: 0 });
   const [loading, setLoading]       = useState(true);
   const [page, setPage]             = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [totalElements, setTotalElements] = useState(0);
 
+  // Tabs & Counts state
+  const [activeTab, setActiveTab] = useState('all'); // 'all' | 'regular'
+  const [counts, setCounts]       = useState({ all: 0, regular: 0 });
+
   // Filter state
-  const [activeTab, setActiveTab] = useState('all');
-  const [search, setSearch]       = useState('');
+  const [search, setSearch] = useState('');
 
   // Modal states
   const [formOpen,     setFormOpen]     = useState(false);
@@ -113,16 +73,15 @@ export default function CustomerList() {
     if (window.location.pathname.endsWith('/add')) setFormOpen(true);
   }, []);
 
-  // ── Build filter params from active tab and search ────────────────────
+  // ── Build filter params ──────────────────────────────────────────────
   const buildParams = useCallback((tab, searchTerm, currentPage) => {
-    const tabFilter = TABS.find(t => t.key === tab)?.filter ?? {};
     return {
-      ...tabFilter,
-      search:   searchTerm?.trim() || undefined,
-      page:     currentPage,
-      size:     PAGE_SIZE,
-      sortBy:   'dateJoined',
-      sortDir:  'desc',
+      isRegular: tab === 'regular' ? true : undefined,
+      search:    searchTerm?.trim() || undefined,
+      page:      currentPage,
+      size:      PAGE_SIZE,
+      sortBy:    'dateJoined',
+      sortDir:   'desc',
     };
   }, []);
 
@@ -143,33 +102,33 @@ export default function CustomerList() {
     }
   }, [toast, buildParams]);
 
-  // ── Fetch tab counts ──────────────────────────────────────────────────
+  // ── Fetch Tab Counts (All & Regular Customers) ───────────────────────
   const fetchCounts = useCallback(async () => {
     try {
-      const [allRes, activeRes, regularRes, inactiveRes] = await Promise.all([
+      const [allRes, regRes] = await Promise.all([
         customerService.search({ size: 1 }),
-        customerService.search({ size: 1, customerStatus: 'ACTIVE' }),
         customerService.search({ size: 1, isRegular: true }),
-        customerService.search({ size: 1, customerStatus: 'INACTIVE' }),
       ]);
       const get = r => r?.data?.totalElements ?? r?.totalElements ?? 0;
       setCounts({
-        all:      get(allRes),
-        active:   get(activeRes),
-        regular:  get(regularRes),
-        inactive: get(inactiveRes),
+        all:     get(allRes),
+        regular: get(regRes),
       });
-    } catch { /* non-critical */ }
+    } catch {
+      /* non-critical */
+    }
   }, []);
 
-  useEffect(() => { fetchCounts(); }, [fetchCounts]);
+  useEffect(() => {
+    fetchCounts();
+  }, [fetchCounts]);
 
-  // Debounced fetch on tab/search/page changes
+  // Debounced fetch on tab, search or page changes
   useEffect(() => {
     clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
       fetchData(activeTab, search, page);
-    }, search ? 400 : 0);
+    }, search ? 350 : 0);
     return () => clearTimeout(debounceRef.current);
   }, [activeTab, search, page, fetchData]);
 
@@ -185,7 +144,8 @@ export default function CustomerList() {
 
   const handleResetAll = () => {
     setSearch('');
-    handleTabChange('all');
+    setActiveTab('all');
+    setPage(0);
   };
 
   // ── Actions ───────────────────────────────────────────────────────────
@@ -213,41 +173,64 @@ export default function CustomerList() {
     if (window.location.pathname.endsWith('/add')) navigate(ROUTES.CUSTOMERS);
   };
 
+  // ── 25 Characters Truncation Helper ────────────────────────────────────
+  const truncate25 = (val) => {
+    if (!val) return '';
+    const str = String(val).trim();
+    if (str.length <= 25) return str;
+    return str.slice(0, 25) + '...';
+  };
+
   // ── Columns ───────────────────────────────────────────────────────────
   const columns = [
+    {
+      key: 'srNo',
+      header: 'Sr. No.',
+      width: 'w-16',
+      align: 'center',
+      render: (_, __, index) => (
+        <span className="font-semibold text-xs text-[var(--color-text-muted)]">
+          {(page * PAGE_SIZE) + index + 1}
+        </span>
+      ),
+    },
     {
       key: 'name',
       header: 'Customer Name',
       sortable: true,
-      render: (_, row) => (
-        <div className="flex items-center gap-2.5 min-w-0">
-          <div
-            className="w-8 h-8 shrink-0 rounded-full flex items-center justify-center text-xs font-bold text-white shadow-xs"
-            style={{ background: 'linear-gradient(135deg, #2563EB, #0EA5E9)' }}
-          >
-            {row.name?.charAt(0)?.toUpperCase() ?? '?'}
+      render: (_, row) => {
+        const full = row.name || '';
+        return (
+          <div className="flex items-center gap-1.5 min-w-0" title={full}>
+            <span className="text-sm font-semibold text-[var(--color-text)] cursor-help">
+              {truncate25(full)}
+            </span>
+            {row.isRegular && (
+              <span
+                title="Regular Customer"
+                className="inline-flex items-center gap-0.5 text-[11px] font-bold px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 shrink-0"
+              >
+                ⭐ Regular
+              </span>
+            )}
           </div>
-          <div className="min-w-0">
-            <div className="flex items-center gap-1.5">
-              <span className="text-sm font-semibold text-[var(--color-text)] truncate">{row.name}</span>
-              {row.isRegular && <span title="Regular Customer" className="text-amber-400 text-xs shrink-0">⭐</span>}
-            </div>
-          </div>
-        </div>
-      ),
+        );
+      },
     },
     {
       key: 'firmName',
       header: 'Firm Name',
       sortable: true,
-      render: v => v ? (
-        <div className="flex items-center gap-1.5 text-xs sm:text-sm font-medium text-[var(--color-text)]">
-          <Building2 size={13} className="text-slate-400 shrink-0" />
-          <span className="truncate">{v}</span>
-        </div>
-      ) : (
-        <span className="text-xs text-[var(--color-text-subtle)]">—</span>
-      ),
+      render: v => {
+        if (!v) return <span className="text-xs text-[var(--color-text-subtle)]">—</span>;
+        const full = String(v);
+        return (
+          <div className="flex items-center gap-1.5 text-xs sm:text-sm font-medium text-[var(--color-text)] cursor-help" title={full}>
+            <Building2 size={13} className="text-slate-400 shrink-0" />
+            <span>{truncate25(full)}</span>
+          </div>
+        );
+      },
     },
     {
       key: 'mobile',
@@ -271,13 +254,12 @@ export default function CustomerList() {
       header: 'Site Address',
       render: (_, row) => {
         const loc = [row.address, row.area, row.city].filter(Boolean).join(', ');
-        return loc ? (
-          <div className="flex items-start gap-1.5 text-xs text-[var(--color-text-muted)] max-w-xs" title={loc}>
+        if (!loc) return <span className="text-xs text-[var(--color-text-subtle)]">—</span>;
+        return (
+          <div className="flex items-start gap-1.5 text-xs text-[var(--color-text-muted)] cursor-help max-w-xs" title={loc}>
             <MapPin size={13} className="text-slate-400 shrink-0 mt-0.5" />
-            <span className="line-clamp-2 leading-relaxed">{loc}</span>
+            <span className="leading-relaxed">{truncate25(loc)}</span>
           </div>
-        ) : (
-          <span className="text-xs text-[var(--color-text-subtle)]">—</span>
         );
       },
     },
@@ -293,27 +275,29 @@ export default function CustomerList() {
       ),
     },
     {
-      key: '_actions', header: '', align: 'right',
+      key: '_actions',
+      header: 'Action',
+      align: 'center',
       render: (_, row) => (
-        <div className="flex items-center justify-end gap-1">
+        <div className="flex items-center justify-center gap-1.5">
           <button
             onClick={e => { e.stopPropagation(); navigate(ROUTES.CUSTOMER_PROFILE, { state: { id: row.id } }); }}
             title="View Profile"
-            className="p-1.5 rounded-[var(--radius-sm)] text-[var(--color-text-subtle)] hover:text-[var(--color-primary)] hover:bg-[var(--color-primary-50)] transition"
+            className="w-8 h-8 rounded-lg flex items-center justify-center bg-blue-50 text-blue-600 hover:bg-blue-100 border border-blue-200 transition-all hover:scale-105 cursor-pointer shadow-xs"
           >
             <Eye size={15} />
           </button>
           <button
             onClick={e => { e.stopPropagation(); setEditTarget(row); setFormOpen(true); }}
-            title="Edit"
-            className="p-1.5 rounded-[var(--radius-sm)] text-[var(--color-text-subtle)] hover:text-[var(--color-warning)] hover:bg-[var(--color-warning-light)] transition"
+            title="Edit Customer"
+            className="w-8 h-8 rounded-lg flex items-center justify-center bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200 transition-all hover:scale-105 cursor-pointer shadow-xs"
           >
             <Pencil size={15} />
           </button>
           <button
             onClick={e => { e.stopPropagation(); setDeleteTarget(row); }}
-            title="Delete"
-            className="p-1.5 rounded-[var(--radius-sm)] text-[var(--color-text-subtle)] hover:text-[var(--color-danger)] hover:bg-[var(--color-danger-light)] transition"
+            title="Delete Customer"
+            className="w-8 h-8 rounded-lg flex items-center justify-center bg-red-50 text-red-600 hover:bg-red-100 border border-red-200 transition-all hover:scale-105 cursor-pointer shadow-xs"
           >
             <Trash2 size={15} />
           </button>
@@ -324,7 +308,7 @@ export default function CustomerList() {
 
   // ── Render ─────────────────────────────────────────────────────────────
   return (
-    <div className="flex flex-col gap-4 sm:gap-6">
+    <div className="flex flex-col gap-4 sm:gap-5">
       {/* Header */}
       <PageHeader
         title="Customer Management"
@@ -341,114 +325,156 @@ export default function CustomerList() {
         }
       />
 
-      {/* ── Balanced Tab Filter Cards ── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3.5">
-        {TABS.map(tab => {
-          const Icon     = tab.icon;
-          const count    = counts[tab.key] ?? 0;
-          const isActive = activeTab === tab.key;
-          return (
-            <button
-              key={tab.key}
-              onClick={() => handleTabChange(tab.key)}
-              className={[
-                'flex items-center gap-3 p-3 sm:p-3.5 rounded-[var(--radius-lg)] border transition-all duration-200 cursor-pointer text-left',
-                'hover:shadow-sm hover:-translate-y-0.5 active:translate-y-0',
-                isActive
-                  ? 'border-2 shadow-sm'
-                  : 'border-[var(--color-border)] bg-[var(--color-surface)] hover:bg-[var(--color-surface-2)]',
-              ].join(' ')}
-              style={{
-                borderColor: isActive ? tab.color : undefined,
-                background:  isActive ? tab.bg    : undefined,
-              }}
-            >
-              <div
-                className="w-9 h-9 sm:w-10 sm:h-10 rounded-[var(--radius-md)] flex items-center justify-center shrink-0"
-                style={{ background: isActive ? tab.color + '22' : 'var(--color-surface-2)' }}
-              >
-                <Icon size={18} style={{ color: tab.color }} />
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-base sm:text-xl font-bold leading-tight" style={{ color: isActive ? tab.color : 'var(--color-text)' }}>
-                  {count}
-                </p>
-                <p className="text-xs font-medium text-[var(--color-text-muted)] truncate mt-0.5">
-                  {tab.label}
-                </p>
-              </div>
-            </button>
-          );
-        })}
-      </div>
-
-      {/* ── Main Search Bar ── */}
-      <div className="rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] shadow-[var(--shadow-sm)] p-3 sm:p-4">
-        <div className="flex items-center gap-2.5 sm:gap-3">
-          {/* Universal Search Input */}
-          <div className="relative flex-1">
-            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-text-subtle)]" />
-            <input
-              type="text"
-              placeholder="Search by name, firm name, mobile, location…"
-              value={search}
-              onChange={e => handleSearch(e.target.value)}
-              className="w-full pl-9 pr-8 py-2 text-sm rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-text)] placeholder:text-[var(--color-text-subtle)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] transition"
-            />
-            {search && (
-              <button onClick={() => handleSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--color-text-subtle)] hover:text-[var(--color-danger)]">
-                <X size={14} />
-              </button>
-            )}
-          </div>
-
-          <Button
-            size="sm"
-            variant="ghost"
-            icon={<RefreshCw size={14} />}
-            onClick={handleResetAll}
-            disabled={loading}
-            title="Reset search"
+      {/* ── 2 Main Clickable Tabs: All Customers & Regular Customers ── */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+        {/* Tab 1: All Customers */}
+        <button
+          type="button"
+          id="tab-all-customers"
+          onClick={() => handleTabChange('all')}
+          className={`flex items-center gap-3.5 p-3.5 sm:p-4 rounded-[var(--radius-xl)] border-2 transition-all duration-200 cursor-pointer text-left shadow-xs hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 ${
+            activeTab === 'all'
+              ? 'border-[var(--color-primary)] bg-[var(--color-primary-50, #eff6ff)] shadow-sm'
+              : 'border-[var(--color-border)] bg-[var(--color-surface)] hover:bg-[var(--color-surface-2)]'
+          }`}
+        >
+          <div
+            className={`w-11 h-11 rounded-[var(--radius-lg)] flex items-center justify-center shrink-0 transition-colors ${
+              activeTab === 'all'
+                ? 'bg-[var(--color-primary)] text-white shadow-xs'
+                : 'bg-blue-50 text-blue-600'
+            }`}
           >
-            Reset
-          </Button>
+            <Users size={20} />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
+                All Customers
+              </span>
+              {activeTab === 'all' && (
+                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">
+                  Active
+                </span>
+              )}
+            </div>
+            <p className="text-2xl sm:text-3xl font-extrabold text-[var(--color-text)] leading-tight mt-0.5">
+              {counts.all}
+            </p>
+            <p className="text-[11px] text-[var(--color-text-subtle)] truncate mt-0.5">
+              Total registered clients in directory
+            </p>
+          </div>
+        </button>
+
+        {/* Tab 2: Regular Customers */}
+        <button
+          type="button"
+          id="tab-regular-customers"
+          onClick={() => handleTabChange('regular')}
+          className={`flex items-center gap-3.5 p-3.5 sm:p-4 rounded-[var(--radius-xl)] border-2 transition-all duration-200 cursor-pointer text-left shadow-xs hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 ${
+            activeTab === 'regular'
+              ? 'border-amber-500 bg-amber-50/70 shadow-sm'
+              : 'border-[var(--color-border)] bg-[var(--color-surface)] hover:bg-[var(--color-surface-2)]'
+          }`}
+        >
+          <div
+            className={`w-11 h-11 rounded-[var(--radius-lg)] flex items-center justify-center shrink-0 transition-colors ${
+              activeTab === 'regular'
+                ? 'bg-amber-500 text-white shadow-xs'
+                : 'bg-amber-100 text-amber-600'
+            }`}
+          >
+            <Star size={20} className="fill-current" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
+                Regular Customers ⭐
+              </span>
+              {activeTab === 'regular' && (
+                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-200 text-amber-900">
+                  Active
+                </span>
+              )}
+            </div>
+            <p className="text-2xl sm:text-3xl font-extrabold text-[var(--color-text)] leading-tight mt-0.5">
+              {counts.regular}
+            </p>
+            <p className="text-[11px] text-[var(--color-text-subtle)] truncate mt-0.5">
+              Frequent & VIP repeat customers
+            </p>
+          </div>
+        </button>
+      </div>
+
+      {/* ── Toolbar: Search & Record Count ── */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+        <div className="relative flex-1 max-w-md">
+          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-text-subtle)] pointer-events-none" />
+          <input
+            id="customer-search-input"
+            type="text"
+            placeholder="Search by name, firm, mobile, location…"
+            value={search}
+            onChange={e => handleSearch(e.target.value)}
+            className="w-full pl-9 pr-8 py-2 text-sm rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text)] placeholder:text-[var(--color-text-subtle)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] transition"
+          />
+          {search && (
+            <button
+              onClick={() => handleSearch('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--color-text-subtle)] hover:text-[var(--color-danger)] cursor-pointer"
+            >
+              <X size={14} />
+            </button>
+          )}
+        </div>
+
+        <div className="flex items-center justify-between sm:justify-end gap-3">
+          <span className="text-xs sm:text-sm font-semibold text-[var(--color-text-muted)]">
+            {loading ? 'Loading…' : `${totalElements} customer${totalElements !== 1 ? 's' : ''} found`}
+          </span>
+          {(search || activeTab !== 'all') && (
+            <Button
+              size="sm"
+              variant="ghost"
+              icon={<RefreshCw size={14} />}
+              onClick={handleResetAll}
+              disabled={loading}
+              title="Reset filters"
+            >
+              Reset
+            </Button>
+          )}
         </div>
       </div>
 
-      {/* ── Table Card ── */}
-      <div className="bg-[var(--color-surface)] rounded-[var(--radius-lg)] border border-[var(--color-border)] shadow-[var(--shadow-sm)] p-3.5 sm:p-5">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 mb-4">
-          <p className="text-xs sm:text-sm text-[var(--color-text-muted)]">
-            {loading ? 'Loading…' : `${totalElements} customer${totalElements !== 1 ? 's' : ''} found`}
-          </p>
-        </div>
+      {/* ── Direct Table (Clean, no nested background cards) ── */}
+      <div className="w-full">
+        <DataTable
+          data={customers}
+          columns={columns}
+          keyField="id"
+          loading={loading}
+          pageSize={0}
+          onRowClick={row => navigate(ROUTES.CUSTOMER_PROFILE, { state: { id: row.id } })}
+          emptyState={
+            <EmptyState
+              icon={<User size={40} />}
+              title="No customers found"
+              description={search ? "No customers match your search query." : "Start by adding your first customer."}
+              action={
+                <Button icon={<Plus size={15} />} onClick={() => { setEditTarget(null); setFormOpen(true); }}>
+                  Add First Customer
+                </Button>
+              }
+            />
+          }
+        />
 
-        <div className="overflow-x-auto">
-          <DataTable
-            data={customers}
-            columns={columns}
-            keyField="id"
-            loading={loading}
-            pageSize={0}
-            onRowClick={row => navigate(ROUTES.CUSTOMER_PROFILE, { state: { id: row.id } })}
-            emptyState={
-              <EmptyState
-                icon={<User size={40} />}
-                title="No customers found"
-                description="Try adjusting your search or adding your first customer."
-                action={
-                  <Button icon={<Plus size={15} />} onClick={() => { setEditTarget(null); setFormOpen(true); }}>
-                    Add First Customer
-                  </Button>
-                }
-              />
-            }
-          />
-        </div>
-
-        {/* Server-side pagination */}
+        {/* Server-side Pagination */}
         {!loading && totalPages > 1 && (
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mt-4 pt-3 border-t border-[var(--color-border)]">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 py-3 mt-2 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)]">
             <span className="text-xs sm:text-sm text-[var(--color-text-muted)] text-center sm:text-left">
               Page {page + 1} of {totalPages} ({totalElements} items)
             </span>
@@ -456,13 +482,17 @@ export default function CustomerList() {
               <button
                 disabled={page === 0}
                 onClick={() => setPage(p => p - 1)}
-                className="px-3 py-1.5 text-xs sm:text-sm rounded-[var(--radius-sm)] border border-[var(--color-border)] disabled:opacity-40 hover:bg-[var(--color-surface-2)] transition"
-              >‹ Previous</button>
+                className="px-3 py-1.5 text-xs sm:text-sm font-medium rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text)] disabled:opacity-40 hover:bg-[var(--color-surface-2)] transition cursor-pointer"
+              >
+                ‹ Previous
+              </button>
               <button
                 disabled={page >= totalPages - 1}
                 onClick={() => setPage(p => p + 1)}
-                className="px-3 py-1.5 text-xs sm:text-sm rounded-[var(--radius-sm)] border border-[var(--color-border)] disabled:opacity-40 hover:bg-[var(--color-surface-2)] transition"
-              >Next ›</button>
+                className="px-3 py-1.5 text-xs sm:text-sm font-medium rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text)] disabled:opacity-40 hover:bg-[var(--color-surface-2)] transition cursor-pointer"
+              >
+                Next ›
+              </button>
             </div>
           </div>
         )}

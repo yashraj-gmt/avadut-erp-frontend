@@ -1,4 +1,5 @@
 // src/pages/dashboard/AdminDashboard.jsx
+import React from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   CalendarCheck,
@@ -8,203 +9,195 @@ import {
   Wallet,
   Users,
   ArrowRight,
-  CheckCircle2,
+  UserCog,
 } from 'lucide-react'
 import { ROUTES } from '@/constants/routes'
 import { useAuthStore } from '@/store/authStore'
+import { usePermissions } from '@/hooks/usePermissions'
 
-// ── 6 Core Quick Action Redirect Links ──────────────────────────────────────
+// ── Quick Action Cards ───────────────────────────────────────────────────────
 const QUICK_LINKS = [
+  {
+    id: 'staff-management',
+    title: 'Staff Management',
+    desc: 'Manage staff accounts and order performance',
+    route: ROUTES.STAFF_MANAGEMENT,
+    icon: UserCog,
+    iconColor: 'text-purple-600',
+    iconBg: 'bg-purple-50 group-hover:bg-purple-600 group-hover:text-white',
+    borderHover: 'hover:border-purple-400',
+  },
   {
     id: 'add-new-order',
     title: 'Add New Order',
-    tag: 'New Booking',
+    desc: 'Create and book a new generator rental',
     route: ROUTES.GENERATOR_ORDER_ADD,
     icon: PlusCircle,
-    theme: {
-      border: 'border-blue-200/90 hover:border-blue-400',
-      gradient: 'from-blue-500/10 via-blue-500/5 to-transparent',
-      badgeBg: 'bg-blue-50 text-blue-700 border-blue-200',
-      iconBg: 'bg-blue-100 text-blue-600 group-hover:bg-blue-600 group-hover:text-white',
-      btnBg: 'bg-blue-50 text-blue-700 group-hover:bg-blue-600 group-hover:text-white border-blue-200',
-    },
+    iconColor: 'text-blue-600',
+    iconBg: 'bg-blue-50 group-hover:bg-blue-600 group-hover:text-white',
+    borderHover: 'hover:border-blue-400',
   },
   {
     id: 'stock-availability',
     title: 'Check Stock Availability',
-    tag: 'Live Calendar',
+    desc: 'Live calendar of available & booked generators',
     route: ROUTES.GENERATOR_AVAILABILITY,
     icon: CalendarCheck,
-    theme: {
-      border: 'border-emerald-200/90 hover:border-emerald-400',
-      gradient: 'from-emerald-500/10 via-emerald-500/5 to-transparent',
-      badgeBg: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-      iconBg: 'bg-emerald-100 text-emerald-600 group-hover:bg-emerald-600 group-hover:text-white',
-      btnBg: 'bg-emerald-50 text-emerald-700 group-hover:bg-emerald-600 group-hover:text-white border-emerald-200',
-    },
+    iconColor: 'text-emerald-600',
+    iconBg: 'bg-emerald-50 group-hover:bg-emerald-600 group-hover:text-white',
+    borderHover: 'hover:border-emerald-400',
   },
   {
     id: 'order-management',
     title: 'Order Management',
-    tag: 'Operations',
+    desc: 'Track and manage all generator orders',
     route: ROUTES.GENERATOR_ORDERS,
     icon: ClipboardList,
-    theme: {
-      border: 'border-indigo-200/90 hover:border-indigo-400',
-      gradient: 'from-indigo-500/10 via-indigo-500/5 to-transparent',
-      badgeBg: 'bg-indigo-50 text-indigo-700 border-indigo-200',
-      iconBg: 'bg-indigo-100 text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white',
-      btnBg: 'bg-indigo-50 text-indigo-700 group-hover:bg-indigo-600 group-hover:text-white border-indigo-200',
-    },
+    iconColor: 'text-indigo-600',
+    iconBg: 'bg-indigo-50 group-hover:bg-indigo-600 group-hover:text-white',
+    borderHover: 'hover:border-indigo-400',
   },
   {
     id: 'billing-history',
     title: 'Billing History',
-    tag: 'Invoices',
+    desc: 'Review generator bills and invoice records',
     route: ROUTES.GENERATOR_BILLING_HISTORY,
     icon: Receipt,
-    theme: {
-      border: 'border-sky-200/90 hover:border-sky-400',
-      gradient: 'from-sky-500/10 via-sky-500/5 to-transparent',
-      badgeBg: 'bg-sky-50 text-sky-700 border-sky-200',
-      iconBg: 'bg-sky-100 text-sky-600 group-hover:bg-sky-600 group-hover:text-white',
-      btnBg: 'bg-sky-50 text-sky-700 group-hover:bg-sky-600 group-hover:text-white border-sky-200',
-    },
+    iconColor: 'text-sky-600',
+    iconBg: 'bg-sky-50 group-hover:bg-sky-600 group-hover:text-white',
+    borderHover: 'hover:border-sky-400',
   },
   {
     id: 'customer-management',
     title: 'Customer Management',
-    tag: 'Directory',
+    desc: 'Manage customer accounts, profiles and history',
     route: ROUTES.CUSTOMERS,
     icon: Users,
-    theme: {
-      border: 'border-amber-200/90 hover:border-amber-400',
-      gradient: 'from-amber-500/10 via-amber-500/5 to-transparent',
-      badgeBg: 'bg-amber-50 text-amber-700 border-amber-200',
-      iconBg: 'bg-amber-100 text-amber-600 group-hover:bg-amber-600 group-hover:text-white',
-      btnBg: 'bg-amber-50 text-amber-700 group-hover:bg-amber-600 group-hover:text-white border-amber-200',
-    },
+    iconColor: 'text-amber-600',
+    iconBg: 'bg-amber-50 group-hover:bg-amber-600 group-hover:text-white',
+    borderHover: 'hover:border-amber-400',
   },
   {
     id: 'pending-payments',
     title: 'Pending Payments',
-    tag: 'Receivables',
+    desc: 'Track outstanding balances and receivables',
     route: ROUTES.CUSTOMER_PENDING,
     icon: Wallet,
-    theme: {
-      border: 'border-rose-200/90 hover:border-rose-400',
-      gradient: 'from-rose-500/10 via-rose-500/5 to-transparent',
-      badgeBg: 'bg-rose-50 text-rose-700 border-rose-200',
-      iconBg: 'bg-rose-100 text-rose-600 group-hover:bg-rose-600 group-hover:text-white',
-      btnBg: 'bg-rose-50 text-rose-700 group-hover:bg-rose-600 group-hover:text-white border-rose-200',
-    },
+    iconColor: 'text-rose-600',
+    iconBg: 'bg-rose-50 group-hover:bg-rose-600 group-hover:text-white',
+    borderHover: 'hover:border-rose-400',
   },
 ]
 
 export default function AdminDashboard({
   title = 'Dashboard Quick Links',
-  subtitle = 'Quickly access key workflows across generator inventory, booking operations, customer billing, and payment tracking.',
+  subtitle = '',
   badgeText = 'ERP Operations Hub',
+  headerRight = null,
   children,
 }) {
   const navigate = useNavigate()
   const { user } = useAuthStore()
+  const { canAccess } = usePermissions()
+
+  const visibleLinks = QUICK_LINKS.filter((item) => canAccess(item.route))
 
   return (
-    <div className="min-h-screen pb-10" style={{ background: 'var(--color-bg)' }}>
+    <div className="min-h-screen pb-12" style={{ background: 'var(--color-bg)' }}>
       {/* ── Top Header ─────────────────────────────────────────────────── */}
       <div className="border-b bg-white" style={{ borderColor: 'var(--color-border)' }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
-              <div className="flex items-center gap-2 mb-1">
+              <div className="flex items-center gap-2 mb-1 flex-wrap">
                 <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
                   <span className="w-2 h-2 rounded-full bg-blue-600 animate-pulse" />
                   {badgeText}
                 </span>
                 <span className="text-xs text-slate-400">•</span>
                 <span className="text-xs text-slate-500 font-medium">
-                  Signed in as <strong className="text-slate-700">{user?.name || 'Administrator'}</strong>
+                  Signed in as <strong className="text-slate-800">{user?.name || 'Administrator'}</strong>
                 </span>
               </div>
-              <h1 className="text-2xl font-bold tracking-tight text-slate-900">
+              <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900">
                 {title}
               </h1>
-              <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
-                {subtitle}
-              </p>
+              {subtitle ? (
+                <p className="text-sm text-slate-600 mt-1">
+                  {subtitle}
+                </p>
+              ) : null}
             </div>
 
-            {/* Quick status badge */}
-            <div className="flex items-center gap-3 shrink-0">
-              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-xs font-medium text-slate-600 shadow-xs">
-                <CheckCircle2 size={15} className="text-emerald-600 shrink-0" />
-                <span>6 Core Portals Ready</span>
+            {/* Header Right: Custom Slot (e.g. Today's Bookings Count) */}
+            {headerRight ? (
+              <div className="flex items-center gap-2.5 self-start sm:self-center">
+                {headerRight}
               </div>
-            </div>
+            ) : null}
           </div>
         </div>
       </div>
 
-      {/* ── Compact Redirect Buttons Grid ───────────────────────────────── */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
-          {QUICK_LINKS.map((item) => {
-            const Icon = item.icon
+      {/* ── Main Dashboard Content ──────────────────────────────────────── */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 sm:pt-8 space-y-8">
+        {/* Quick Portals Grid */}
+        <section aria-label="Quick Actions">
+          <div className="flex items-center justify-between mb-3.5">
+            <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+              Quick Operations
+            </h2>
+          </div>
 
-            return (
-              <div
-                key={item.id}
-                onClick={() => navigate(item.route)}
-                role="button"
-                tabIndex={0}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault()
-                    navigate(item.route)
-                  }
-                }}
-                className={`group relative flex flex-col justify-between p-4 sm:p-5 rounded-xl bg-white border ${item.theme.border} bg-gradient-to-br ${item.theme.gradient} shadow-xs hover:shadow-md hover:-translate-y-0.5 transition-all duration-150 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500`}
-              >
-                {/* Top Row: Icon + Category Tag */}
-                <div className="flex items-center justify-between gap-3 mb-3">
-                  <div
-                    className={`w-10 h-10 rounded-lg flex items-center justify-center transition-all duration-150 shadow-xs ${item.theme.iconBg}`}
-                  >
-                    <Icon size={20} />
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
+            {visibleLinks.map((item) => {
+              const Icon = item.icon
+
+              return (
+                <div
+                  key={item.id}
+                  onClick={() => navigate(item.route)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      navigate(item.route)
+                    }
+                  }}
+                  className={`group flex items-center justify-between p-4 sm:p-5 rounded-xl bg-white border border-slate-200/90 shadow-2xs hover:shadow-md ${item.borderHover} hover:-translate-y-0.5 transition-all duration-150 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                >
+                  <div className="flex items-center gap-3.5 sm:gap-4 min-w-0">
+                    <div
+                      className={`w-11 h-11 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center shrink-0 transition-all duration-150 shadow-2xs ${item.iconBg} ${item.iconColor}`}
+                    >
+                      <Icon size={22} />
+                    </div>
+
+                    <div className="min-w-0">
+                      <h3 className="text-sm sm:text-base font-bold text-slate-900 group-hover:text-blue-600 transition-colors">
+                        {item.title}
+                      </h3>
+                      <p className="text-xs text-slate-500 mt-0.5 line-clamp-1">
+                        {item.desc}
+                      </p>
+                    </div>
                   </div>
 
-                  <span
-                    className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${item.theme.badgeBg}`}
-                  >
-                    {item.tag}
-                  </span>
-                </div>
-
-                {/* Bottom Row: Title + Compact Action Button */}
-                <div className="flex items-center justify-between gap-2 mt-1">
-                  <h2 className="text-sm sm:text-base font-bold text-slate-800 group-hover:text-blue-600 transition-colors">
-                    {item.title}
-                  </h2>
-
-                  <div
-                    className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold border transition-all duration-150 shrink-0 ${item.theme.btnBg}`}
-                  >
-                    <span>Open</span>
+                  <div className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 group-hover:text-blue-600 group-hover:bg-blue-50 transition-colors shrink-0 ml-2">
                     <ArrowRight
-                      size={12}
-                      className="transition-transform duration-150 group-hover:translate-x-0.5"
+                      size={16}
+                      className="group-hover:translate-x-0.5 transition-transform"
                     />
                   </div>
                 </div>
-              </div>
-            )
-          })}
-        </div>
+              )
+            })}
+          </div>
+        </section>
 
-        {/* ── Additional Dynamic Content (e.g. Completed Orders Table) ──── */}
+        {/* ── Dynamic Child Sections (e.g. Today's Bookings) ─────────────── */}
         {children}
-
       </div>
     </div>
   )

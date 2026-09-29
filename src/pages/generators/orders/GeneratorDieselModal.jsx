@@ -267,13 +267,7 @@ export default function GeneratorDieselModal({ isOpen, onClose, order, onSuccess
 
   return (
     <div
-      style={{
-        position: 'fixed', inset: 0, zIndex: 9999,
-        backgroundColor: 'rgba(15, 23, 42, 0.65)',
-        backdropFilter: 'blur(4px)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        padding: '16px', animation: 'gdm-fadein 0.2s ease-out'
-      }}
+      className="fixed inset-0 z-[9999] flex items-center justify-center p-2 sm:p-4 bg-slate-900/65 backdrop-blur-xs"
       onClick={(e) => { if (e.target === e.currentTarget && !saving) onClose(); }}
     >
       <style>{`
@@ -298,137 +292,101 @@ export default function GeneratorDieselModal({ isOpen, onClose, order, onSuccess
       `}</style>
 
       <div
-        style={{
-          background: '#fff', borderRadius: '16px', width: '100%', maxWidth: '960px',
-          maxHeight: '90vh', display: 'flex', flexDirection: 'column',
-          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
-          overflow: 'hidden', animation: 'gdm-scaleup 0.25s cubic-bezier(0.16, 1, 0.3, 1)'
-        }}
+        className="w-full max-w-4xl max-h-[94vh] flex flex-col bg-white rounded-2xl shadow-2xl overflow-hidden border border-slate-200"
+        style={{ animation: 'gdm-scaleup 0.25s cubic-bezier(0.16, 1, 0.3, 1)' }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* ── Modal Header ── */}
-        <div style={{
-          padding: '18px 24px', borderBottom: '1px solid #e2e8f0',
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          background: 'linear-gradient(to right, #f8fafc, #ffffff)'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div style={{
-              width: '40px', height: '40px', borderRadius: '10px',
-              background: '#fef3c7', color: '#b45309',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              boxShadow: '0 2px 6px rgba(180, 83, 9, 0.15)'
-            }}>
-              <Fuel size={22} />
+        <div className="px-3.5 sm:px-6 py-3 sm:py-4 border-b border-slate-200 flex items-start justify-between gap-2.5 bg-gradient-to-r from-slate-50 to-white shrink-0">
+          <div className="flex items-start sm:items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0 shadow-2xs mt-0.5 sm:mt-0">
+              <Fuel size={18} />
             </div>
-            <div>
-              <h2 style={{ fontSize: '17px', fontWeight: 700, color: '#0f172a', margin: 0 }}>
+            <div className="min-w-0 flex-1">
+              <h2 className="text-sm sm:text-base font-bold text-slate-900 leading-tight">
                 Diesel Running Hours Log
               </h2>
-              <p style={{ fontSize: '12.5px', color: '#64748b', margin: '2px 0 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span>Order: <strong style={{ color: '#1e293b' }}>{order?.orderNumber || `#${order?.id}`}</strong></span>
+              <div className="text-[11px] sm:text-xs text-slate-500 mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                <span>Order: <strong className="text-slate-800">{order?.orderNumber || `#${order?.id}`}</strong></span>
                 <span>•</span>
-                <span>Client: <strong style={{ color: '#1e293b' }}>{order?.clientName || '—'}</strong></span>
+                <span className="truncate max-w-[140px] sm:max-w-none">Client: <strong className="text-slate-800">{order?.clientName || '—'}</strong></span>
                 {order?.functionDate && (
                   <>
                     <span>•</span>
-                    <span>Date: <strong style={{ color: '#1e293b' }}>{formatRangeToDMY(order.functionDate)}</strong></span>
+                    <span className="truncate">Date: <strong className="text-slate-800">{formatRangeToDMY(order.functionDate)}</strong></span>
                   </>
                 )}
-              </p>
+              </div>
             </div>
           </div>
           <button
             type="button"
             onClick={onClose}
             disabled={saving}
-            style={{
-              padding: '6px', borderRadius: '8px', border: '1px solid #e2e8f0',
-              background: '#fff', color: '#64748b', cursor: 'pointer',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              transition: 'all 0.15s'
-            }}
+            className="p-1 sm:p-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-500 hover:text-slate-700 transition-colors shrink-0"
             title="Close"
           >
-            <X size={18} />
+            <X size={17} />
           </button>
         </div>
 
         {/* ── Modal Body ── */}
-        <div style={{ padding: '20px 24px', overflowY: 'auto', flex: 1 }}>
+        <div className="p-3 sm:p-5 overflow-y-auto flex-1 space-y-3">
           {loading ? (
-            <div style={{ textAlign: 'center', padding: '50px 0', color: '#64748b' }}>
-              <div style={{
-                display: 'inline-block', width: '32px', height: '32px',
-                border: '3px solid #e2e8f0', borderTopColor: '#3b82f6',
-                borderRadius: '50%', animation: 'spin 0.8s linear infinite'
-              }} />
-              <div style={{ marginTop: '12px', fontSize: '13.5px', fontWeight: 600 }}>Loading diesel timings...</div>
+            <div className="text-center py-12 text-slate-500">
+              <div className="inline-block w-8 h-8 border-3 border-slate-200 border-t-blue-600 rounded-full animate-spin" />
+              <div className="mt-3 text-xs sm:text-sm font-semibold">Loading diesel timings...</div>
             </div>
           ) : errorMsg && !fullOrder ? (
-            <div style={{
-              padding: '16px', borderRadius: '10px', background: '#fef2f2',
-              border: '1px solid #fecaca', color: '#991b1b', fontSize: '13px',
-              display: 'flex', alignItems: 'center', gap: '10px'
-            }}>
+            <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs sm:text-sm flex items-center gap-2.5">
               <AlertCircle size={18} />
               <span>{errorMsg}</span>
             </div>
           ) : (
             <>
               {/* Instructions banner */}
-              <div style={{
-                padding: '10px 14px', borderRadius: '8px',
-                background: '#eff6ff', border: '1px solid #bfdbfe',
-                color: '#1e40af', fontSize: '12.5px', fontWeight: 500,
-                display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '18px'
-              }}>
-                <Clock size={16} style={{ flexShrink: 0 }} />
+              <div className="p-2.5 sm:p-3 rounded-xl bg-blue-50 border border-blue-200 text-blue-800 text-xs font-medium flex items-start gap-2">
+                <Clock size={15} className="shrink-0 mt-0.5" />
                 <span>
                   Specify start and end times for each day. Use the green <strong>(+)</strong> button to add multiple generator operating slots for any date.
                 </span>
               </div>
 
               {errorMsg && (
-                <div style={{
-                  padding: '10px 14px', borderRadius: '8px', background: '#fef2f2',
-                  border: '1px solid #fecaca', color: '#991b1b', fontSize: '12.5px',
-                  fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px'
-                }}>
-                  <AlertCircle size={16} />
+                <div className="p-2.5 sm:p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-semibold flex items-center gap-2">
+                  <AlertCircle size={15} />
                   <span>{errorMsg}</span>
                 </div>
               )}
 
               {successMsg && (
-                <div style={{
-                  padding: '10px 14px', borderRadius: '8px', background: '#f0fdf4',
-                  border: '1px solid #bbf7d0', color: '#166534', fontSize: '12.5px',
-                  fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px'
-                }}>
-                  <CheckCircle2 size={16} />
+                <div className="p-2.5 sm:p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center gap-2">
+                  <CheckCircle2 size={15} />
                   <span>{successMsg}</span>
                 </div>
               )}
 
-              {/* Table of Diesel Running Hours */}
-              <div style={{
-                border: '1px solid #e2e8f0', borderRadius: '12px',
-                overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
-              }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', textAlign: 'left' }}>
-                  <thead>
-                    <tr style={{ background: '#f8fafc', borderBottom: '1.5px solid #e2e8f0' }}>
-                      <th style={{ padding: '10px 12px', fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', width: '40px', textAlign: 'center' }}>#</th>
-                      <th style={{ padding: '10px 12px', fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Description</th>
-                      <th style={{ padding: '10px 12px', fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', textAlign: 'center', width: '70px' }}>Days</th>
-                      <th style={{ padding: '10px 12px', fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', textAlign: 'center', width: '120px' }}>Date</th>
-                      <th style={{ padding: '10px 12px', fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', textAlign: 'center', width: '125px' }}>Start Time</th>
-                      <th style={{ padding: '10px 12px', fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', textAlign: 'center', width: '125px' }}>End Time</th>
-                      <th style={{ padding: '10px 12px', fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', textAlign: 'center', width: '140px' }}>Diesel Hrs</th>
-                      <th style={{ padding: '10px 12px', fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', textAlign: 'center', width: '70px' }}>Action</th>
-                    </tr>
-                  </thead>
+              {/* Table of Diesel Running Hours with horizontal scroll */}
+              <div className="border border-slate-200 rounded-xl overflow-hidden shadow-2xs bg-white">
+                {/* Mobile scroll hint */}
+                <div className="md:hidden px-3 py-1.5 text-[11px] font-medium text-slate-400 bg-slate-50 border-b border-slate-100 flex items-center gap-1 select-none">
+                  <span>👉 Scroll table horizontally to edit times & add slots</span>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full border-collapse text-xs sm:text-sm text-left min-w-[760px]">
+                    <thead>
+                      <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                        <th className="py-2.5 px-2.5 w-10 text-center whitespace-nowrap">#</th>
+                        <th className="py-2.5 px-3 whitespace-nowrap">Description</th>
+                        <th className="py-2.5 px-3 text-center w-14 whitespace-nowrap">Days</th>
+                        <th className="py-2.5 px-3 text-center w-28 whitespace-nowrap">Date</th>
+                        <th className="py-2.5 px-3 text-center w-32 whitespace-nowrap">Start Time</th>
+                        <th className="py-2.5 px-3 text-center w-32 whitespace-nowrap">End Time</th>
+                        <th className="py-2.5 px-3 text-center w-32 whitespace-nowrap">Diesel Hrs</th>
+                        <th className="py-2.5 px-3 text-center w-16 whitespace-nowrap">Action</th>
+                      </tr>
+                    </thead>
                   <tbody>
                     {(fullOrder?.generators || []).map((g, gIdx) => {
                       const gKey = g.id || g._id;
@@ -591,37 +549,26 @@ export default function GeneratorDieselModal({ isOpen, onClose, order, onSuccess
                   </tbody>
                 </table>
               </div>
+            </div>
             </>
           )}
         </div>
 
         {/* ── Modal Footer ── */}
-        <div style={{
-          padding: '16px 24px', borderTop: '1px solid #e2e8f0',
-          background: '#f8fafc', display: 'flex', alignItems: 'center',
-          justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{ fontSize: '13px', color: '#64748b' }}>Total Diesel Duration:</span>
-            <span style={{
-              fontSize: '13.5px', fontWeight: 800, color: '#92400e',
-              background: '#fef3c7', border: '1px solid #fde68a',
-              padding: '3px 10px', borderRadius: '8px'
-            }}>
+        <div className="px-3.5 sm:px-6 py-3 sm:py-4 border-t border-slate-200 bg-slate-50 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 shrink-0">
+          <div className="flex items-center justify-between sm:justify-start gap-2 text-xs sm:text-sm">
+            <span className="text-slate-500 font-medium">Total Duration:</span>
+            <span className="font-extrabold text-amber-800 bg-amber-100 border border-amber-200 px-2.5 py-1 rounded-lg">
               {formatDurationDisplay(totalAllDieselHours)}
             </span>
           </div>
 
-          <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+          <div className="flex items-center gap-2 justify-end">
             <button
               type="button"
               onClick={onClose}
               disabled={saving}
-              style={{
-                padding: '9px 18px', borderRadius: '8px', border: '1.5px solid #cbd5e1',
-                background: '#fff', color: '#475569', fontSize: '13.5px', fontWeight: 600,
-                cursor: 'pointer', transition: 'all 0.15s'
-              }}
+              className="flex-1 sm:flex-initial px-4 py-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs sm:text-sm font-semibold transition-colors"
             >
               Cancel
             </button>
@@ -629,26 +576,16 @@ export default function GeneratorDieselModal({ isOpen, onClose, order, onSuccess
               type="button"
               onClick={handleSave}
               disabled={saving || loading || hasConflicts}
-              style={{
-                padding: '9px 22px', borderRadius: '8px', border: 'none',
-                background: (hasConflicts || loading) ? '#94a3b8' : 'linear-gradient(135deg, #2563eb, #1d4ed8)',
-                color: '#fff', fontSize: '13.5px', fontWeight: 700,
-                cursor: (hasConflicts || loading || saving) ? 'not-allowed' : 'pointer',
-                boxShadow: (hasConflicts || loading) ? 'none' : '0 4px 12px rgba(37,99,235,0.25)',
-                display: 'inline-flex', alignItems: 'center', gap: '8px', transition: 'all 0.15s'
-              }}
+              className="flex-1 sm:flex-initial px-4 sm:px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm font-bold shadow-xs hover:shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
             >
               {saving ? (
                 <>
-                  <div style={{
-                    width: '14px', height: '14px', border: '2px solid rgba(255,255,255,0.4)',
-                    borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 0.6s linear infinite'
-                  }} />
+                  <div className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
                   <span>Saving...</span>
                 </>
               ) : (
                 <>
-                  <Fuel size={16} />
+                  <Fuel size={14} />
                   <span>Save Diesel Timings</span>
                 </>
               )}

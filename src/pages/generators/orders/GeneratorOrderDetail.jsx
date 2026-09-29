@@ -825,8 +825,8 @@ export default function GeneratorOrderDetail() {
                       <td className="gd2-calc-td" style={{ textAlign:'center' }}>{rentalDays} day{rentalDays !== 1 ? 's' : ''}</td>
                       <td className="gd2-calc-td" style={{ textAlign:'right', fontFamily:'monospace', color:'var(--color-primary-dark)' }}>{fmtCur(g.genAmount)}</td>
                     </tr>
-
-                    {/* Diesel entries */}
+                  
+                    {/* Diesel entries*/}
                     {withDiesel && g.entries && g.entries.length > 0 && g.entries.map((de, di) => (
                       <tr key={di} className="gd2-calc-tr-diesel">
                         <td className="gd2-calc-td" style={{ paddingLeft:24 }}>
@@ -861,7 +861,7 @@ export default function GeneratorOrderDetail() {
                       </tr>
                     )}
 
-                    {/* Cable row */}
+                    {/* Cable row  */}
                     {g.cableSize && cableRequired && (
                       <tr className="gd2-calc-tr-cable">
                         <td className="gd2-calc-td" style={{ paddingLeft:24 }}>

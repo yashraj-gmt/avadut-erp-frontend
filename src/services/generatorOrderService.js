@@ -68,4 +68,9 @@ export const generatorOrderService = {
     const response = await api.post(`/admin/orders/${id}/mark-returned`);
     return response.data;
   },
+
+  cancelOrder: async (id) => {
+    const response = await api.post(`/admin/orders/${id}/cancel`);
+    return response.data;
+  },
 };
