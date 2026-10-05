@@ -16,7 +16,7 @@ import {
 import GeneratorDieselModal from '@/pages/generators/orders/GeneratorDieselModal';
 import { ROUTES } from '@/constants/routes';
 import { generatorOrderService } from '@/services/generatorOrderService';
-import { mockOrders, formatRangeToDMY, parseDateStr } from '@/pages/generators/orders/mockData';
+import { formatRangeToDMY, parseDateStr, formatToDMY } from '@/pages/generators/orders/mockData';
 
 const PAGE_SIZE = 10;
 
@@ -32,8 +32,20 @@ const getFunctionDates = (o) => {
   return { fFrom, fTo: fTo || fFrom };
 };
 
-/** Determine order status and label (Ongoing, Completed, Confirmed, Booked) */
+/** Determine order status and label (Cancelled, Completed, Ongoing, Confirmed, Booked) */
+const isOrderCancelled = (o) => {
+  if (!o) return false;
+  const os = String(o.orderStatus || '').toUpperCase();
+  const bs = String(o.bookingStatus || '').toUpperCase();
+  const st = String(o.status || '').toUpperCase();
+  return os === 'CANCELLED' || bs === 'CANCELLED' || st === 'CANCELLED';
+};
+
 const getOrderStatusInfo = (o) => {
+  if (isOrderCancelled(o)) {
+    return { label: 'Cancelled', type: 'cancelled' };
+  }
+
   const isCompleted = o.orderStatus === 'COMPLETED' || o.status === 'COMPLETED';
   if (isCompleted) {
     return { label: 'Completed', type: 'completed' };
@@ -123,22 +135,16 @@ export default function TodayBookings({ onCountChange }) {
   const [page, setPage] = useState(1);
   const [dieselModalTarget, setDieselModalTarget] = useState(null);
 
-  // Fetch all orders from API, fallback to mock data
+  // Fetch all orders from API
   const fetchOrders = async () => {
     setLoading(true);
     try {
       const res = await generatorOrderService.getAll('', '', 0, 100, 'createdAt', 'desc');
-      let fetched = res?.content || [];
-
-      // Fallback to mock data if API returned empty
-      if (fetched.length === 0 && mockOrders && mockOrders.length > 0) {
-        fetched = mockOrders;
-      }
-
+      const fetched = res?.content || (Array.isArray(res) ? res : []);
       setOrders(fetched);
     } catch (err) {
-      console.warn('Backend API request failed, loading orders from mock data:', err);
-      setOrders(mockOrders || []);
+      console.warn('Backend API request failed for today bookings:', err);
+      setOrders([]);
     } finally {
       setLoading(false);
     }
@@ -148,9 +154,9 @@ export default function TodayBookings({ onCountChange }) {
     fetchOrders();
   }, []);
 
-  // Total count of today's scheduled bookings (unfiltered by search query)
+  // Total count of today's scheduled bookings (excludes cancelled bookings)
   const todayTotalCount = useMemo(() => {
-    return orders.filter(isOrderForToday).length;
+    return orders.filter((o) => isOrderForToday(o) && !isOrderCancelled(o)).length;
   }, [orders]);
 
   // Report count to parent (e.g. Super Admin Dashboard header)
@@ -169,8 +175,10 @@ export default function TodayBookings({ onCountChange }) {
       if (search.trim()) {
         const query = search.toLowerCase().trim();
         const client = (o.clientName || '').toLowerCase();
+        const firm = (o.firmName || o.customer?.firmName || '').toLowerCase();
         const orderNo = (o.orderNumber || `#${o.id}` || '').toLowerCase();
         const contact = (o.contactNumber || '').toLowerCase();
+        const altMobile = (o.alternateMobile || o.customer?.alternateMobile || '').toLowerCase();
         const address = (o.siteAddress || '').toLowerCase();
         const operator = (o.operatorName || '').toLowerCase();
         const gens = (o.generators || [])
@@ -179,8 +187,10 @@ export default function TodayBookings({ onCountChange }) {
 
         return (
           client.includes(query) ||
+          firm.includes(query) ||
           orderNo.includes(query) ||
           contact.includes(query) ||
+          altMobile.includes(query) ||
           address.includes(query) ||
           operator.includes(query) ||
           gens.includes(query)
@@ -221,32 +231,28 @@ export default function TodayBookings({ onCountChange }) {
 
   // Today's formatted date label
   const todayLabel = useMemo(() => {
-    const now = new Date();
-    const day = now.getDate();
-    const month = now.toLocaleString('default', { month: 'short' });
-    const year = now.getFullYear();
-    return `${day} ${month} ${year}`;
+    return formatToDMY(new Date());
   }, []);
 
   return (
     <>
       <div id="today-bookings-section" className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden scroll-mt-6">
         {/* ── Section Header (Clean & Minimal) ─────────────────────────── */}
-        <div className="px-4 py-3.5 sm:px-6 sm:py-4 border-b border-slate-200 bg-white flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="px-3.5 py-3 sm:px-6 sm:py-4 border-b border-slate-200 bg-white flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           {/* Title + Count */}
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center justify-between sm:justify-start gap-2.5">
             <h2 className="text-base sm:text-lg font-bold text-slate-900">
               Today's Bookings
             </h2>
-            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 shrink-0">
               {filteredOrders.length} {filteredOrders.length === 1 ? 'Booking' : 'Bookings'}
             </span>
           </div>
 
           {/* Search, Refresh & All Orders */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 w-full sm:w-auto">
             {/* Search Input */}
-            <div className="relative w-full sm:w-64">
+            <div className="relative flex-1 sm:w-64 min-w-0">
               <Search
                 size={14}
                 className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
@@ -275,7 +281,7 @@ export default function TodayBookings({ onCountChange }) {
               onClick={fetchOrders}
               disabled={loading}
               title="Refresh"
-              className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-blue-600 hover:border-blue-200 transition-colors shadow-2xs disabled:opacity-50"
+              className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-blue-600 hover:border-blue-200 transition-colors shadow-2xs disabled:opacity-50 shrink-0"
             >
               <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
             </button>
@@ -284,7 +290,7 @@ export default function TodayBookings({ onCountChange }) {
             <button
               type="button"
               onClick={() => navigate(ROUTES.GENERATOR_ORDERS)}
-              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-medium text-slate-700 hover:text-blue-700 hover:border-blue-300 transition-colors shadow-2xs shrink-0"
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-medium text-slate-700 hover:text-blue-700 hover:border-blue-300 transition-colors shadow-2xs shrink-0 whitespace-nowrap"
             >
               <span>All Orders</span>
               <ExternalLink size={12} />
@@ -303,7 +309,9 @@ export default function TodayBookings({ onCountChange }) {
                 <th className="py-3 px-3.5 whitespace-nowrap">Generator Name</th>
                 <th className="py-3 px-3.5 whitespace-nowrap">Order No.</th>
                 <th className="py-3 px-3.5 whitespace-nowrap">Client Name</th>
-                <th className="py-3 px-3.5 whitespace-nowrap">Contact</th>
+                <th className="py-3 px-3.5 whitespace-nowrap">Firm Name</th>
+                <th className="py-3 px-3.5 whitespace-nowrap">Mob. No.</th>
+                <th className="py-3 px-3.5 whitespace-nowrap">Alt. Mob. No</th>
                 <th className="py-3 px-3.5 whitespace-nowrap">Site Address</th>
                 <th className="py-3 px-3 text-center whitespace-nowrap">Diesel Type</th>
                 <th className="py-3 px-3 text-center whitespace-nowrap">Cable</th>
@@ -331,6 +339,12 @@ export default function TodayBookings({ onCountChange }) {
                       <div className="h-4 w-24 bg-slate-200 rounded" />
                     </td>
                     <td className="py-4 px-3.5">
+                      <div className="h-4 w-24 bg-slate-200 rounded" />
+                    </td>
+                    <td className="py-4 px-3.5">
+                      <div className="h-4 w-20 bg-slate-200 rounded" />
+                    </td>
+                    <td className="py-4 px-3.5">
                       <div className="h-4 w-20 bg-slate-200 rounded" />
                     </td>
                     <td className="py-4 px-3.5">
@@ -355,7 +369,7 @@ export default function TodayBookings({ onCountChange }) {
                 ))
               ) : pagedOrders.length === 0 ? (
                 <tr>
-                  <td colSpan={11} className="py-12 px-4 text-center">
+                  <td colSpan={13} className="py-12 px-4 text-center">
                     <div className="flex flex-col items-center justify-center text-slate-400 gap-2 max-w-sm mx-auto">
                       <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
                         <ClipboardCheck size={26} />
@@ -374,10 +388,11 @@ export default function TodayBookings({ onCountChange }) {
               ) : (
                 pagedOrders.map((o, idx) => {
                   const gens = o.generators || [];
-                  const firstName = gens[0]?.generatorName || '—';
+                  const firstName = gens[0]?.generatorName || '-';
                   const extraGens = gens.length > 1 ? ` +${gens.length - 1} more` : '';
                   const isWithDiesel = o.withDiesel !== false && o.dieselType !== 'PARTY' && String(o.dieselType || '').toUpperCase() !== 'PARTY';
                   const hasCable = o.cableRequired !== false;
+                  const isBilled = o.billingStatus === 'COMPLETED';
                   const srNo = (page - 1) * PAGE_SIZE + idx + 1;
                   const rowBg = idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50';
 
@@ -415,10 +430,15 @@ export default function TodayBookings({ onCountChange }) {
 
                       {/* 4. Client Name */}
                       <td className="py-3 px-3.5 whitespace-nowrap font-medium text-slate-900">
-                        {o.clientName || '—'}
+                        {o.clientName || '-'}
                       </td>
 
-                      {/* 5. Contact */}
+                      {/* 5. Firm Name */}
+                      <td className="py-3 px-3.5 whitespace-nowrap text-slate-700">
+                        {o.firmName || o.customer?.firmName || '-'}
+                      </td>
+
+                      {/* 6. Mob. No. */}
                       <td className="py-3 px-3.5 whitespace-nowrap text-slate-600">
                         {o.contactNumber ? (
                           <a
@@ -429,7 +449,22 @@ export default function TodayBookings({ onCountChange }) {
                             <span>{o.contactNumber}</span>
                           </a>
                         ) : (
-                          '—'
+                          '-'
+                        )}
+                      </td>
+
+                      {/* 7. Alt. Mob. No */}
+                      <td className="py-3 px-3.5 whitespace-nowrap text-slate-600">
+                        {o.alternateMobile || o.customer?.alternateMobile ? (
+                          <a
+                            href={`tel:${o.alternateMobile || o.customer?.alternateMobile}`}
+                            className="hover:text-blue-600 transition-colors inline-flex items-center gap-1"
+                          >
+                            <Phone size={11} className="text-slate-400" />
+                            <span>{o.alternateMobile || o.customer?.alternateMobile}</span>
+                          </a>
+                        ) : (
+                          '-'
                         )}
                       </td>
 
@@ -437,9 +472,9 @@ export default function TodayBookings({ onCountChange }) {
                       <td className="py-3 px-3.5">
                         <div
                           className="max-w-[180px] truncate text-slate-700"
-                          title={o.siteAddress || '—'}
+                          title={o.siteAddress || '-'}
                         >
-                          {o.siteAddress || '—'}
+                          {o.siteAddress || '-'}
                         </div>
                       </td>
 
@@ -472,7 +507,7 @@ export default function TodayBookings({ onCountChange }) {
 
                       {/* 9. Operator Name */}
                       <td className="py-3 px-3.5 whitespace-nowrap text-slate-700 font-medium">
-                        {o.operatorName || '—'}
+                        {o.operatorName || '-'}
                       </td>
 
                       {/* 10. Function Date */}
@@ -482,7 +517,7 @@ export default function TodayBookings({ onCountChange }) {
                             (o.functionDateFrom && o.functionDateTo
                               ? `${o.functionDateFrom} to ${o.functionDateTo}`
                               : o.functionDateFrom)
-                        ) || '—'}
+                        ) || '-'}
                       </td>
 
                       {/* 11. Action: View + Diesel Running Hours Log (Sticky Right) */}
@@ -503,29 +538,44 @@ export default function TodayBookings({ onCountChange }) {
                             <Eye size={15} className="group-hover:scale-110 transition-transform" />
                           </button>
 
-                          {/* Diesel Hours Running Log — only for WD orders */}
+                          {/* Diesel Hours Running Log - only for WD orders */}
                           {isWithDiesel && (
                             <button
                               type="button"
                               id={`btn-diesel-order-${o.id}`}
-                              onClick={() => setDieselModalTarget(o)}
-                              title="Diesel Hours Running Log"
-                              className="inline-flex items-center justify-center w-8 h-8 rounded-lg border transition-all shadow-2xs group"
-                              style={{
-                                background: '#FEF3C7',
-                                color: '#B45309',
-                                border: '1.5px solid #FDE68A',
+                              disabled={isBilled}
+                              onClick={() => {
+                                if (!isBilled) setDieselModalTarget(o);
                               }}
+                              title={isBilled ? 'Diesel running hours log cannot be modified after billing is completed' : 'Diesel Hours Running Log'}
+                              className={`inline-flex items-center justify-center w-8 h-8 rounded-lg border transition-all shadow-2xs group ${
+                                isBilled
+                                  ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed opacity-50'
+                                  : 'cursor-pointer'
+                              }`}
+                              style={
+                                isBilled
+                                  ? {}
+                                  : {
+                                      background: '#FEF3C7',
+                                      color: '#B45309',
+                                      border: '1.5px solid #FDE68A',
+                                    }
+                              }
                               onMouseEnter={(e) => {
-                                e.currentTarget.style.background = '#B45309';
-                                e.currentTarget.style.color = '#fff';
+                                if (!isBilled) {
+                                  e.currentTarget.style.background = '#B45309';
+                                  e.currentTarget.style.color = '#fff';
+                                }
                               }}
                               onMouseLeave={(e) => {
-                                e.currentTarget.style.background = '#FEF3C7';
-                                e.currentTarget.style.color = '#B45309';
+                                if (!isBilled) {
+                                  e.currentTarget.style.background = '#FEF3C7';
+                                  e.currentTarget.style.color = '#B45309';
+                                }
                               }}
                             >
-                              <Fuel size={14} className="group-hover:scale-110 transition-transform" />
+                              <Fuel size={14} className={isBilled ? '' : 'group-hover:scale-110 transition-transform'} />
                             </button>
                           )}
                         </div>
@@ -557,106 +607,155 @@ export default function TodayBookings({ onCountChange }) {
           ) : (
             pagedOrders.map((o) => {
               const gens = o.generators || [];
-              const firstName = gens[0]?.generatorName || '—';
+              const firstName = gens[0]?.generatorName || '-';
               const extraGens = gens.length > 1 ? ` +${gens.length - 1} more` : '';
               const isWithDiesel = o.withDiesel !== false && o.dieselType !== 'PARTY' && String(o.dieselType || '').toUpperCase() !== 'PARTY';
               const hasCable = o.cableRequired !== false;
+              const statusInfo = getOrderStatusInfo(o);
+
+              const statusBadgeStyles = {
+                cancelled: 'bg-rose-50 text-rose-700 border-rose-200',
+                completed: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+                ongoing: 'bg-blue-50 text-blue-700 border-blue-200',
+                confirmed: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+                booked: 'bg-slate-100 text-slate-700 border-slate-200',
+              };
+              const statusStyle = statusBadgeStyles[statusInfo.type] || 'bg-slate-100 text-slate-700 border-slate-200';
 
               return (
-                <div key={o.id} className="p-4 space-y-2.5 bg-white">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">
+                <div key={o.id} className="p-3.5 sm:p-4 space-y-3 bg-white">
+                  {/* Top Header: Order Number, Generator Name, Status Badge */}
+                  <div className="flex items-center justify-between gap-2 min-w-0">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 shrink-0">
                         {o.orderNumber || `#${o.id}`}
                       </span>
-                      <span className="text-xs font-semibold text-slate-800">
-                        {firstName} {extraGens}
+                      <span className="text-xs font-bold text-slate-800 truncate" title={`${firstName}${extraGens}`}>
+                        {firstName}{extraGens}
                       </span>
                     </div>
 
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          navigate(ROUTES.GENERATOR_ORDER_DETAIL.replace(':id', o.id))
-                        }
-                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-600 hover:text-white transition-colors"
-                      >
-                        <Eye size={13} />
-                        <span>View</span>
-                      </button>
-
-                      {isWithDiesel && (
-                        <button
-                          type="button"
-                          onClick={() => setDieselModalTarget(o)}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-600 hover:text-white transition-colors"
-                        >
-                          <Fuel size={13} />
-                          <span>Diesel</span>
-                        </button>
-                      )}
-                    </div>
+                    <span className={`shrink-0 px-2 py-0.5 rounded text-[10.5px] font-bold uppercase tracking-wider border ${statusStyle}`}>
+                      {statusInfo.label}
+                    </span>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-2 text-xs pt-1">
-                    <div>
-                      <span className="text-slate-400 block text-[11px]">Client</span>
-                      <span className="font-medium text-slate-700">{o.clientName || '—'}</span>
+                  {/* 2-Column Info Grid */}
+                  <div className="grid grid-cols-2 gap-2 text-xs pt-0.5">
+                    <div className="min-w-0">
+                      <span className="text-slate-400 block text-[11px] font-medium">Client</span>
+                      <span className="font-semibold text-slate-800 truncate block" title={o.clientName || '-'}>
+                        {o.clientName || '-'}
+                      </span>
                     </div>
-                    <div>
-                      <span className="text-slate-400 block text-[11px]">Contact</span>
+                    <div className="min-w-0">
+                      <span className="text-slate-400 block text-[11px] font-medium">Firm Name</span>
+                      <span className="text-slate-700 truncate block" title={o.firmName || o.customer?.firmName || '-'}>
+                        {o.firmName || o.customer?.firmName || '-'}
+                      </span>
+                    </div>
+                    <div className="min-w-0">
+                      <span className="text-slate-400 block text-[11px] font-medium">Mob. No.</span>
                       {o.contactNumber ? (
-                        <a href={`tel:${o.contactNumber}`} className="text-blue-600">
+                        <a href={`tel:${o.contactNumber}`} className="text-blue-600 font-semibold truncate block">
                           {o.contactNumber}
                         </a>
                       ) : (
-                        '—'
+                        <span className="text-slate-500">-</span>
                       )}
                     </div>
-                    <div>
-                      <span className="text-slate-400 block text-[11px]">Operator</span>
-                      <span className="text-slate-700">{o.operatorName || '—'}</span>
+                    <div className="min-w-0">
+                      <span className="text-slate-400 block text-[11px] font-medium">Alt. Mob. No</span>
+                      {o.alternateMobile || o.customer?.alternateMobile ? (
+                        <a href={`tel:${o.alternateMobile || o.customer?.alternateMobile}`} className="text-blue-600 font-semibold truncate block">
+                          {o.alternateMobile || o.customer?.alternateMobile}
+                        </a>
+                      ) : (
+                        <span className="text-slate-500">-</span>
+                      )}
                     </div>
-                    <div>
-                      <span className="text-slate-400 block text-[11px]">Function Date</span>
-                      <span className="text-slate-700 font-medium">
+                    <div className="min-w-0">
+                      <span className="text-slate-400 block text-[11px] font-medium">Operator</span>
+                      <span className="text-slate-700 truncate block font-medium" title={o.operatorName || '-'}>
+                        {o.operatorName || '-'}
+                      </span>
+                    </div>
+                    <div className="min-w-0">
+                      <span className="text-slate-400 block text-[11px] font-medium">Function Date</span>
+                      <span className="text-slate-700 font-medium text-[11.5px] leading-tight block">
                         {formatRangeToDMY(
                           o.functionDate ||
                             (o.functionDateFrom && o.functionDateTo
                               ? `${o.functionDateFrom} to ${o.functionDateTo}`
                               : o.functionDateFrom)
-                        ) || '—'}
+                        ) || '-'}
                       </span>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 pt-1">
-                    <span
-                      className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
-                        isWithDiesel
-                          ? 'bg-blue-50 text-blue-800 border-blue-200'
-                          : 'bg-amber-50 text-amber-800 border-amber-200'
-                      }`}
-                    >
-                      Diesel: {isWithDiesel ? 'WD' : 'PD'}
-                    </span>
-                    <span
-                      className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
-                        hasCable
-                          ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                          : 'bg-rose-50 text-rose-800 border-rose-200'
-                      }`}
-                    >
-                      Cable: {hasCable ? 'Yes' : 'No'}
-                    </span>
-                    {o.siteAddress && (
+                  {/* Tags (Diesel, Cable) and Site Address */}
+                  <div className="space-y-1.5 pt-0.5">
+                    <div className="flex flex-wrap items-center gap-1.5">
                       <span
-                        className="text-[11px] text-slate-500 truncate max-w-[140px]"
-                        title={o.siteAddress}
+                        className={`px-2 py-0.5 rounded text-[10.5px] font-bold border ${
+                          isWithDiesel
+                            ? 'bg-blue-50 text-blue-800 border-blue-200'
+                            : 'bg-amber-50 text-amber-800 border-amber-200'
+                        }`}
                       >
-                        📍 {o.siteAddress}
+                        Diesel: {isWithDiesel ? 'WD' : 'PD'}
                       </span>
+                      <span
+                        className={`px-2 py-0.5 rounded text-[10.5px] font-bold border ${
+                          hasCable
+                            ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                            : 'bg-rose-50 text-rose-800 border-rose-200'
+                        }`}
+                      >
+                        Cable: {hasCable ? 'Yes' : 'No'}
+                      </span>
+                    </div>
+
+                    {o.siteAddress && (
+                      <div className="flex items-center gap-1 text-[11.5px] text-slate-500 min-w-0">
+                        <span className="text-slate-400 shrink-0">📍</span>
+                        <span className="truncate" title={o.siteAddress}>
+                          {o.siteAddress}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Responsive Action Buttons (Dedicated Bottom Bar) */}
+                  <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        navigate(ROUTES.GENERATOR_ORDER_DETAIL.replace(':id', o.id))
+                      }
+                      className="flex-1 inline-flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-600 hover:text-white transition-colors active:scale-98 shadow-2xs"
+                    >
+                      <Eye size={13} />
+                      <span>View</span>
+                    </button>
+
+                    {isWithDiesel && (
+                      <button
+                        type="button"
+                        disabled={o.billingStatus === 'COMPLETED'}
+                        onClick={() => {
+                          if (o.billingStatus !== 'COMPLETED') setDieselModalTarget(o);
+                        }}
+                        title={o.billingStatus === 'COMPLETED' ? 'Diesel running hours log cannot be modified after billing is completed' : 'Diesel'}
+                        className={`flex-1 inline-flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg text-xs font-bold border transition-colors shadow-2xs ${
+                          o.billingStatus === 'COMPLETED'
+                            ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed opacity-50'
+                            : 'bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-600 hover:text-white active:scale-98 cursor-pointer'
+                        }`}
+                      >
+                        <Fuel size={13} />
+                        <span>Diesel</span>
+                      </button>
                     )}
                   </div>
                 </div>

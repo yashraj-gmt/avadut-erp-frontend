@@ -1,16 +1,16 @@
 // src/components/shared/PageHeader.jsx
 
 /**
- * PageHeader — top-of-page heading row with breadcrumb + action slot.
+ * PageHeader - top-of-page heading row with breadcrumb + action slot.
  *
  * Props:
- *   title        — page title (h1)
- *   subtitle     — optional sentence below the title
- *   breadcrumbs  — array of { label, href? }  — last item is always the current page (no link)
- *   actions      — ReactNode — buttons / controls aligned to the right
- *   className    — extra wrapper classes
- *   back         — if true, shows a back-chevron button (calls window.history.back)
- *   onBack       — override the back action
+ *   title        - page title (h1)
+ *   subtitle     - optional sentence below the title
+ *   breadcrumbs  - array of { label, href? }  - last item is always the current page (no link)
+ *   actions      - ReactNode - buttons / controls aligned to the right
+ *   className    - extra wrapper classes
+ *   back         - if true, shows a back-chevron button (calls window.history.back)
+ *   onBack       - override the back action
  *
  * Usage:
  *   <PageHeader
@@ -128,7 +128,7 @@ export default function PageHeader({
 
           {/* Subtitle */}
           {subtitle && (
-            <p className="mt-1 text-sm text-[var(--color-text-muted)]">{subtitle}</p>
+            <p className="mt-1 text-sm text-slate-600 dark:text-slate-400 font-medium">{subtitle}</p>
           )}
         </div>
       </div>
@@ -145,7 +145,7 @@ export default function PageHeader({
 
 /* ── Divider variant ───────────────────────────────────────────────────── */
 /**
- * PageHeaderDivider — full-width PageHeader followed by a separator line.
+ * PageHeaderDivider - full-width PageHeader followed by a separator line.
  * Drop-in replacement when the header should visually separate from the content below.
  */
 export function PageHeaderDivider(props) {

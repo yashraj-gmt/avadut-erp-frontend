@@ -6,12 +6,12 @@ import api from './api'
  * All calls go to /api/staff/** which is restricted to ROLE_STAFF on the backend.
  */
 export const staffOrderService = {
-  /** GET /api/staff/dashboard — returns { totalAssignedOrders } */
+  /** GET /api/staff/dashboard - returns { totalAssignedOrders } */
   getDashboard: () => api.get('/staff/dashboard'),
 
-  /** GET /api/staff/orders — returns list of OrderSummaryForStaffDto */
+  /** GET /api/staff/orders - returns list of OrderSummaryForStaffDto */
   getMyOrders: () => api.get('/staff/orders'),
 
-  /** GET /api/staff/orders/{id} — returns single OrderSummaryForStaffDto */
+  /** GET /api/staff/orders/{id} - returns single OrderSummaryForStaffDto */
   getMyOrderById: (id) => api.get(`/staff/orders/${id}`),
 }

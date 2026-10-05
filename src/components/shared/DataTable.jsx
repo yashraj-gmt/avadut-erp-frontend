@@ -2,30 +2,30 @@
 import { useState, useMemo, useCallback } from 'react';
 
 /**
- * DataTable — fully-featured, sortable, paginated table.
+ * DataTable - fully-featured, sortable, paginated table.
  *
  * columns[] shape:
  *   {
- *     key:        string           — unique key (also used to read row[key])
- *     header:     string           — column heading text
- *     sortable?:  boolean          — allow sorting on this column (default false)
- *     width?:     string           — Tailwind width class e.g. "w-16"
+ *     key:        string           - unique key (also used to read row[key])
+ *     header:     string           - column heading text
+ *     sortable?:  boolean          - allow sorting on this column (default false)
+ *     width?:     string           - Tailwind width class e.g. "w-16"
  *     align?:     'left'|'center'|'right'  (default 'left')
- *     render?:    (value, row, index) => ReactNode — custom cell renderer
+ *     render?:    (value, row, index) => ReactNode - custom cell renderer
  *   }
  *
  * Props:
- *   data          — array of row objects
- *   columns       — column definition array (see above)
- *   keyField      — property name to use as React key (default 'id')
- *   loading       — show skeleton rows
- *   emptyState    — ReactNode shown when data is empty and not loading
- *   pageSize      — rows per page (default 8); pass 0 to disable pagination
- *   pageSizeOptions — array of numbers for the page-size selector
- *   striped       — alternate row shading
- *   stickyHeader  — make thead sticky (useful inside a scrollable container)
- *   className     — extra classes on the wrapper
- *   onRowClick    — (row) => void  — makes rows clickable
+ *   data          - array of row objects
+ *   columns       - column definition array (see above)
+ *   keyField      - property name to use as React key (default 'id')
+ *   loading       - show skeleton rows
+ *   emptyState    - ReactNode shown when data is empty and not loading
+ *   pageSize      - rows per page (default 8); pass 0 to disable pagination
+ *   pageSizeOptions - array of numbers for the page-size selector
+ *   striped       - alternate row shading
+ *   stickyHeader  - make thead sticky (useful inside a scrollable container)
+ *   className     - extra classes on the wrapper
+ *   onRowClick    - (row) => void  - makes rows clickable
  *
  * Usage:
  *   const columns = [
@@ -241,7 +241,7 @@ export default function DataTable({
                     >
                       {col.render
                         ? col.render(row[col.key], row, rowIdx)
-                        : (row[col.key] ?? '—')}
+                        : (row[col.key] ?? '-')}
                     </td>
                   ))}
                 </tr>

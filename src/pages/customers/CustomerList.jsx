@@ -222,7 +222,7 @@ export default function CustomerList() {
       header: 'Firm Name',
       sortable: true,
       render: v => {
-        if (!v) return <span className="text-xs text-[var(--color-text-subtle)]">—</span>;
+        if (!v) return <span className="text-xs text-[var(--color-text-subtle)]">-</span>;
         const full = String(v);
         return (
           <div className="flex items-center gap-1.5 text-xs sm:text-sm font-medium text-[var(--color-text)] cursor-help" title={full}>
@@ -234,27 +234,36 @@ export default function CustomerList() {
     },
     {
       key: 'mobile',
-      header: 'Mobile Number',
-      render: (_, row) => (
-        <div className="text-xs sm:text-sm">
-          <div className="flex items-center gap-1.5 font-medium text-[var(--color-text)]">
+      header: 'Mob. No.',
+      render: (_, row) => {
+        if (!row.mobile) return <span className="text-xs text-[var(--color-text-subtle)]">-</span>;
+        return (
+          <div className="flex items-center gap-1.5 text-xs sm:text-sm font-medium text-[var(--color-text)] whitespace-nowrap">
             <Phone size={13} className="text-slate-400 shrink-0" />
             <span>{row.mobile}</span>
           </div>
-          {row.telephoneNumber && (
-            <div className="text-[11px] text-[var(--color-text-subtle)] pl-4.5 mt-0.5 truncate">
-              Tel: {row.telephoneNumber}
-            </div>
-          )}
-        </div>
-      ),
+        );
+      },
+    },
+    {
+      key: 'alternateMobile',
+      header: 'Alt. Mob. No.',
+      render: (_, row) => {
+        if (!row.alternateMobile) return <span className="text-xs text-[var(--color-text-subtle)]">-</span>;
+        return (
+          <div className="flex items-center gap-1.5 text-xs sm:text-sm font-medium text-[var(--color-text)] whitespace-nowrap">
+            <Phone size={13} className="text-slate-400 shrink-0" />
+            <span>{row.alternateMobile}</span>
+          </div>
+        );
+      },
     },
     {
       key: 'address',
-      header: 'Site Address',
+      header: 'Customer Address',
       render: (_, row) => {
         const loc = [row.address, row.area, row.city].filter(Boolean).join(', ');
-        if (!loc) return <span className="text-xs text-[var(--color-text-subtle)]">—</span>;
+        if (!loc) return <span className="text-xs text-[var(--color-text-subtle)]">-</span>;
         return (
           <div className="flex items-start gap-1.5 text-xs text-[var(--color-text-muted)] cursor-help max-w-xs" title={loc}>
             <MapPin size={13} className="text-slate-400 shrink-0 mt-0.5" />
@@ -334,7 +343,7 @@ export default function CustomerList() {
           onClick={() => handleTabChange('all')}
           className={`flex items-center gap-3.5 p-3.5 sm:p-4 rounded-[var(--radius-xl)] border-2 transition-all duration-200 cursor-pointer text-left shadow-xs hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 ${
             activeTab === 'all'
-              ? 'border-[var(--color-primary)] bg-[var(--color-primary-50, #eff6ff)] shadow-sm'
+              ? 'border-[var(--color-primary)] bg-[var(--color-primary-50,#eff6ff)] shadow-sm'
               : 'border-[var(--color-border)] bg-[var(--color-surface)] hover:bg-[var(--color-surface-2)]'
           }`}
         >

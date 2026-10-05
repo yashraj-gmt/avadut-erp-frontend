@@ -5,7 +5,6 @@ import { ROUTES } from '@/constants/routes';
 import { useAuthStore } from '@/store/authStore';
 import { generatorOrderService } from '@/services/generatorOrderService';
 import {
-  mockOrders,
   formatRangeToDMY,
   parseDateStr,
 } from '@/pages/generators/orders/mockData';
@@ -22,23 +21,13 @@ import {
   RefreshCw,
   FileText,
   X,
+  Lock,
 } from 'lucide-react';
 
-/** Format single date string to "DD MMM YYYY" */
-const formatDate = (dateStr) => {
-  if (!dateStr) return '—';
-  try {
-    const d = new Date(dateStr);
-    if (isNaN(d.getTime())) return dateStr;
-    return d.toLocaleDateString('en-IN', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-    });
-  } catch {
-    return dateStr;
-  }
-};
+import { formatToDMY } from '@/utils/helpers';
+
+/** Format single date string to "DD-MM-YYYY" */
+const formatDate = (dateStr) => formatToDMY(dateStr);
 
 /** Format function date range or single date */
 const formatFunctionDate = (o) => {
@@ -55,7 +44,41 @@ const formatFunctionDate = (o) => {
   if (o.deliveryDate) {
     return formatDate(o.deliveryDate);
   }
-  return '—';
+  return '-';
+};
+
+/** Calculate rental duration in days (inclusive: 1 Oct to 2 Oct = 2 days) */
+const getRentalDays = (o) => {
+  if (!o) return null;
+
+  let from = null;
+  let to   = null;
+
+  if (o.functionDateFrom) {
+    from = typeof o.functionDateFrom === 'string'
+      ? parseDateStr(o.functionDateFrom)
+      : new Date(o.functionDateFrom);
+  }
+  if (o.functionDateTo) {
+    to = typeof o.functionDateTo === 'string'
+      ? parseDateStr(o.functionDateTo)
+      : new Date(o.functionDateTo);
+  }
+
+  if (!from && o.functionDate) {
+    const parts = String(o.functionDate).split(' to ');
+    from = parseDateStr(parts[0].trim());
+    to   = parts[1] ? parseDateStr(parts[1].trim()) : from;
+  }
+
+  if (!from) return null;
+  if (!to)   to = from;
+
+  const f = new Date(from.getFullYear(), from.getMonth(), from.getDate());
+  const t = new Date(to.getFullYear(),   to.getMonth(),   to.getDate());
+  const diffMs = t - f;
+  const days   = Math.max(1, Math.round(diffMs / (1000 * 60 * 60 * 24)) + 1);
+  return days;
 };
 
 /** Helper to extract cable description */
@@ -84,7 +107,7 @@ export const getCableDisplay = (o) => {
 
   // 2. Fallback to cable or cableType if not generic phrases
   const rawCable = (o.cable || o.cableType || '').trim();
-  const isGeneric = !rawCable || ['required', 'not required', 'none', 'no', '—', 'null', 'undefined'].includes(rawCable.toLowerCase());
+  const isGeneric = !rawCable || ['required', 'not required', 'none', 'no', '-', 'null', 'undefined'].includes(rawCable.toLowerCase());
   if (sizes.length === 0 && !isGeneric) {
     sizes.push(rawCable);
   }
@@ -207,19 +230,31 @@ export default function StaffOrderList() {
   // Diesel Timing Modal Target
   const [dieselModalTarget, setDieselModalTarget] = useState(null);
 
-  // Fetch orders from API with fallback to mock data
+  const [assignedOrdersList, setAssignedOrdersList] = useState([]);
+
+  // Fetch orders from API
   const fetchOrders = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await generatorOrderService.getAll('', '', 0, 200, 'createdAt', 'desc');
-      let list = res?.content || [];
-      if (list.length === 0 && mockOrders && mockOrders.length > 0) {
-        list = mockOrders;
-      }
-      setAllOrders(list);
+      const [assignedRes, allRes] = await Promise.allSettled([
+        generatorOrderService.getAssignedToMe(),
+        generatorOrderService.getAll('', '', 0, 200, 'createdAt', 'desc')
+      ]);
+
+      const assignedList = assignedRes.status === 'fulfilled'
+        ? (Array.isArray(assignedRes.value) ? assignedRes.value : (assignedRes.value?.content || []))
+        : [];
+
+      const allList = allRes.status === 'fulfilled'
+        ? (Array.isArray(allRes.value?.content) ? allRes.value.content : (Array.isArray(allRes.value) ? allRes.value : []))
+        : [];
+
+      setAssignedOrdersList(assignedList);
+      setAllOrders(allList.length > 0 ? allList : assignedList);
     } catch (err) {
-      console.warn('API error fetching orders, fallback to mockOrders:', err);
-      setAllOrders(mockOrders || []);
+      console.error('Error fetching staff orders:', err);
+      setAllOrders([]);
+      setAssignedOrdersList([]);
     } finally {
       setLoading(false);
     }
@@ -231,8 +266,9 @@ export default function StaffOrderList() {
 
   // List of orders assigned to currently logged in staff
   const assignedOrders = useMemo(() => {
+    if (assignedOrdersList.length > 0) return assignedOrdersList;
     return allOrders.filter((o) => isOrderAssignedToUser(o, user));
-  }, [allOrders, user]);
+  }, [assignedOrdersList, allOrders, user]);
 
   // Current base list depending on selected viewMode
   const currentBaseList = viewMode === 'assigned' ? assignedOrders : allOrders;
@@ -253,7 +289,7 @@ export default function StaffOrderList() {
         const contact = (o.contactNumber || o.customerMobile || o.customer?.mobile || '').toLowerCase();
         const altContact = (o.alternateNumber || o.alternateMobile || o.customer?.alternateMobile || '').toLowerCase();
         const address = (o.siteAddress || o.customer?.address || '').toLowerCase();
-        const diesel = (o.dieselType || (o.withDiesel ? 'With Diesel' : 'Party Diesel')).toLowerCase();
+        const diesel = (o.dieselType || (o.withDiesel ? 'WD' : 'PD')).toLowerCase();
         const cable = getCableDisplay(o).toLowerCase();
 
         return (
@@ -411,6 +447,7 @@ export default function StaffOrderList() {
                   <th className="py-3 px-3.5 whitespace-nowrap">Diesel type</th>
                   <th className="py-3 px-3.5 whitespace-nowrap">Cable</th>
                   <th className="py-3 px-3.5 whitespace-nowrap">Function date</th>
+                  <th className="py-3 px-3.5 text-center whitespace-nowrap">Days</th>
                   <th className="py-3 px-3.5 text-center whitespace-nowrap">Action</th>
                 </tr>
               </thead>
@@ -462,7 +499,7 @@ export default function StaffOrderList() {
                   </tr>
                 ) : (
                   displayedOrders.map((o, idx) => {
-                    const clientName = o.clientName || o.customerName || o.customer?.name || '—';
+                    const clientName = o.clientName || o.customerName || o.customer?.name || '-';
                     const contactNo = o.contactNumber || o.customerMobile || o.customer?.mobile || '';
                     const altContactNo = o.alternateNumber || o.alternateMobile || o.customer?.alternateMobile || '';
                     const siteAddress = o.siteAddress || o.customer?.address || '';
@@ -474,29 +511,45 @@ export default function StaffOrderList() {
                     const dieselType = o.dieselType || (o.withDiesel ? 'With Diesel' : 'Party Diesel');
                     const cableDisplay = getCableDisplay(o);
                     const isWithDiesel = dieselType === 'With Diesel' || dieselType === 'WITH_OWNER' || o.withDiesel;
+                    const isCompleted = o.billingStatus === 'COMPLETED' || o.status === 'COMPLETED' || o.billingCompleted === true || Boolean(o.billNumber);
 
                     // Check if assigned to current user
                     const isAssigned = isOrderAssignedToUser(o, user);
 
                     return (
-                      <tr key={o.id || idx} className="hover:bg-blue-50/30 transition-colors group">
+                      <tr
+                        key={o.id || idx}
+                        className={`transition-colors group relative ${
+                          isCompleted
+                            ? 'bg-slate-100/90 text-slate-500 opacity-70 hover:opacity-95'
+                            : 'hover:bg-blue-50/30 text-slate-800'
+                        }`}
+                        style={
+                          isCompleted
+                            ? {
+                                backgroundImage:
+                                  'repeating-linear-gradient(135deg, rgba(241, 245, 249, 0.95), rgba(241, 245, 249, 0.95) 10px, rgba(226, 232, 240, 0.6) 10px, rgba(226, 232, 240, 0.6) 20px)',
+                              }
+                            : undefined
+                        }
+                      >
                         {/* 1. Sr no. */}
-                        <td className="py-3 px-3 text-center text-xs font-semibold text-slate-400 whitespace-nowrap">
+                        <td className={`py-3 px-3 text-center text-xs font-semibold whitespace-nowrap ${isCompleted ? 'text-slate-400' : 'text-slate-500'}`}>
                           {idx + 1}
                         </td>
 
                         {/* 2. Order no. */}
                         <td className="py-3 px-3.5 whitespace-nowrap">
-                          <span className="font-bold text-slate-900 group-hover:text-blue-600 transition-colors font-mono">
+                          <span className={`font-bold font-mono ${isCompleted ? 'text-slate-600' : 'text-slate-900 group-hover:text-blue-600 transition-colors'}`}>
                             {o.orderNumber || `#${o.id}`}
                           </span>
                           {o.billNumber && (
-                            <div className="text-[10px] text-slate-400 font-mono">Bill: {o.billNumber}</div>
+                            <div className="text-[10px] text-slate-500 font-mono font-bold">Bill: {o.billNumber}</div>
                           )}
                         </td>
 
                         {/* 3. Client name */}
-                        <td className="py-3 px-3.5 whitespace-nowrap font-bold text-slate-800">
+                        <td className={`py-3 px-3.5 whitespace-nowrap font-bold ${isCompleted ? 'text-slate-600' : 'text-slate-800'}`}>
                           {clientName}
                         </td>
 
@@ -505,13 +558,15 @@ export default function StaffOrderList() {
                           {contactNo ? (
                             <a
                               href={`tel:${contactNo}`}
-                              className="inline-flex items-center gap-1.5 font-semibold text-slate-700 hover:text-blue-600 transition-colors"
+                              className={`inline-flex items-center gap-1.5 font-semibold transition-colors ${
+                                isCompleted ? 'text-slate-600 hover:text-slate-800' : 'text-slate-700 hover:text-blue-600'
+                              }`}
                             >
-                              <Phone size={12} className="text-blue-600 shrink-0" />
+                              <Phone size={12} className={isCompleted ? 'text-slate-400 shrink-0' : 'text-blue-600 shrink-0'} />
                               <span>+91 {contactNo}</span>
                             </a>
                           ) : (
-                            <span className="text-slate-400">—</span>
+                            <span className="text-slate-400">-</span>
                           )}
                         </td>
 
@@ -526,7 +581,7 @@ export default function StaffOrderList() {
                               <span>+91 {altContactNo}</span>
                             </a>
                           ) : (
-                            <span className="text-slate-400">—</span>
+                            <span className="text-slate-400">-</span>
                           )}
                         </td>
 
@@ -555,21 +610,22 @@ export default function StaffOrderList() {
                               <ExternalLink size={11} />
                             </a>
                           ) : (
-                            <span className="text-slate-400">—</span>
+                            <span className="text-slate-400">-</span>
                           )}
                         </td>
 
                         {/* 8. Diesel type */}
                         <td className="py-3 px-3.5 whitespace-nowrap">
                           <span
-                            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold ${
+                            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold ${
                               isWithDiesel
                                 ? 'bg-amber-50 text-amber-700 border border-amber-200'
                                 : 'bg-slate-100 text-slate-700 border border-slate-200'
                             }`}
+                            title={isWithDiesel ? 'WD (With Diesel / Owner)' : 'PD (Party Diesel)'}
                           >
                             <Fuel size={12} />
-                            {isWithDiesel ? 'With Diesel' : 'Party Diesel'}
+                            <span>{isWithDiesel ? 'WD' : 'PD'}</span>
                           </span>
                         </td>
 
@@ -590,18 +646,45 @@ export default function StaffOrderList() {
                           {formatFunctionDate(o)}
                         </td>
 
-                        {/* 11. Action (Add diesel timing modal same as in order management) */}
+                        {/* 11. Days */}
+                        <td className="py-3 px-3.5 text-center whitespace-nowrap">
+                          {(() => {
+                            const days = getRentalDays(o);
+                            return days ? (
+                              <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold ${
+                                isCompleted
+                                  ? 'bg-slate-200 text-slate-500 border border-slate-300'
+                                  : 'bg-blue-50 text-blue-700 border border-blue-200'
+                              }`}>
+                                <Calendar size={11} />
+                                {days} {days === 1 ? 'day' : 'days'}
+                              </span>
+                            ) : <span className="text-slate-400">-</span>;
+                          })()}
+                        </td>
+
+                        {/* 12. Action (Add diesel timing modal same as in order management) */}
                         <td className="py-3 px-3.5 text-center whitespace-nowrap">
                           {isAssigned ? (
-                            <button
-                              type="button"
-                              onClick={() => setDieselModalTarget(o)}
-                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold transition-all shadow-2xs hover:shadow-xs cursor-pointer active:scale-98"
-                              title="Add or edit generator operating diesel timings"
-                            >
-                              <Fuel size={13} />
-                              <span>Add Diesel Timing</span>
-                            </button>
+                            isCompleted ? (
+                              <span
+                                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-bold bg-slate-200 text-slate-500 border border-slate-300 select-none cursor-not-allowed shadow-2xs"
+                                title="Billing is completed — diesel timing entries are locked"
+                              >
+                                <Lock size={12} className="text-slate-400" />
+                                <span>Billing Completed</span>
+                              </span>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => setDieselModalTarget(o)}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold transition-all shadow-2xs hover:shadow-xs cursor-pointer active:scale-98"
+                                title="Add or edit generator operating diesel timings"
+                              >
+                                <Fuel size={13} />
+                                <span>Add Diesel Timing</span>
+                              </button>
+                            )
                           ) : (
                             <span
                               className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-slate-100 text-slate-400 border border-slate-200 select-none"

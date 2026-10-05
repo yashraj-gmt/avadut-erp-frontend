@@ -19,10 +19,12 @@ import DataTable from '@/components/shared/DataTable';
 import { ROUTES } from '@/constants/routes';
 import CustomerFormModal from './CustomerFormModal';
 
+import { formatToDMY, formatDateTime } from '@/utils/helpers';
+
 // ── Helpers ────────────────────────────────────────────────────────────────
-const fmt   = (d) => d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
-const fmtDt = (d) => d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
-const inr   = (v) => v != null ? `₹${Number(v).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—';
+const fmt   = (d) => formatToDMY(d);
+const fmtDt = (d) => formatDateTime(d);
+const inr   = (v) => v != null ? `₹${Number(v).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-';
 
 const statusVariant = (s) => ({ ACTIVE: 'success', INACTIVE: 'warning', BLOCKED: 'danger' }[s] ?? 'neutral');
 
@@ -46,9 +48,10 @@ const paymentStatusLabel = (s) => ({
 // ── Record Payment Modal ───────────────────────────────────────────────────
 function RecordPaymentModal({ order, onClose, onSuccess }) {
   const toast = useToast();
+  const today = new Date().toISOString().split('T')[0];
   const [amount, setAmount]               = useState('');
   const [paymentMode, setPaymentMode]     = useState('CASH');
-  const [paymentDate, setPaymentDate]     = useState(() => new Date().toISOString().split('T')[0]);
+  const [paymentDate, setPaymentDate]     = useState(() => today);
   const [reference, setReference]         = useState('');
   const [notes, setNotes]                 = useState('');
   const [loading, setLoading]             = useState(false);
@@ -58,7 +61,7 @@ function RecordPaymentModal({ order, onClose, onSuccess }) {
   const currentPaid   = Number(order.paidAmount) || 0;
   const currentPending = Math.max(0, totalAmount - currentPaid);
 
-  // Amount field starts empty — user enters the amount they wish to pay
+  // Amount field starts empty - user enters the amount they wish to pay
 
   const enteredAmt = Number(amount) || 0;
   const projectedRemaining = Math.max(0, currentPending - enteredAmt);
@@ -75,6 +78,10 @@ function RecordPaymentModal({ order, onClose, onSuccess }) {
     }
     if (enteredAmt > currentPending + 0.01) {
       setError(`Payment amount cannot exceed the pending balance (₹${currentPending.toLocaleString('en-IN')}).`);
+      return;
+    }
+    if (paymentDate > today) {
+      setError('Payment date cannot be in the future. Please select today or a previous date.');
       return;
     }
 
@@ -99,71 +106,71 @@ function RecordPaymentModal({ order, onClose, onSuccess }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-3 sm:p-4 overflow-y-auto">
-      <div className="bg-[var(--color-surface)] rounded-[var(--radius-xl)] border border-[var(--color-border)] shadow-[var(--shadow-xl)] w-full max-w-md my-auto overflow-hidden">
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-md my-auto overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--color-border)] bg-[var(--color-surface-2)]">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-emerald-100 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-slate-50">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-black text-lg">
               ₹
             </div>
             <div>
-              <h3 className="text-sm sm:text-base font-bold text-[var(--color-text)]">Record Payment</h3>
-              <p className="text-xs text-[var(--color-text-muted)] font-mono">Order #{order.orderNumber}</p>
+              <h3 className="text-base sm:text-lg font-black text-slate-900">Record Payment</h3>
+              <p className="text-xs text-slate-600 font-mono font-bold">Order #{order.orderNumber}</p>
             </div>
           </div>
-          <button onClick={onClose} className="p-1 rounded-md text-[var(--color-text-subtle)] hover:bg-[var(--color-border)] transition">
-            <X size={18} />
+          <button onClick={onClose} className="p-1.5 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-200 transition">
+            <X size={20} />
           </button>
         </div>
 
         {/* Balance Overview */}
-        <div className="p-4 bg-[var(--color-surface)] border-b border-[var(--color-border)] grid grid-cols-3 gap-2 text-center">
-          <div className="p-2 rounded-lg bg-[var(--color-surface-2)]">
-            <p className="text-[10px] uppercase tracking-wider font-semibold text-[var(--color-text-muted)]">Total Bill</p>
-            <p className="text-xs sm:text-sm font-bold text-[var(--color-text)] mt-0.5">{inr(totalAmount)}</p>
+        <div className="p-4 bg-slate-100/70 border-b border-slate-200 grid grid-cols-3 gap-2.5 text-center">
+          <div className="p-2.5 rounded-xl bg-white border border-slate-200 shadow-2xs">
+            <p className="text-[11px] uppercase tracking-wider font-extrabold text-slate-700">Total Bill</p>
+            <p className="text-sm sm:text-base font-black text-slate-900 mt-0.5">{inr(totalAmount)}</p>
           </div>
-          <div className="p-2 rounded-lg bg-emerald-50 dark:bg-emerald-950/20">
-            <p className="text-[10px] uppercase tracking-wider font-semibold text-emerald-600 dark:text-emerald-400">Paid</p>
-            <p className="text-xs sm:text-sm font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">{inr(currentPaid)}</p>
+          <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 shadow-2xs">
+            <p className="text-[11px] uppercase tracking-wider font-extrabold text-emerald-800">Paid</p>
+            <p className="text-sm sm:text-base font-black text-emerald-800 mt-0.5">{inr(currentPaid)}</p>
           </div>
-          <div className="p-2 rounded-lg bg-rose-50 dark:bg-rose-950/20">
-            <p className="text-[10px] uppercase tracking-wider font-semibold text-rose-600 dark:text-rose-400">Pending</p>
-            <p className="text-xs sm:text-sm font-bold text-rose-600 dark:text-rose-400 mt-0.5">{inr(currentPending)}</p>
+          <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-300 shadow-2xs">
+            <p className="text-[11px] uppercase tracking-wider font-black text-rose-900">Pending</p>
+            <p className="text-sm sm:text-base font-black text-rose-800 mt-0.5">{inr(currentPending)}</p>
           </div>
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleSubmit} className="p-5 space-y-4">
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
           {error && (
-            <div className="p-3 rounded-lg bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/50 text-xs text-rose-600 dark:text-rose-400">
+            <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-300 text-xs font-bold text-rose-800">
               {error}
             </div>
           )}
 
           {order.billingStatus !== 'COMPLETED' && (
-            <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 text-xs text-amber-700 dark:text-amber-400 flex items-start gap-2">
-              <AlertTriangle size={15} className="shrink-0 mt-0.5" />
+            <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-300 text-xs font-bold text-amber-900 flex items-start gap-2.5">
+              <AlertTriangle size={18} className="shrink-0 mt-0.5 text-amber-700" />
               <span>Billing is not yet completed for this order. Payments can only be recorded after billing status is completed.</span>
             </div>
           )}
 
           <div>
             <div className="flex items-center justify-between mb-1.5">
-              <label className="text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">
-                Amount Paid (₹) <span className="text-rose-500">*</span>
+              <label className="text-xs font-extrabold uppercase tracking-wide text-slate-800">
+                Amount Paid (₹) <span className="text-rose-600">*</span>
               </label>
               {currentPending > 0 && order.billingStatus === 'COMPLETED' && (
                 <button
                   type="button"
                   onClick={() => setAmount(String(currentPending))}
-                  className="text-[11px] font-semibold text-[var(--color-primary)] hover:underline"
+                  className="text-xs font-extrabold text-blue-700 hover:underline"
                 >
                   Pay Full Balance ({inr(currentPending)})
                 </button>
               )}
             </div>
             <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 font-bold text-sm text-[var(--color-text-subtle)]">₹</span>
+              <span className="absolute left-3.5 top-1/2 -translate-y-1/2 font-black text-base text-slate-700">₹</span>
               <input
                 type="number"
                 step="0.01"
@@ -174,13 +181,13 @@ function RecordPaymentModal({ order, onClose, onSuccess }) {
                 value={amount}
                 onChange={e => setAmount(e.target.value)}
                 placeholder="0.00"
-                className="w-full pl-8 pr-3 py-2 text-base font-bold rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full pl-9 pr-3.5 py-2.5 text-base font-black rounded-xl border border-slate-300 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
               />
             </div>
             {enteredAmt > 0 && (
-              <p className="text-[11px] text-[var(--color-text-muted)] mt-1 flex items-center justify-between">
+              <p className="text-xs text-slate-700 font-bold mt-1.5 flex items-center justify-between">
                 <span>Remaining Balance after payment:</span>
-                <span className={`font-bold ${projectedRemaining === 0 ? 'text-emerald-600' : 'text-amber-600'}`}>
+                <span className={`font-black ${projectedRemaining === 0 ? 'text-emerald-700' : 'text-amber-700'}`}>
                   {inr(projectedRemaining)} {projectedRemaining === 0 ? '(Fully Paid ✓)' : '(Partial)'}
                 </span>
               </p>
@@ -189,76 +196,79 @@ function RecordPaymentModal({ order, onClose, onSuccess }) {
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)] mb-1.5">
-                Payment Mode <span className="text-rose-500">*</span>
+              <label className="block text-xs font-extrabold uppercase tracking-wide text-slate-800 mb-1.5">
+                Payment Mode <span className="text-rose-600">*</span>
               </label>
               <select
                 value={paymentMode}
                 disabled={order.billingStatus !== 'COMPLETED'}
                 onChange={e => setPaymentMode(e.target.value)}
-                className="w-full px-3 py-2 text-sm rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full px-3.5 py-2.5 text-sm font-bold rounded-xl border border-slate-300 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <option value="CASH">Cash</option>
                 <option value="UPI">UPI / GPay / PhonePe</option>
-                <option value="BANK_TRANSFER">Bank Transfer (NEFT/IMPS)</option>
+                <option value="BANK_TRANSFER">Bank Transfer (RTGS/NEFT/IMPS)</option>
                 <option value="CHEQUE">Cheque</option>
                 <option value="CARD">Debit / Credit Card</option>
               </select>
             </div>
 
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)] mb-1.5">
-                Payment Date <span className="text-rose-500">*</span>
+              <label className="block text-xs font-extrabold uppercase tracking-wide text-slate-800 mb-1.5">
+                Payment Date <span className="text-rose-600">*</span>
               </label>
               <input
                 type="date"
                 required
+                max={today}
                 disabled={order.billingStatus !== 'COMPLETED'}
                 value={paymentDate}
                 onChange={e => setPaymentDate(e.target.value)}
-                className="w-full px-3 py-2 text-sm rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full px-3.5 py-2.5 text-sm font-bold rounded-xl border border-slate-300 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)] mb-1.5">
+            <label className="block text-xs font-extrabold uppercase tracking-wide text-slate-800 mb-1.5">
               Transaction / Cheque Reference (Optional)
             </label>
             <input
               type="text"
-              placeholder="e.g. UPI Ref #, Cheque #, NEFT UTR"
+              placeholder="e.g. UPI Ref #, Cheque #, RTGS/NEFT UTR"
               disabled={order.billingStatus !== 'COMPLETED'}
               value={reference}
               onChange={e => setReference(e.target.value)}
-              className="w-full px-3 py-2 text-sm rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full px-3.5 py-2.5 text-sm font-bold rounded-xl border border-slate-300 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600 disabled:opacity-50 disabled:cursor-not-allowed placeholder:font-normal"
               maxLength={100}
             />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)] mb-1.5">
+            <label className="block text-xs font-extrabold uppercase tracking-wide text-slate-800 mb-1.5">
               Notes / Remarks (Optional)
             </label>
             <textarea
-              placeholder="e.g. Received advance on booking / party settled balance"
+              rows={2}
+              placeholder="e.g. Received via PhonePe, advance payment on site..."
               disabled={order.billingStatus !== 'COMPLETED'}
               value={notes}
               onChange={e => setNotes(e.target.value)}
-              rows={2}
-              className="w-full px-3 py-2 text-sm rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] resize-none disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full px-3.5 py-2.5 text-sm font-medium rounded-xl border border-slate-300 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600 disabled:opacity-50 disabled:cursor-not-allowed resize-none"
+              maxLength={255}
             />
           </div>
 
           {/* Actions */}
-          <div className="flex gap-2.5 pt-2 justify-end">
-            <Button variant="ghost" onClick={onClose} disabled={loading}>Cancel</Button>
+          <div className="flex gap-3 pt-2 justify-end">
+            <Button variant="ghost" onClick={onClose} disabled={loading} className="font-bold">Cancel</Button>
             <Button
               variant="primary"
               type="submit"
               loading={loading}
               disabled={loading || order.billingStatus !== 'COMPLETED'}
-              icon={<CheckCircle2 size={16} />}
+              icon={<CheckCircle2 size={18} />}
+              className="font-black px-5"
             >
               Save Payment
             </Button>
@@ -272,46 +282,64 @@ function RecordPaymentModal({ order, onClose, onSuccess }) {
 // ── Payment History Modal ──────────────────────────────────────────────────
 function PaymentHistoryModal({ order, onClose }) {
   const payments = order?.payments ?? [];
+  const totalPaid = payments.reduce((sum, p) => sum + Number(p.amount || 0), 0);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-3 sm:p-4 overflow-y-auto">
-      <div className="bg-[var(--color-surface)] rounded-[var(--radius-xl)] border border-[var(--color-border)] shadow-[var(--shadow-xl)] w-full max-w-xl my-auto overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--color-border)] bg-[var(--color-surface-2)]">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 flex items-center justify-center">
-              <History size={16} />
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-lg my-auto overflow-hidden">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-slate-50">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-blue-100 text-blue-800 flex items-center justify-center">
+              <History size={18} />
             </div>
             <div>
-              <h3 className="text-sm sm:text-base font-bold text-[var(--color-text)]">Payment History</h3>
-              <p className="text-xs text-[var(--color-text-muted)] font-mono">Order #{order.orderNumber}</p>
+              <h3 className="text-base sm:text-lg font-black text-slate-900">Payment History</h3>
+              <p className="text-xs text-slate-600 font-mono font-bold">Order #{order.orderNumber}</p>
             </div>
           </div>
-          <button onClick={onClose} className="p-1 rounded-md text-[var(--color-text-subtle)] hover:bg-[var(--color-border)] transition">
-            <X size={18} />
+          <button onClick={onClose} className="p-1.5 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-200 transition">
+            <X size={20} />
           </button>
         </div>
 
-        <div className="p-5 max-h-[65vh] overflow-y-auto">
+        <div className="p-6 max-h-[65vh] overflow-y-auto">
           {payments.length === 0 ? (
-            <div className="text-center py-10 text-[var(--color-text-subtle)] text-sm">
-              <CreditCard size={32} className="mx-auto mb-2 opacity-30" />
-              No recorded payments yet for this order.
+            <div className="text-center py-12 text-slate-500 text-sm">
+              <CreditCard size={36} className="mx-auto mb-2 text-slate-400" />
+              <p className="font-bold">No recorded payments yet for this order.</p>
             </div>
           ) : (
             <div className="space-y-3">
               {payments.map((p, idx) => (
-                <div key={p.id || idx} className="p-3.5 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] flex items-center justify-between gap-3">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-sm text-emerald-600 dark:text-emerald-400">+{inr(p.amount)}</span>
-                      <Badge variant="info" size="sm">{p.paymentMode}</Badge>
-                      <span className="text-xs text-[var(--color-text-muted)] font-medium">on {fmt(p.paymentDate)}</span>
+                <div
+                  key={p.id || idx}
+                  className="p-4 rounded-xl border border-slate-200 bg-slate-50/60 flex items-center justify-between gap-3 shadow-2xs hover:border-blue-400 transition"
+                >
+                  {/* Left Column: Amount + Payment Mode + Transaction Ref */}
+                  <div className="min-w-0 flex-1 space-y-1.5">
+                    <div className="flex items-center gap-2.5 flex-wrap">
+                      <span className="font-bold text-base sm:text-lg text-emerald-600 font-mono tracking-tight">
+                        + {inr(p.amount)}
+                      </span>
+                      <Badge variant="info" size="sm" className="font-semibold">{p.paymentMode}</Badge>
                     </div>
                     {p.transactionReference && (
-                      <p className="text-xs text-[var(--color-text-subtle)]">Ref: <span className="font-mono text-[var(--color-text)]">{p.transactionReference}</span></p>
+                      <p className="text-xs text-slate-600 font-medium">
+                        Ref: <span className="font-mono font-bold text-slate-900">{p.transactionReference}</span>
+                      </p>
                     )}
+                  </div>
+
+                  {/* Right Column: Date + Notes */}
+                  <div className="shrink-0 text-right space-y-1">
+                    <div className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg bg-white border border-slate-200 font-bold text-slate-800 shadow-2xs">
+                      <Calendar size={14} className="text-blue-600" />
+                      <span>{fmt(p.paymentDate)}</span>
+                    </div>
                     {p.notes && (
-                      <p className="text-xs text-[var(--color-text-muted)] italic">"{p.notes}"</p>
+                      <p className="text-xs text-slate-600 italic font-medium truncate max-w-[180px] sm:max-w-[220px]">
+                        "{p.notes}"
+                      </p>
                     )}
                   </div>
                 </div>
@@ -320,8 +348,11 @@ function PaymentHistoryModal({ order, onClose }) {
           )}
         </div>
 
-        <div className="px-5 py-3 border-t border-[var(--color-border)] bg-[var(--color-surface-2)] flex justify-end">
-          <Button variant="ghost" onClick={onClose}>Close</Button>
+        <div className="px-6 py-4 border-t border-slate-200 bg-slate-50 flex items-center justify-between">
+          <span className="text-sm text-slate-800 font-medium">
+            Total Paid: <strong className="text-emerald-800 font-black text-base">{inr(totalPaid)}</strong> ({payments.length} payment{payments.length !== 1 ? 's' : ''})
+          </span>
+          <Button variant="ghost" size="sm" onClick={onClose} className="font-bold">Close</Button>
         </div>
       </div>
     </div>
@@ -407,114 +438,116 @@ export default function CustomerProfile() {
   const orders      = profile.recentOrders ?? [];
 
   return (
-    <div className="flex flex-col gap-5 sm:gap-6">
+    <div className="flex flex-col gap-4 sm:gap-6 w-full max-w-full min-w-0 overflow-x-hidden">
       {/* ── TOP BREADCRUMB & ACTIONS ── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 min-w-0">
+        <div className="flex items-center gap-2.5 min-w-0 flex-1">
           <button
             onClick={() => navigate(ROUTES.CUSTOMERS)}
-            className="p-1.5 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition"
+            className="p-2 rounded-xl border border-slate-200 bg-white text-slate-700 hover:text-slate-950 hover:bg-slate-100 transition shadow-xs shrink-0"
+            title="Back to Customers"
           >
-            <ArrowLeft size={16} />
+            <ArrowLeft size={18} />
           </button>
-          <div>
-            <h1 className="text-lg sm:text-xl font-bold text-[var(--color-text)]">{displayName}</h1>
-            <p className="text-xs text-[var(--color-text-muted)]">Customer Account & Payment Overview</p>
+          <div className="min-w-0 flex-1">
+            <h1 className="text-lg sm:text-2xl font-bold text-slate-900 tracking-tight truncate">{displayName}</h1>
+            <p className="text-xs sm:text-sm text-slate-500 font-medium truncate">Customer Account & Payment Overview</p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 self-end sm:self-auto">
-          <Button variant="ghost" size="sm" icon={<RefreshCw size={14} />} onClick={fetchProfile}>
+        <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
+          <Button variant="ghost" size="sm" icon={<RefreshCw size={15} className="text-slate-700" />} onClick={fetchProfile} className="text-slate-700 font-semibold border border-slate-200 bg-white hover:bg-slate-100">
             Refresh
           </Button>
-          <Button variant="outline" size="sm" icon={<Pencil size={14} />} onClick={() => setEditOpen(true)}>
+          <Button variant="outline" size="sm" icon={<Pencil size={15} className="text-slate-700" />} onClick={() => setEditOpen(true)} className="text-slate-800 font-semibold border-slate-200 bg-white hover:bg-slate-50 shadow-xs">
             Edit Details
           </Button>
         </div>
       </div>
 
       {/* ── 1. CUSTOMER PROFILE DETAILS (TOP CARD) ── */}
-      <div className="rounded-[var(--radius-xl)] border border-[var(--color-border)] bg-[var(--color-surface)] shadow-[var(--shadow-sm)] p-4 sm:p-6">
-        <div className="flex flex-col lg:flex-row items-start justify-between gap-5">
+      <div className="rounded-2xl border border-slate-200 bg-white shadow-xs p-4 sm:p-6 w-full max-w-full min-w-0">
+        <div className="flex flex-col lg:flex-row items-start justify-between gap-5 sm:gap-6 min-w-0">
           {/* Main Info */}
-          <div className="flex items-start gap-4 min-w-0 flex-1">
-            <div
-              className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl flex items-center justify-center text-xl sm:text-2xl font-black text-white shrink-0 shadow-md"
-              style={{ background: 'linear-gradient(135deg, #2563EB, #0EA5E9)' }}
-            >
-              {profile.name?.charAt(0)?.toUpperCase() ?? 'C'}
-            </div>
-
-            <div className="space-y-1.5 min-w-0 flex-1">
-              <div className="flex flex-wrap items-center gap-2">
-                <h2 className="text-base sm:text-xl font-bold text-[var(--color-text)] truncate">{profile.name}</h2>
-                <Badge variant={statusVariant(profile.customerStatus)} dot size="sm">
-                  {profile.customerStatus || 'ACTIVE'}
-                </Badge>
-                {profile.isRegular && (
-                  <Badge variant="warning" size="sm">⭐ Regular Customer</Badge>
-                )}
+          <div className="space-y-3 min-w-0 flex-1 w-full">
+            {/* Top row: Avatar + Customer Name + Status badges */}
+            <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+              <div
+                className="w-12 h-12 sm:w-16 sm:h-16 rounded-xl sm:rounded-2xl flex items-center justify-center text-lg sm:text-2xl font-bold text-white shrink-0 shadow-sm"
+                style={{ background: 'linear-gradient(135deg, #2563EB, #0284C7)' }}
+              >
+                {profile.name?.charAt(0)?.toUpperCase() ?? 'C'}
               </div>
 
-              {profile.firmName && (
-                <div className="flex items-center gap-1.5 text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-300">
-                  <Building2 size={15} className="text-slate-400 shrink-0" />
-                  <span>{profile.firmName}</span>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                  <h2 className="text-xl sm:text-2xl font-bold text-slate-900 truncate tracking-tight">{profile.name}</h2>
+                  <Badge variant={statusVariant(profile.customerStatus)} dot size="sm" className="font-semibold uppercase text-[11px] sm:text-xs">
+                    {profile.customerStatus || 'ACTIVE'}
+                  </Badge>
+                  {profile.isRegular && (
+                    <Badge variant="warning" size="sm" className="font-semibold text-[11px] sm:text-xs">⭐ Regular</Badge>
+                  )}
+                </div>
+
+                {/* Firm Name */}
+                {profile.firmName && (
+                  <div className="inline-flex items-center gap-1.5 sm:gap-2 text-sm font-semibold text-slate-800 bg-slate-100/90 px-2.5 sm:px-3 py-1 rounded-lg border border-slate-200 mt-1 max-w-full">
+                    <Building2 size={15} className="text-slate-600 shrink-0" />
+                    <span className="truncate">{profile.firmName}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Contact info list - balanced, clean, legible weights */}
+            <div className="flex flex-wrap items-center gap-2 pt-0.5 max-w-full">
+              {/* Primary Mobile */}
+              <div className="inline-flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg bg-slate-50 border border-slate-200 shadow-2xs max-w-full">
+                <Phone size={14} className="text-slate-500 shrink-0" />
+                <span className="text-[11px] sm:text-xs font-bold uppercase text-slate-500 shrink-0">Mob:</span>
+                <span className="text-xs sm:text-sm font-bold text-slate-800 truncate">
+                  {profile.mobile ? `+91 ${profile.mobile}` : '-'}
+                </span>
+              </div>
+
+              {/* Alternate Mobile */}
+              {profile.alternateMobile && (
+                <div className="inline-flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg bg-slate-50 border border-slate-200 shadow-2xs max-w-full">
+                  <Phone size={14} className="text-slate-500 shrink-0" />
+                  <span className="text-[11px] sm:text-xs font-bold uppercase text-slate-500 shrink-0">Alt:</span>
+                  <span className="text-xs sm:text-sm font-bold text-slate-800 truncate">
+                    +91 {profile.alternateMobile}
+                  </span>
                 </div>
               )}
 
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[var(--color-text-muted)]">
-                <div className="flex items-center gap-1">
-                  <Phone size={12} className="text-[var(--color-text-subtle)]" />
-                  <span className="font-medium text-[var(--color-text)]">{profile.mobile}</span>
-                  {profile.alternateMobile && <span className="text-[var(--color-text-subtle)]">({profile.alternateMobile})</span>}
-                </div>
-                {profile.telephoneNumber && (
-                  <div className="flex items-center gap-1">
-                    <Phone size={12} className="text-[var(--color-text-subtle)]" />
-                    <span className="text-[var(--color-text-subtle)]">Tel:</span>
-                    <span className="font-medium text-[var(--color-text)]">{profile.telephoneNumber}</span>
-                  </div>
-                )}
-                {profile.email && (
-                  <div className="flex items-center gap-1">
-                    <Mail size={12} className="text-[var(--color-text-subtle)]" />
-                    <span>{profile.email}</span>
-                  </div>
-                )}
-                <div className="flex items-center gap-1">
-                  <Calendar size={12} className="text-[var(--color-text-subtle)]" />
-                  <span>Joined: {fmt(profile.dateJoined)}</span>
-                </div>
+              {/* Date Joined */}
+              <div className="inline-flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg bg-slate-50 border border-slate-200 shadow-2xs max-w-full">
+                <Calendar size={14} className="text-slate-500 shrink-0" />
+                <span className="text-[11px] sm:text-xs font-bold uppercase text-slate-500 shrink-0">Joined:</span>
+                <span className="text-xs sm:text-sm font-semibold text-slate-800 truncate">
+                  {fmt(profile.dateJoined)}
+                </span>
               </div>
             </div>
           </div>
 
-          {/* Address & Remarks side */}
-          <div className="w-full lg:w-96 rounded-xl bg-[var(--color-surface-2)] p-3.5 border border-[var(--color-border)] space-y-2.5 text-xs">
+          {/* Address & Remarks side box */}
+          <div className="w-full lg:w-[380px] xl:w-[420px] rounded-xl bg-slate-50/80 p-3.5 sm:p-4 border border-slate-200 space-y-2.5 min-w-0 max-w-full shrink-0">
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-subtle)] mb-1 flex items-center gap-1">
-                <MapPin size={12} /> Site Address
+              <p className="text-xs font-bold uppercase tracking-wider text-slate-600 mb-1 flex items-center gap-1.5">
+                <MapPin size={15} className="text-blue-600 shrink-0" /> Customer Address
               </p>
-              <p className="text-[var(--color-text)] leading-relaxed font-medium">
-                {profile.address || <span className="text-[var(--color-text-subtle)] italic">No site address recorded</span>}
+              <p className="text-slate-800 leading-relaxed font-semibold text-xs sm:text-sm break-words">
+                {profile.address || <span className="text-slate-400 font-normal italic">No address recorded</span>}
               </p>
-              {profile.addressLocationLink && (
-                <a
-                  href={profile.addressLocationLink}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 text-[var(--color-primary)] font-semibold mt-1 hover:underline"
-                >
-                  <Link2 size={11} /> Open in Google Maps <ArrowUpRight size={10} />
-                </a>
-              )}
             </div>
 
             {profile.remarks && (
-              <div className="pt-2 border-t border-[var(--color-border)]">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-subtle)] mb-0.5">Remarks / Notes</p>
-                <p className="text-[var(--color-text-muted)] italic leading-relaxed whitespace-pre-wrap">{profile.remarks}</p>
+              <div className="pt-2 border-t border-slate-200/80">
+                <p className="text-xs font-bold uppercase tracking-wider text-slate-600 mb-0.5">Remarks / Notes</p>
+                <p className="text-slate-700 font-medium leading-relaxed whitespace-pre-wrap text-xs sm:text-sm break-words">{profile.remarks}</p>
               </div>
             )}
           </div>
@@ -522,54 +555,68 @@ export default function CustomerProfile() {
       </div>
 
       {/* ── 2. SUMMARY METRICS (CUSTOMER-WISE STATS) ── */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-3.5 shadow-sm">
-          <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-muted)]">Total Revenue</p>
-          <p className="text-base sm:text-lg font-black text-blue-600 dark:text-blue-400 mt-1">{inr(profile.totalBusinessValue)}</p>
+      <div className="grid grid-cols-1 min-[440px]:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 w-full min-w-0">
+        {/* Total Revenue */}
+        <div className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5 shadow-xs min-w-0">
+          <p className="text-xs font-bold uppercase tracking-wider text-slate-600">Total Revenue</p>
+          <p className="text-xl min-[380px]:text-2xl font-bold text-blue-600 mt-1 tracking-tight truncate">{inr(profile.totalBusinessValue)}</p>
         </div>
 
-        <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-3.5 shadow-sm">
-          <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">Total Paid</p>
-          <p className="text-base sm:text-lg font-black text-emerald-600 dark:text-emerald-400 mt-1">{inr(profile.totalPaidAmount)}</p>
+        {/* Total Paid */}
+        <div className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5 shadow-xs min-w-0">
+          <p className="text-xs font-bold uppercase tracking-wider text-slate-600">Total Paid</p>
+          <p className="text-xl min-[380px]:text-2xl font-bold text-emerald-600 mt-1 tracking-tight truncate">{inr(profile.totalPaidAmount)}</p>
         </div>
 
-        <div className={`rounded-xl border p-3.5 shadow-sm ${Number(profile.outstandingDues) > 0 ? 'border-rose-300 bg-rose-50/50 dark:bg-rose-950/20' : 'border-[var(--color-border)] bg-[var(--color-surface)]'}`}>
-          <p className={`text-[10px] font-bold uppercase tracking-wider ${Number(profile.outstandingDues) > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-[var(--color-text-muted)]'}`}>
+        {/* Pending Amount */}
+        <div className={`rounded-xl p-4 sm:p-5 shadow-xs min-w-0 transition ${
+          Number(profile.outstandingDues) > 0
+            ? 'border border-rose-300 bg-rose-50/70'
+            : 'border border-slate-200 bg-white'
+        }`}>
+          <p className={`text-xs font-bold uppercase tracking-wider ${
+            Number(profile.outstandingDues) > 0 ? 'text-rose-700' : 'text-slate-600'
+          }`}>
             Pending Amount
           </p>
-          <p className={`text-base sm:text-lg font-black mt-1 ${Number(profile.outstandingDues) > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600'}`}>
+          <p className={`text-xl min-[380px]:text-2xl font-bold mt-1 tracking-tight truncate ${
+            Number(profile.outstandingDues) > 0 ? 'text-rose-600' : 'text-emerald-600'
+          }`}>
             {inr(profile.outstandingDues)}
           </p>
         </div>
 
-        <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-3.5 shadow-sm">
-          <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-muted)]">Total Orders</p>
-          <p className="text-base sm:text-lg font-black text-[var(--color-text)] mt-1">{profile.totalOrders ?? 0}</p>
+        {/* Total Orders */}
+        <div className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5 shadow-xs min-w-0">
+          <p className="text-xs font-bold uppercase tracking-wider text-slate-600">Total Orders</p>
+          <p className="text-xl min-[380px]:text-2xl font-bold text-slate-800 mt-1 tracking-tight truncate">{profile.totalOrders ?? 0}</p>
         </div>
       </div>
 
       {/* ── 3. EXPANDED ORDERS & PAYMENT TRACKING TABLE ── */}
-      <div className="rounded-[var(--radius-xl)] border border-[var(--color-border)] bg-[var(--color-surface)] shadow-[var(--shadow-sm)] overflow-hidden">
-        <div className="px-5 py-4 border-b border-[var(--color-border)] bg-[var(--color-surface-2)] flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+      <div className="rounded-2xl border border-slate-200 bg-white shadow-xs overflow-hidden w-full max-w-full min-w-0">
+        <div className="px-4 sm:px-6 py-3.5 sm:py-4 border-b border-slate-200 bg-slate-50 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
           <div>
-            <h3 className="text-sm sm:text-base font-bold text-[var(--color-text)] flex items-center gap-2">
-              <ShoppingCart size={17} className="text-[var(--color-primary)]" />
+            <h3 className="text-base sm:text-lg font-bold text-slate-900 flex items-center gap-2">
+              <ShoppingCart size={19} className="text-blue-600" />
               Customer Orders & Payment Ledger
             </h3>
-            <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
+            <p className="text-xs sm:text-sm text-slate-500 font-medium mt-0.5">
               Complete history of generator bookings, partial payments, and balances.
             </p>
           </div>
-          <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-[var(--color-primary-50)] text-[var(--color-primary)] self-start sm:self-auto">
+          <span className="text-xs font-semibold px-3 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200 self-start sm:self-auto shadow-2xs">
             {orders.length} Order{orders.length !== 1 ? 's' : ''} Found
           </span>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs sm:text-sm text-left border-collapse min-w-[900px]">
+        <div className="overflow-x-auto w-full max-w-full">
+          <table className="w-full text-xs sm:text-sm text-left border-collapse min-w-[960px] sm:min-w-[1040px]">
             <thead>
-              <tr className="border-b border-[var(--color-border)] bg-[var(--color-surface-2)] text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
-                <th className="px-4 py-3">Order / Bill #</th>
+              <tr className="border-b border-slate-200 bg-slate-50 text-xs font-semibold uppercase tracking-wider text-slate-600">
+                <th className="px-3.5 py-3 text-center w-14">Sr. No.</th>
+                <th className="px-4 py-3">Order No.</th>
+                <th className="px-4 py-3">Bill No.</th>
                 <th className="px-4 py-3">Function Date</th>
                 <th className="px-4 py-3 text-center">Billing Status</th>
                 <th className="px-4 py-3 text-right">Total Bill</th>
@@ -580,78 +627,86 @@ export default function CustomerProfile() {
                 <th className="px-4 py-3 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[var(--color-border)]">
+            <tbody className="divide-y divide-slate-100">
               {orders.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="py-16 text-center text-[var(--color-text-muted)]">
-                    <ShoppingCart size={32} className="mx-auto mb-2 opacity-30" />
-                    <p className="font-semibold text-sm">No orders recorded yet for this customer.</p>
+                  <td colSpan={11} className="py-16 text-center text-slate-500">
+                    <ShoppingCart size={32} className="mx-auto mb-2 text-slate-400 opacity-60" />
+                    <p className="font-semibold text-sm text-slate-600">No orders recorded yet for this customer.</p>
                   </td>
                 </tr>
               ) : (
-                orders.map((ord) => {
+                orders.map((ord, idx) => {
                   const billAmt     = Number(ord.finalAmount) || 0;
                   const paidAmt     = Number(ord.paidAmount) || 0;
                   const pendingAmt  = Math.max(0, billAmt - paidAmt);
                   const isFullyPaid = ord.paymentStatus === 'PAID' || pendingAmt === 0;
-                  const hasPayments = (ord.payments && ord.payments.length > 0);
 
                   return (
-                    <tr key={ord.id} className="hover:bg-[var(--color-surface-2)] transition">
-                      {/* Order & Bill */}
+                    <tr key={ord.id} className="hover:bg-slate-50/70 transition">
+                      {/* Sr. No. */}
+                      <td className="px-3.5 py-3.5 text-center text-xs font-bold text-slate-500">
+                        {idx + 1}
+                      </td>
+
+                      {/* Order No. */}
                       <td className="px-4 py-3.5">
-                        <div className="font-mono font-bold text-[var(--color-primary)]">
+                        <div className="font-mono font-bold text-sm text-blue-600 hover:text-blue-800 whitespace-nowrap">
                           {ord.orderNumber}
                         </div>
+                      </td>
+
+                      {/* Bill No. */}
+                      <td className="px-4 py-3.5 whitespace-nowrap">
                         {ord.billNumber ? (
-                          <div className="text-[11px] text-[var(--color-text-muted)] font-mono">
-                            Bill #{ord.billNumber}
+                          <div className="text-xs sm:text-sm font-bold text-slate-800 font-mono">
+                            #{ord.billNumber}
                           </div>
                         ) : (
-                          <div className="text-[11px] text-[var(--color-text-subtle)] italic">No Bill #</div>
+                          <div className="text-xs text-slate-400 italic font-medium">No Bill #</div>
                         )}
                       </td>
 
                       {/* Function Date */}
-                      <td className="px-4 py-3.5 text-[var(--color-text)] whitespace-nowrap">
+                      <td className="px-4 py-3.5 text-sm font-medium text-slate-800 whitespace-nowrap">
                         {ord.functionDate || fmt(ord.deliveryDate)}
                       </td>
 
                       {/* Billing Status */}
                       <td className="px-4 py-3.5 text-center">
-                        <Badge variant={billingStatusVariant(ord.billingStatus)} size="sm">
+                        <Badge variant={billingStatusVariant(ord.billingStatus)} size="sm" className="font-medium">
                           {ord.billingStatus || 'PENDING'}
                         </Badge>
                       </td>
 
                       {/* Total Bill */}
-                      <td className="px-4 py-3.5 text-right font-bold text-[var(--color-text)]">
+                      <td className="px-4 py-3.5 text-right font-bold text-sm sm:text-base text-slate-900">
                         {inr(billAmt)}
                       </td>
 
                       {/* Paid Amount */}
-                      <td className="px-4 py-3.5 text-right font-bold text-emerald-600 dark:text-emerald-400">
+                      <td className="px-4 py-3.5 text-right font-bold text-sm sm:text-base text-emerald-600">
                         {inr(paidAmt)}
                       </td>
 
                       {/* Pending Amount */}
-                      <td className="px-4 py-3.5 text-right font-bold">
-                        <span className={pendingAmt > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-slate-400'}>
+                      <td className="px-4 py-3.5 text-right font-bold text-sm sm:text-base">
+                        <span className={pendingAmt > 0 ? 'text-rose-600' : 'text-slate-400 font-normal'}>
                           {inr(pendingAmt)}
                         </span>
                       </td>
 
                       {/* Payment Status */}
                       <td className="px-4 py-3.5 text-center">
-                        <Badge variant={paymentStatusVariant(ord.paymentStatus)} dot size="sm">
+                        <Badge variant={paymentStatusVariant(ord.paymentStatus)} dot size="sm" className="font-medium">
                           {paymentStatusLabel(ord.paymentStatus)}
                         </Badge>
                       </td>
 
                       {/* Payment Completion Date */}
-                      <td className="px-4 py-3.5 text-center text-xs text-[var(--color-text-muted)] whitespace-nowrap">
+                      <td className="px-4 py-3.5 text-center text-xs sm:text-sm font-medium text-slate-700 whitespace-nowrap">
                         {ord.paymentCompletionDate ? fmt(ord.paymentCompletionDate) : (
-                          isFullyPaid ? fmt(ord.createdAt) : <span className="text-[var(--color-text-subtle)]">—</span>
+                          isFullyPaid ? fmt(ord.createdAt) : <span className="text-slate-400">-</span>
                         )}
                       </td>
 
@@ -667,34 +722,32 @@ export default function CustomerProfile() {
                               }}
                               disabled={ord.billingStatus !== 'COMPLETED'}
                               title={ord.billingStatus !== 'COMPLETED' ? "Billing must be completed before recording payment" : "Record Partial or Full Payment"}
-                              className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition shadow-sm inline-flex items-center gap-1 ${
+                              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition shadow-xs inline-flex items-center gap-1 ${
                                 ord.billingStatus === 'COMPLETED'
                                   ? "bg-emerald-600 text-white hover:bg-emerald-700 cursor-pointer"
-                                  : "bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-500 cursor-not-allowed shadow-none opacity-60"
+                                  : "bg-slate-200 text-slate-400 cursor-not-allowed opacity-60 shadow-none"
                               }`}
                             >
-                              <Plus size={12} /> Pay
+                              <Plus size={14} /> Pay
                             </button>
                           )}
-
-
 
                           {/* Payment History button */}
                           <button
                             onClick={() => setHistoryTarget(ord)}
                             title="View Payment History"
-                            className="p-1.5 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-subtle)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-2)] transition"
+                            className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition shadow-2xs"
                           >
-                            <History size={14} />
+                            <History size={15} />
                           </button>
 
                           {/* View Order / Billing button */}
                           <button
                             onClick={() => navigate(`/generators/orders/${ord.id}/billing`)}
                             title="View Full Order Billing"
-                            className="p-1.5 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-subtle)] hover:text-[var(--color-primary)] hover:bg-[var(--color-primary-50)] transition"
+                            className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-blue-700 hover:bg-blue-50 transition shadow-2xs"
                           >
-                            <Eye size={14} />
+                            <Eye size={15} />
                           </button>
                         </div>
                       </td>

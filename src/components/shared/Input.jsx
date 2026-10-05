@@ -2,20 +2,20 @@
 import { forwardRef, useId } from 'react';
 
 /**
- * Input — unified form field (text, password, email, number, search, textarea, select).
+ * Input - unified form field (text, password, email, number, search, textarea, select).
  *
  * Props:
- *   label         — field label (shown above)
- *   hint          — small helper text below the field
- *   error         — error message (turns border/text red)
- *   prefix        — leading icon or text inside the field (e.g. search icon)
- *   suffix        — trailing icon or text inside the field (e.g. currency symbol)
- *   size          — 'sm' | 'md' (default) | 'lg'
- *   multiline     — renders a <textarea> instead of <input>
- *   rows          — rows for textarea (default 3)
- *   as='select'   — renders a native <select>; pass children as <option> elements
- *   required      — marks label with *
- *   fullWidth     — 100% width (default: block, full width)
+ *   label         - field label (shown above)
+ *   hint          - small helper text below the field
+ *   error         - error message (turns border/text red)
+ *   prefix        - leading icon or text inside the field (e.g. search icon)
+ *   suffix        - trailing icon or text inside the field (e.g. currency symbol)
+ *   size          - 'sm' | 'md' (default) | 'lg'
+ *   multiline     - renders a <textarea> instead of <input>
+ *   rows          - rows for textarea (default 3)
+ *   as='select'   - renders a native <select>; pass children as <option> elements
+ *   required      - marks label with *
+ *   fullWidth     - 100% width (default: block, full width)
  *
  * All other props are forwarded to the underlying input/textarea/select.
  *
@@ -125,7 +125,7 @@ const Input = forwardRef(function Input(
           <input ref={ref} id={id} className={fieldCls} {...rest} />
         )}
 
-        {/* Trailing adornment — chevron for select, custom suffix otherwise */}
+        {/* Trailing adornment - chevron for select, custom suffix otherwise */}
         {isSelect ? (
           <span className={[adornmentCls, 'right-3'].join(' ')}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">

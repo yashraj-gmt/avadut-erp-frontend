@@ -11,12 +11,12 @@ const fmt = (n) =>
   `₹${(parseFloat(n) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
 
 const fmtDate = (d) => {
-  if (!d) return '—';
+  if (!d) return '-';
   try { return formatToDMY(d); } catch (e) { return d; }
 };
 
 const fmtRange = (str) => {
-  if (!str) return '—';
+  if (!str) return '-';
   try { return formatRangeToDMY(str); } catch (e) { return str; }
 };
 
@@ -127,7 +127,7 @@ const STYLES = `
     border-radius:12px; overflow-x:auto; box-shadow:var(--shadow-sm);
     -webkit-overflow-scrolling: touch; position:relative;
   }
-  .bh-table { width:100%; min-width:960px; border-collapse:separate; border-spacing:0; font-size:13px; }
+  .bh-table { width:100%; min-width:1080px; border-collapse:separate; border-spacing:0; font-size:13px; }
   .bh-th {
     padding:11px 14px; font-size:10.5px; font-weight:700;
     color:var(--color-text-muted); text-transform:uppercase; letter-spacing:.5px;
@@ -267,39 +267,44 @@ function printBillingInvoice(order) {
     const dieselRows = withDiesel && entries.length > 0
       ? entries.map((de, dIdx) => {
           const isFirst = dIdx === 0 || entries[dIdx - 1].entryDate !== de.entryDate;
+          const entryAmt = dRate * (parseFloat(de.duration) || 0);
           return `<tr style="background:#fffbeb;">
-            ${dIdx === 0 ? `<td rowspan="${entries.length}" style="border:1px solid #cbd5e1;padding:8px 10px;font-size:12px;color:#92400e;padding-left:16px;">Diesel Charge</td>` : ''}
-            ${dIdx === 0 ? `<td rowspan="${entries.length}" style="border:1px solid #cbd5e1;padding:8px 10px;text-align:right;font-size:12px;font-family:monospace;color:#92400e;">${fmtCur(dRate)}/hr</td>` : ''}
-            <td style="border:1px solid #cbd5e1;padding:8px 10px;text-align:center;font-size:12px;color:#92400e;">—</td>
+            ${dIdx === 0 ? `<td rowspan="${entries.length + (entries.length > 1 ? 1 : 0)}" style="border:1px solid #cbd5e1;padding:8px 10px;font-size:12px;color:#92400e;padding-left:16px;">Diesel Charge</td>` : ''}
+            ${dIdx === 0 ? `<td rowspan="${entries.length + (entries.length > 1 ? 1 : 0)}" style="border:1px solid #cbd5e1;padding:8px 10px;text-align:right;font-size:12px;font-family:monospace;color:#92400e;">${fmtCur(dRate)}/hr</td>` : ''}
+            <td style="border:1px solid #cbd5e1;padding:8px 10px;text-align:center;font-size:12px;color:#92400e;">-</td>
             <td style="border:1px solid #cbd5e1;padding:8px 10px;text-align:center;font-size:12px;color:${isFirst ? '#92400e' : '#b45309'};font-weight:${isFirst ? '600' : '400'};">${isFirst ? fmtDate(de.entryDate) : '&#8627;'}</td>
-            <td style="border:1px solid #cbd5e1;padding:8px 10px;text-align:center;font-size:12px;color:#92400e;">${de.startTime || '—'}</td>
-            <td style="border:1px solid #cbd5e1;padding:8px 10px;text-align:center;font-size:12px;color:#92400e;">${de.endTime || '—'}</td>
+            <td style="border:1px solid #cbd5e1;padding:8px 10px;text-align:center;font-size:12px;color:#92400e;">${de.startTime || '-'}</td>
+            <td style="border:1px solid #cbd5e1;padding:8px 10px;text-align:center;font-size:12px;color:#92400e;">${de.endTime || '-'}</td>
             <td style="border:1px solid #cbd5e1;padding:8px 10px;text-align:center;font-size:12px;color:#92400e;">${formatDurationDisplay(de.duration)}</td>
-            ${dIdx === 0 ? `<td rowspan="${entries.length}" style="border:1px solid #cbd5e1;padding:8px 10px;text-align:right;font-size:13px;font-weight:700;color:#92400e;font-family:monospace;">${fmtCur(dieselAmt)}</td>` : ''}
+            <td style="border:1px solid #cbd5e1;padding:8px 10px;text-align:right;font-size:12px;font-weight:700;color:#92400e;font-family:monospace;">${fmtCur(entryAmt)}</td>
           </tr>`;
-        }).join('')
+        }).join('') + (entries.length > 1 ? `<tr style="background:#fef3c7;font-weight:700;">
+            <td colspan="4" style="border:1px solid #cbd5e1;padding:6px 10px;text-align:right;font-size:11.5px;color:#92400e;">Total Diesel:</td>
+            <td style="border:1px solid #cbd5e1;padding:6px 10px;text-align:center;font-size:12px;color:#92400e;font-weight:800;">${formatDurationDisplay(totalHrs)}</td>
+            <td style="border:1px solid #cbd5e1;padding:6px 10px;text-align:right;font-size:13px;font-weight:800;color:#92400e;font-family:monospace;">${fmtCur(dieselAmt)}</td>
+          </tr>` : '')
       : '';
 
     const cableRow = (g.cableSize && cableRequired)
       ? `<tr style="background:#eff6ff;">
-          <td style="border:1px solid #cbd5e1;padding:8px 10px;font-size:12px;color:#1e40af;padding-left:16px;">Cable ${g.cableSize}${g.cableSize !== 'Earth Rod' ? ' mm²' : ''}</td>
+          <td style="border:1px solid #cbd5e1;padding:8px 10px;font-size:12px;color:#1e40af;padding-left:16px;">Cable ${g.cableSize}${g.cableSize !== 'Earth Rod' && g.cableSize !== 'Other' ? ' mm²' : ''}</td>
           <td style="border:1px solid #cbd5e1;padding:8px 10px;text-align:right;font-size:12px;font-family:monospace;color:#1e40af;">${fmtCur(cableRate)}/day</td>
           <td style="border:1px solid #cbd5e1;padding:8px 10px;text-align:center;font-size:12px;color:#1e40af;">${rentalDays} day${rentalDays !== 1 ? 's' : ''}</td>
-          <td style="border:1px solid #cbd5e1;padding:8px 10px;text-align:center;font-size:12px;color:#1e40af;">—</td>
+          <td style="border:1px solid #cbd5e1;padding:8px 10px;text-align:center;font-size:12px;color:#1e40af;">-</td>
           ${withDiesel ? '<td style="border:1px solid #cbd5e1;"></td><td style="border:1px solid #cbd5e1;"></td><td style="border:1px solid #cbd5e1;"></td>' : ''}
           <td style="border:1px solid #cbd5e1;padding:8px 10px;text-align:right;font-size:13px;font-weight:700;color:#1e40af;font-family:monospace;">${fmtCur(cableAmt)}</td>
         </tr>`
       : '';
 
-    const rowspan = 1 + (withDiesel ? entries.length : 0) + (g.cableSize && cableRequired ? 1 : 0);
+    const rowspan = 1 + (withDiesel ? entries.length + (entries.length > 1 ? 1 : 0) : 0) + (g.cableSize && cableRequired ? 1 : 0);
 
     return `
       <tr>
         <td rowspan="${rowspan}" style="border:1px solid #cbd5e1;padding:9px 10px;text-align:center;font-size:13px;vertical-align:top;">${idx + 1}</td>
-        <td style="border:1px solid #cbd5e1;padding:9px 10px;font-size:13px;font-weight:700;">${g.generatorName || '—'}</td>
+        <td style="border:1px solid #cbd5e1;padding:9px 10px;font-size:13px;font-weight:700;">${g.generatorName || '-'}</td>
         <td style="border:1px solid #cbd5e1;padding:9px 10px;text-align:right;font-size:12px;font-family:monospace;">${fmtCur(rate)}/day</td>
         <td style="border:1px solid #cbd5e1;padding:9px 10px;text-align:center;font-size:12px;">${rentalDays} day${rentalDays !== 1 ? 's' : ''}</td>
-        <td style="border:1px solid #cbd5e1;padding:9px 10px;text-align:center;font-size:12px;">—</td>
+        <td style="border:1px solid #cbd5e1;padding:9px 10px;text-align:center;font-size:12px;">-</td>
         ${withDiesel ? '<td style="border:1px solid #cbd5e1;"></td><td style="border:1px solid #cbd5e1;"></td><td style="border:1px solid #cbd5e1;"></td>' : ''}
         <td style="border:1px solid #cbd5e1;padding:9px 10px;text-align:right;font-size:13px;font-weight:800;color:#1e40af;font-family:monospace;">${fmtCur(genAmt)}</td>
       </tr>
@@ -351,7 +356,7 @@ function printBillingInvoice(order) {
       </div>
       <div class="meta">
         <table>
-          <tr><td>Bill Number</td><td>: #${order.billNumber || '—'}</td></tr>
+          <tr><td>Bill Number</td><td>: #${order.billNumber || '-'}</td></tr>
           <tr><td>Order Number</td><td>: ${order.orderNumber || order.id}</td></tr>
           <tr><td>Billing Date</td><td>: ${billingDate}</td></tr>
         </table>
@@ -360,19 +365,19 @@ function printBillingInvoice(order) {
   </div>
   <div class="sec">
     <div class="half"><div class="slabel">Client Details</div>
-      <div class="dr"><span class="dk">Name</span><span class="dv">: ${order.clientName || '—'}</span></div>
-      <div class="dr"><span class="dk">Contact</span><span class="dv">: ${order.contactNumber || '—'}</span></div>
-      ${order.alternateMobile ? `<div class="dr"><span class="dk">Alt. Mobile</span><span class="dv">: ${order.alternateMobile}</span></div>` : ''}
+      <div class="dr"><span class="dk">Name</span><span class="dv">: ${order.clientName || '-'}</span></div>
+      <div class="dr"><span class="dk">Mob. No.</span><span class="dv">: ${order.contactNumber || '-'}</span></div>
+      ${order.alternateMobile ? `<div class="dr"><span class="dk">Mob. No.</span><span class="dv">: ${order.alternateMobile}</span></div>` : ''}
     </div>
     <div class="half"><div class="slabel">Service Details</div>
       <div class="dr"><span class="dk">Function Date</span><span class="dv">: ${fmtRange(order.functionDate || '')}</span></div>
-      <div class="dr"><span class="dk">Operator</span><span class="dv">: ${order.operatorName || '—'}</span></div>
+      <div class="dr"><span class="dk">Operator</span><span class="dv">: ${order.operatorName || '-'}</span></div>
       <div class="dr"><span class="dk">Diesel</span><span class="dv">: ${withDiesel ? 'With Diesel' : 'Party Diesel'}</span></div>
     </div>
   </div>
   <div class="site">
     <div class="slabel">Site Address</div>
-    <div style="font-size:13px;font-weight:600;margin-top:4px;">${order.siteAddress || '—'}</div>
+    <div style="font-size:13px;font-weight:600;margin-top:4px;">${order.siteAddress || '-'}</div>
   </div>
   <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#475569;margin-bottom:6px;">Generator Rent Calculation</div>
   <table class="inv-table">
@@ -464,10 +469,11 @@ export default function GeneratorBillingHistory() {
     if (search.trim()) {
       const q = search.toLowerCase().trim();
       list = list.filter(o =>
-        (o.billNumber     || '').toLowerCase().includes(q) ||
-        (o.orderNumber    || '').toLowerCase().includes(q) ||
-        (o.clientName     || '').toLowerCase().includes(q) ||
-        (o.contactNumber  || '').toLowerCase().includes(q)
+        (o.billNumber      || '').toLowerCase().includes(q) ||
+        (o.orderNumber     || '').toLowerCase().includes(q) ||
+        (o.clientName      || '').toLowerCase().includes(q) ||
+        (o.contactNumber   || '').toLowerCase().includes(q) ||
+        (o.alternateMobile || '').toLowerCase().includes(q)
       );
     }
 
@@ -625,7 +631,7 @@ export default function GeneratorBillingHistory() {
               <select id="bh-filter-cable" className="bh-filter-select" value={filterCable} onChange={e => setFilterCable(e.target.value)}>
                 <option value="">All</option>
                 <option value="yes">Cable Required</option>
-                <option value="no">— No Cable</option>
+                <option value="no">- No Cable</option>
               </select>
             </div>
 
@@ -696,7 +702,8 @@ export default function GeneratorBillingHistory() {
                   <th className="bh-th">Bill No.</th>
                   <th className="bh-th">Order No.</th>
                   <th className="bh-th">Client</th>
-                  <th className="bh-th">Contact</th>
+                  <th className="bh-th">Mob. No.</th>
+                  <th className="bh-th">Alt. Mob. No.</th>
                   <th className="bh-th">Function Date</th>
                   <th className="bh-th">Generator(s)</th>
                   <th className="bh-th" style={{ textAlign: 'center' }}>Diesel</th>
@@ -727,24 +734,27 @@ export default function GeneratorBillingHistory() {
                       </td>
                       <td className="bh-td">
                         <span style={{ fontWeight: 700, color: 'var(--color-primary-dark)', fontFamily: 'monospace' }}>
-                          #{order.billNumber || '—'}
+                          #{order.billNumber || '-'}
                         </span>
                       </td>
                       <td className="bh-td">
                         <span style={{ fontWeight: 600 }}>{order.orderNumber || order.id}</span>
                       </td>
                       <td className="bh-td">
-                        <div style={{ fontWeight: 600 }}>{order.clientName || '—'}</div>
+                        <div style={{ fontWeight: 600 }}>{order.clientName || '-'}</div>
                       </td>
-                      <td className="bh-td" style={{ color: 'var(--color-text-subtle)', fontFamily: 'monospace', fontSize: 12 }}>
-                        {order.contactNumber || '—'}
+                      <td className="bh-td" style={{ color: 'var(--color-text)', fontWeight: 600, fontFamily: 'monospace', fontSize: 12 }}>
+                        {order.contactNumber || <span style={{ color: 'var(--color-text-subtle)', fontWeight: 400 }}>-</span>}
+                      </td>
+                      <td className="bh-td" style={{ color: 'var(--color-text)', fontWeight: 600, fontFamily: 'monospace', fontSize: 12 }}>
+                        {order.alternateMobile || <span style={{ color: 'var(--color-text-subtle)', fontWeight: 400 }}>-</span>}
                       </td>
                       <td className="bh-td" style={{ whiteSpace: 'nowrap', fontSize: 12 }}>
                         {fmtRange(funcDate)}
                       </td>
                       <td className="bh-td">
                         {genNames.length === 0
-                          ? <span style={{ color: 'var(--color-text-muted)' }}>—</span>
+                          ? <span style={{ color: 'var(--color-text-muted)' }}>-</span>
                           : genNames.map((name, i) => (
                               <div key={i} style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-primary-dark)', whiteSpace: 'nowrap' }}>
                                 {name}
@@ -763,16 +773,16 @@ export default function GeneratorBillingHistory() {
                       <td className="bh-td" style={{ textAlign: 'center' }}>
                         {order.cableRequired
                           ? <span className="bh-badge bh-badge-cable-on">Yes</span>
-                          : <span style={{ color: 'var(--color-text-muted)', fontSize: 13 }}>—</span>}
+                          : <span style={{ color: 'var(--color-text-muted)', fontSize: 13 }}>-</span>}
                       </td>
                       <td className="bh-td" style={{ fontSize: 12, color: 'var(--color-text-subtle)' }}>
-                        {order.operatorName || '—'}
+                        {order.operatorName || '-'}
                       </td>
                       <td className="bh-td" style={{ textAlign: 'right', fontFamily: 'monospace', fontSize: 12, color: 'var(--color-text-muted)' }}>
                         {fmt(subtotal)}
                       </td>
                       <td className="bh-td" style={{ textAlign: 'right', fontFamily: 'monospace', fontSize: 12, color: discount > 0 ? '#dc2626' : 'var(--color-text-muted)' }}>
-                        {discount > 0 ? `−${fmt(discount)}` : '—'}
+                        {discount > 0 ? `−${fmt(discount)}` : '-'}
                       </td>
                       <td className="bh-td" style={{ textAlign: 'right', fontFamily: 'monospace', fontWeight: 800, color: 'var(--color-primary-dark)' }}>
                         {fmt(netAmt)}

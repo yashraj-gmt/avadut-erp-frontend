@@ -3,14 +3,14 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ROUTES } from '@/constants/routes';
 import { useAuthStore } from '@/store/authStore';
+import { generatorOrderService } from '@/services/generatorOrderService';
 import {
-  getStaffOrdersList,
-  saveStaffOrderTimes,
   calculateDuration,
   formatDurationDisplay,
   getDatesFromFunctionDate,
   STATUS_CONFIG,
   DIESEL_TYPES,
+  formatRangeToDMY,
 } from '@/pages/generators/orders/mockData';
 import {
   ArrowLeft,
@@ -46,33 +46,69 @@ export default function StaffOrderDetail() {
   const [generators, setGenerators] = useState([]);
 
   useEffect(() => {
-    const list = getStaffOrdersList(user);
-    const found = list.find(o => o.id === id);
-    if (found) {
-      setOrder(found);
-      const dates = getDatesFromFunctionDate(found.functionDate);
+    let isMounted = true;
+    setLoading(true);
 
-      // Ensure generators have dieselSlots
-      const gens = (found.generators || []).map((g, gIdx) => {
-        let slots = g.dieselSlots && g.dieselSlots.length > 0 ? [...g.dieselSlots] : [];
-        if (slots.length === 0 && found.dieselType === DIESEL_TYPES.WITH_OWNER) {
-          slots = [
-            {
-              id: `slot-${found.id}-${gIdx}-${Date.now()}-0`,
-              date: dates[0],
-              startTime: g.dieselStartTime || '09:00',
-              endTime: g.dieselEndTime || '17:00',
-              duration: g.dieselDuration || '08:00',
-            },
-          ];
+    const load = async () => {
+      try {
+        let found = null;
+        if (/^\d+$/.test(String(id))) {
+          found = await generatorOrderService.getById(id);
+        } else {
+          // If id is orderNumber like "GO20261"
+          const assigned = await generatorOrderService.getAssignedToMe();
+          const list = Array.isArray(assigned) ? assigned : (assigned?.content || []);
+          found = list.find(o => String(o.id) === String(id) || o.orderNumber === id);
+          if (!found) {
+            const allRes = await generatorOrderService.getAll('', '', 0, 100);
+            const allList = allRes?.content || (Array.isArray(allRes) ? allRes : []);
+            found = allList.find(o => String(o.id) === String(id) || o.orderNumber === id);
+          }
         }
-        return { ...g, dieselSlots: slots };
-      });
 
-      setGenerators(gens);
-    }
-    const t = setTimeout(() => setLoading(false), 200);
-    return () => clearTimeout(t);
+        if (found && isMounted) {
+          setOrder(found);
+          const rawFuncDate = found.functionDate || (found.functionDateFrom && found.functionDateTo ? `${found.functionDateFrom} to ${found.functionDateTo}` : '');
+          const dates = getDatesFromFunctionDate(rawFuncDate);
+
+          // Ensure generators have dieselSlots
+          const gens = (found.generators || []).map((g, gIdx) => {
+            let slots = [];
+            if (g.dieselEntries && g.dieselEntries.length > 0) {
+              slots = g.dieselEntries.map((e, eIdx) => ({
+                id: e.id ? `entry-${e.id}` : `slot-${found.id}-${gIdx}-${eIdx}`,
+                date: e.entryDate || e.date || dates[0],
+                startTime: e.startTime || '09:00',
+                endTime: e.endTime || '17:00',
+                duration: e.duration != null ? formatDurationDisplay(e.duration) : calculateDuration(e.startTime || '09:00', e.endTime || '17:00'),
+              }));
+            } else if (g.dieselSlots && g.dieselSlots.length > 0) {
+              slots = [...g.dieselSlots];
+            } else if (found.dieselType === DIESEL_TYPES.WITH_OWNER || found.withDiesel) {
+              slots = [
+                {
+                  id: `slot-${found.id}-${gIdx}-${Date.now()}-0`,
+                  date: dates[0] || new Date().toISOString().split('T')[0],
+                  startTime: g.dieselStartTime || '09:00',
+                  endTime: g.dieselEndTime || '17:00',
+                  duration: g.dieselDuration || '08:00',
+                },
+              ];
+            }
+            return { ...g, dieselSlots: slots };
+          });
+
+          setGenerators(gens);
+        }
+      } catch (err) {
+        console.error('Failed to load order:', err);
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    };
+
+    load();
+    return () => { isMounted = false; };
   }, [id, user]);
 
   // Add another time slot for a date
@@ -133,26 +169,44 @@ export default function StaffOrderDetail() {
   };
 
   // Save changes
-  const handleSave = () => {
+  const handleSave = async () => {
+    if (!order?.id) return;
     setSaving(true);
-    setTimeout(() => {
-      const preparedGens = generators.map(g => {
-        const firstSlot = (g.dieselSlots || [])[0];
-        return {
-          ...g,
-          dieselStartTime: firstSlot?.startTime || '',
-          dieselEndTime: firstSlot?.endTime || '',
-          dieselDuration: firstSlot?.duration || '',
-        };
-      });
+    try {
+      const billingPayload = {
+        generators: generators.map(g => ({
+          orderItemId: g.id,
+          rentPerDay: g.rate || 0,
+          dieselPerHour: g.dieselRate || 0,
+          cableRate: g.cableRate || null,
+          dieselEntries: (g.dieselSlots || []).map(s => {
+            const rawDur = s.duration || calculateDuration(s.startTime, s.endTime);
+            const [h, m] = String(rawDur).split(':').map(Number);
+            const decDuration = (h || 0) + ((m || 0) / 60);
+            return {
+              entryDate: s.date,
+              startTime: s.startTime,
+              endTime: s.endTime,
+              duration: decDuration,
+            };
+          }),
+        })),
+        otherCharges: order.otherCharges || [],
+        discountAmount: order.discountAmount || 0,
+        paymentDueDate: order.paymentDueDate || null,
+      };
 
-      const updated = saveStaffOrderTimes(id, preparedGens);
+      const updated = await generatorOrderService.updateBilling(order.id, billingPayload);
       if (updated) {
         setOrder(updated);
       }
-      setSaving(false);
       showToast('Diesel operating time slots saved successfully!');
-    }, 350);
+    } catch (err) {
+      console.error('Failed to save diesel time slots:', err);
+      showToast('Error saving time slots. Please try again.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const showToast = (message) => {
@@ -162,7 +216,7 @@ export default function StaffOrderDetail() {
 
   const isWithOwner = order?.dieselType === DIESEL_TYPES.WITH_OWNER;
   const statusCfg = STATUS_CONFIG?.[order?.status] || {
-    label: order?.status || '—',
+    label: order?.status || '-',
     bg: '#F1F5F9',
     color: '#475569',
   };
@@ -243,7 +297,7 @@ export default function StaffOrderDetail() {
                     }`}
                   >
                     <Fuel size={11} />
-                    {isWithOwner ? 'With Diesel' : 'Party Diesel'}
+                    {isWithOwner ? 'WD' : 'PD'}
                   </span>
                 </div>
                 <h1 className="text-base sm:text-lg font-bold text-slate-900 mt-1">
@@ -284,7 +338,7 @@ export default function StaffOrderDetail() {
                 Client Name
               </label>
               <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200 text-slate-800 font-medium">
-                {order.clientName || '—'}
+                {order.clientName || '-'}
               </div>
             </div>
 
@@ -294,7 +348,7 @@ export default function StaffOrderDetail() {
               </label>
               <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200 text-slate-800 font-medium flex items-center gap-2">
                 <Phone size={13} className="text-slate-400" />
-                <span>{order.contactNumber || '—'}</span>
+                <span>{order.contactNumber || '-'}</span>
               </div>
             </div>
 
@@ -304,7 +358,7 @@ export default function StaffOrderDetail() {
               </label>
               <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200 text-slate-800 font-medium flex items-center gap-2">
                 <Calendar size={13} className="text-slate-400" />
-                <span>{order.functionDate || '—'}</span>
+                <span>{order.functionDate ? formatRangeToDMY(order.functionDate) : '-'}</span>
               </div>
             </div>
 
@@ -314,7 +368,7 @@ export default function StaffOrderDetail() {
               </label>
               <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200 text-slate-800 font-medium flex items-start gap-2">
                 <MapPin size={14} className="text-slate-400 shrink-0 mt-0.5" />
-                <span>{order.siteAddress || '—'}</span>
+                <span>{order.siteAddress || '-'}</span>
               </div>
             </div>
             

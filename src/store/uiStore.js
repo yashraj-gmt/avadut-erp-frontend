@@ -17,7 +17,7 @@ export const useUIStore = create(
     }),
     {
       name: 'erp-ui',
-      // mobileSidebarOpen is intentionally NOT persisted — always starts closed
+      // mobileSidebarOpen is intentionally NOT persisted - always starts closed
       partialize: (s) => ({
         sidebarOpen:      s.sidebarOpen,
         sidebarCollapsed: s.sidebarCollapsed,

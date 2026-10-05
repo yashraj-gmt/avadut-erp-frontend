@@ -2,18 +2,18 @@ import { useState, useRef, useEffect } from 'react'
 import Spinner from './Spinner'
 
 /**
- * SearchableSelect — searchable dropdown that matches the app's design system.
+ * SearchableSelect - searchable dropdown that matches the app's design system.
  *
  * Props:
- *   options       [{value, label}]   — all options
- *   value         any                — current selected value
- *   onChange      (value, option)    — called on selection
+ *   options       [{value, label}]   - all options
+ *   value         any                - current selected value
+ *   onChange      (value, option)    - called on selection
  *   placeholder   string
  *   label         string
  *   error         string
  *   required      boolean
  *   disabled      boolean
- *   loading       boolean            — shows spinner while options load
+ *   loading       boolean            - shows spinner while options load
  *   size          'sm'|'md'|'lg'
  *   className     string
  *

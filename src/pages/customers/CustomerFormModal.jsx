@@ -20,11 +20,7 @@ function validate(form) {
   else if (!MOBILE_REGEX.test(form.mobile)) errors.mobile = 'Must be a valid 10-digit Indian mobile number.';
   if (form.alternateMobile && !MOBILE_REGEX.test(form.alternateMobile))
     errors.alternateMobile = 'Must be a valid 10-digit Indian mobile number.';
-  if (form.telephoneNumber?.trim() && !/^[0-9+\-\s()]{6,20}$/.test(form.telephoneNumber.trim()))
-    errors.telephoneNumber = 'Enter a valid telephone number (6-20 characters).';
-  if (form.email && !EMAIL_REGEX.test(form.email)) errors.email = 'Must be a valid email address.';
   if (form.address?.length > 500) errors.address = 'Address must not exceed 500 characters.';
-  if (form.addressLocationLink?.length > 500) errors.addressLocationLink = 'Link must not exceed 500 characters.';
   return errors;
 }
 
@@ -121,18 +117,49 @@ export default function CustomerFormModal({ customer, onSuccess, onClose }) {
     firmName:            customer?.firmName            ?? '',
     mobile:              customer?.mobile              ?? '',
     alternateMobile:     customer?.alternateMobile     ?? '',
-    telephoneNumber:     customer?.telephoneNumber     ?? '',
-    email:               customer?.email               ?? '',
     address:             customer?.address             ?? '',
-    addressLocationLink: customer?.addressLocationLink ?? '',
     customerStatus:      customer?.customerStatus      ?? 'ACTIVE',
-    remarks:             customer?.remarks             ?? '',
+    remarks:             customer?.remarks             ?? (customer?.notes ?? ''),
     isRegular:           customer?.isRegular           ?? false,
     dateJoined:          customer?.dateJoined          ?? today(),
   });
 
-  const [errors,  setErrors]  = useState({});
-  const [loading, setLoading] = useState(false);
+  const [errors,          setErrors]          = useState({});
+  const [loading,         setLoading]         = useState(false);
+  const [fetchingDetails, setFetchingDetails] = useState(false);
+
+  // Fetch full details if editing to ensure all fields are populated
+  useEffect(() => {
+    if (!customer?.id) return;
+    let isMounted = true;
+    setFetchingDetails(true);
+    customerService.getById(customer.id)
+      .then(res => {
+        if (!isMounted) return;
+        const c = res?.data ?? res;
+        if (c) {
+          setForm({
+            name:                c.name                ?? '',
+            firmName:            c.firmName            ?? '',
+            mobile:              c.mobile              ?? '',
+            alternateMobile:     c.alternateMobile     ?? '',
+            address:             c.address             ?? '',
+            customerStatus:      c.customerStatus      ?? 'ACTIVE',
+            remarks:             c.remarks             ?? (c.notes ?? ''),
+            isRegular:           c.isRegular           ?? false,
+            dateJoined:          c.dateJoined          ?? today(),
+          });
+        }
+      })
+      .catch(err => {
+        console.warn('Could not fetch full customer details:', err);
+      })
+      .finally(() => {
+        if (isMounted) setFetchingDetails(false);
+      });
+
+    return () => { isMounted = false; };
+  }, [customer?.id]);
 
   // Close on Escape
   useEffect(() => {
@@ -159,10 +186,7 @@ export default function CustomerFormModal({ customer, onSuccess, onClose }) {
         firmName:            form.firmName?.trim()            || undefined,
         mobile:              form.mobile.trim(),
         alternateMobile:     form.alternateMobile?.trim()     || undefined,
-        telephoneNumber:     form.telephoneNumber?.trim()     || undefined,
-        email:               form.email?.trim()               || undefined,
         address:             form.address?.trim()             || undefined,
-        addressLocationLink: form.addressLocationLink?.trim() || undefined,
         remarks:             form.remarks?.trim()             || undefined,
         isRegular:           form.isRegular,
         customerStatus:      isEdit ? form.customerStatus : undefined,
@@ -260,24 +284,6 @@ export default function CustomerFormModal({ customer, onSuccess, onClose }) {
               />
             </Field>
 
-            <Field label="Telephone Number" icon={Phone} error={errors.telephoneNumber} hint="Optional landline / office phone">
-              <input
-                type="tel" placeholder="e.g. 022-28765432 or Landline"
-                value={form.telephoneNumber} onChange={set('telephoneNumber')}
-                className={inputCls(true, errors.telephoneNumber)}
-                maxLength={20}
-              />
-            </Field>
-
-            <Field label="Email Address" icon={Mail} error={errors.email}>
-              <input
-                type="email" placeholder="e.g. rajesh@example.com"
-                value={form.email} onChange={set('email')}
-                className={inputCls(true, errors.email)}
-                maxLength={100}
-              />
-            </Field>
-
             <Field label="Date Joined" icon={Calendar}>
               <input
                 type="date" value={form.dateJoined} onChange={set('dateJoined')}
@@ -286,23 +292,15 @@ export default function CustomerFormModal({ customer, onSuccess, onClose }) {
             </Field>
           </div>
 
-          {/* ── Site Address ── */}
-          <Section title="Site Address" />
+          {/* ── Customer Address ── */}
+          <Section title="Customer Address" />
           <div className="space-y-3 sm:space-y-4">
-            <Field label="Site Address" error={errors.address} hint="Generator installation / service location">
+            <Field label="Customer Address" error={errors.address} hint="Customer permanent / business address">
               <textarea
                 placeholder="Plot No., Street, Building, Landmark…"
                 value={form.address} onChange={set('address')}
                 rows={2}
                 className={[inputCls(false, errors.address), 'resize-none pt-2.5'].join(' ')}
-                maxLength={500}
-              />
-            </Field>
-            <Field label="Site Address Location Link" icon={Link} error={errors.addressLocationLink} hint="Paste Google Maps or any location URL">
-              <input
-                type="url" placeholder="https://maps.google.com/..."
-                value={form.addressLocationLink} onChange={set('addressLocationLink')}
-                className={inputCls(true, errors.addressLocationLink)}
                 maxLength={500}
               />
             </Field>

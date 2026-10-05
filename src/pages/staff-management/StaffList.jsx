@@ -12,6 +12,7 @@ import {
 } from 'lucide-react'
 import { userService } from '@/services/userService'
 import { useToast } from '@/components/shared/toast/ToastProvider'
+import { getImageUrl } from '@/utils/imageUrl'
 import StaffModal from './StaffModal'
 
 export default function StaffList() {
@@ -61,7 +62,8 @@ export default function StaffList() {
     return staffList.filter((s) => {
       return (
         (s.name && s.name.toLowerCase().includes(q)) ||
-        (s.mobile && s.mobile.includes(q))
+        (s.mobile && s.mobile.includes(q)) ||
+        (s.address && s.address.toLowerCase().includes(q))
       )
     })
   }, [staffList, searchQuery])
@@ -126,7 +128,7 @@ export default function StaffList() {
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
               <div className="flex items-center gap-2 mb-1 flex-wrap">
-                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-50 text-red-600 border border-red-200">
                   <ShieldCheck size={13} />
                   Super Admin Portal
                 </span>
@@ -195,7 +197,7 @@ export default function StaffList() {
             />
             <input
               type="text"
-              placeholder="Search by staff name or mobile..."
+              placeholder="Search by staff name, mobile or address..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-10 pr-4 py-2.5 text-sm rounded-xl border border-slate-200 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all placeholder:text-slate-400 shadow-2xs"
@@ -220,6 +222,7 @@ export default function StaffList() {
                   <th className="py-3.5 px-4 w-16 text-center">Sr. No.</th>
                   <th className="py-3.5 px-6">Staff Name</th>
                   <th className="py-3.5 px-6">Mobile Number</th>
+                  <th className="py-3.5 px-6">Staff Address</th>
                   <th className="py-3.5 px-6 text-center">Total Assigned</th>
                   <th className="py-3.5 px-6 text-right w-28">Actions</th>
                 </tr>
@@ -227,7 +230,7 @@ export default function StaffList() {
               <tbody className="divide-y divide-slate-100">
                 {loading ? (
                   <tr>
-                    <td colSpan={5} className="py-12 text-center text-slate-400">
+                    <td colSpan={6} className="py-12 text-center text-slate-400">
                       <div className="flex flex-col items-center justify-center gap-2">
                         <RotateCw size={24} className="animate-spin text-blue-600" />
                         <span className="text-sm font-medium">Loading staff members...</span>
@@ -236,7 +239,7 @@ export default function StaffList() {
                   </tr>
                 ) : filteredStaff.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="py-14 text-center">
+                    <td colSpan={6} className="py-14 text-center">
                       <div className="max-w-xs mx-auto flex flex-col items-center">
                         <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-400 mb-3">
                           <Users size={24} />
@@ -264,19 +267,49 @@ export default function StaffList() {
                           {idx + 1}
                         </td>
 
-                        {/* Staff Name (no profile icon) */}
+                        {/* Staff Name with Profile Avatar */}
                         <td className="py-3.5 px-6">
-                          <span
+                          <div
                             onClick={() => navigate(`/super-admin/staff/${staff.id}`)}
-                            className="font-bold text-slate-900 group-hover:text-blue-600 transition-colors cursor-pointer"
+                            className="flex items-center gap-3 cursor-pointer group"
                           >
-                            {staff.name}
-                          </span>
+                            <div className="w-9 h-9 rounded-xl overflow-hidden shrink-0 flex items-center justify-center font-bold text-xs bg-blue-50 text-blue-700 border border-blue-100 shadow-2xs">
+                              {staff.profilePic ? (
+                                <img
+                                  src={getImageUrl(staff.profilePic)}
+                                  alt={staff.name}
+                                  className="w-full h-full object-cover"
+                                  onError={(e) => {
+                                    e.currentTarget.style.display = 'none'
+                                    e.currentTarget.parentElement.innerText = getInitials(staff.name)
+                                  }}
+                                />
+                              ) : (
+                                getInitials(staff.name)
+                              )}
+                            </div>
+                            <div className="min-w-0">
+                              <span className="font-bold text-slate-900 group-hover:text-blue-600 transition-colors block truncate">
+                                {staff.name}
+                              </span>
+                            </div>
+                          </div>
                         </td>
 
                         {/* Mobile Number */}
-                        <td className="py-3.5 px-6 font-medium text-slate-700">
-                          {staff.mobile ? `+91 ${staff.mobile}` : '—'}
+                        <td className="py-3.5 px-6 font-medium text-slate-700 whitespace-nowrap">
+                          {staff.mobile ? `+91 ${staff.mobile}` : '-'}
+                        </td>
+
+                        {/* Staff Address */}
+                        <td className="py-3.5 px-6 text-slate-600 max-w-xs">
+                          {staff.address ? (
+                            <span className="line-clamp-2" title={staff.address}>
+                              {staff.address}
+                            </span>
+                          ) : (
+                            <span className="text-slate-400">-</span>
+                          )}
                         </td>
 
                         {/* Total Assigned */}

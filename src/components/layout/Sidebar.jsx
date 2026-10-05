@@ -14,7 +14,7 @@ import { ROUTES }         from '@/constants/routes';
 import { cn }             from '@/utils/cn';
 
 /* ────────────────────────────────────────────────────────────────────────
-   NavItem — a single flat sidebar link
+   NavItem - a single flat sidebar link
 ──────────────────────────────────────────────────────────────────────── */
 function NavItem({ label, icon: Icon, route, collapsed, isActive: customIsActive }) {
   return (
@@ -42,7 +42,7 @@ function NavItem({ label, icon: Icon, route, collapsed, isActive: customIsActive
 }
 
 /* ────────────────────────────────────────────────────────────────────────
-   SubNavItem — an indented child link inside a dropdown group
+   SubNavItem - an indented child link inside a dropdown group
 ──────────────────────────────────────────────────────────────────────── */
 function SubNavItem({ label, icon: Icon, route, isActive }) {
   return (
@@ -67,7 +67,7 @@ function SubNavItem({ label, icon: Icon, route, isActive }) {
 }
 
 /* ────────────────────────────────────────────────────────────────────────
-   DropdownGroup — collapsible parent menu item with child links
+   DropdownGroup - collapsible parent menu item with child links
 ──────────────────────────────────────────────────────────────────────── */
 function DropdownGroup({ label, icon: Icon, collapsed, children, isActive }) {
   const [open, setOpen] = useState(isActive);
@@ -210,7 +210,7 @@ export default function Sidebar() {
           />
         </div>
 
-        {/* Mobile — close button */}
+        {/* Mobile - close button */}
         <button
           onClick={() => setMobileSidebarOpen(false)}
           aria-label="Close menu"
@@ -237,7 +237,7 @@ export default function Sidebar() {
         {/* ── STAFF PORTAL NAV ── */}
         {isStaff && (
           <>
-            {/* My Orders — staff-specific route */}
+            {/* My Orders - staff-specific route */}
             <NavItem
               label="My Orders"
               icon={ClipboardList}

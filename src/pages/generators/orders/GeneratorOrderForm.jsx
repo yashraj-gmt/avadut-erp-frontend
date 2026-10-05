@@ -6,6 +6,7 @@ import DateRangePicker from './DateRangePicker';
 import {
   DIESEL_TYPES,
   CABLE_SIZES,
+  getCableRate,
   newGeneratorEntry,
   formatToDMY,
   formatRangeToDMY,
@@ -371,7 +372,7 @@ function GeneratorEntry({ entry, index, total, errors, onChange, onRemove, onAdd
           }}
           disabled={disabled}
         >
-          <option value="">— Select Generator —</option>
+          <option value="">- Select Generator -</option>
           {generatorOptions.map(g => {
             const avail = getAdjustedStock(g);
             const isSelectable = typeof avail === 'number' ? avail > 0 : true;
@@ -406,10 +407,10 @@ function GeneratorEntry({ entry, index, total, errors, onChange, onRemove, onAdd
             onChange={e => onChange(index, 'cableSize', e.target.value)}
             disabled={disabled}
           >
-            <option value="">— Select Cable —</option>
+            <option value="">- Select Cable -</option>
             {CABLE_SIZES.map(c => (
               <option key={c.size} value={c.size}>
-                {c.size === 'Earth Rod' ? 'Earth Rod' : `${c.size} mm²`} — ₹{c.rate}/unit
+                {c.size === 'Earth Rod' ? 'Earth Rod' : c.size === 'Other' ? 'Other' : `${c.size} mm²`} - ₹{c.rate}/unit
               </option>
             ))}
           </select>
@@ -503,7 +504,6 @@ const INITIAL_ORDER = {
   firmName:               '',
   contactNumber:          '',
   alternateContactNumber: '',
-  telephoneNumber:        '',
   operators:               [],
   operatorMobile:         '',
   cableRequired:          true,
@@ -592,9 +592,9 @@ export default function GeneratorOrderForm() {
     return () => document.removeEventListener('mousedown', handler);
   }, [custDropOpen]);
 
-  /* ── Load operators from Users API ── */
+  /* ── Load operators from Staff/Users API ─────────────────────── */
   useEffect(() => {
-    userService.getAll()
+    userService.getAllStaff()
       .then(data => {
         const list = Array.isArray(data) ? data
                    : Array.isArray(data?.content) ? data.content
@@ -602,22 +602,12 @@ export default function GeneratorOrderForm() {
         const mapped = list
           .filter(u => u.isActive !== false)
           .map(u => ({ id: u.id, name: u.name || '', mobile: u.mobile || '' }));
-        setOperatorOptions(mapped.length > 0 ? mapped : [
-          { id: 'op-1', name: 'Sunil Patil', mobile: '9876543210' },
-          { id: 'op-2', name: 'Ramesh Shinde', mobile: '9823456789' },
-          { id: 'op-3', name: 'Vikas Kamble', mobile: '9988776655' },
-          { id: 'op-4', name: 'Sanjay Pawar', mobile: '9765432109' },
-          { id: 'op-5', name: 'Anil Deshmukh', mobile: '9654321098' },
-        ]);
+        // Set whatever the API returns; empty list shows the empty-state message
+        setOperatorOptions(mapped);
       })
       .catch(() => {
-        setOperatorOptions([
-          { id: 'op-1', name: 'Sunil Patil', mobile: '9876543210' },
-          { id: 'op-2', name: 'Ramesh Shinde', mobile: '9823456789' },
-          { id: 'op-3', name: 'Vikas Kamble', mobile: '9988776655' },
-          { id: 'op-4', name: 'Sanjay Pawar', mobile: '9765432109' },
-          { id: 'op-5', name: 'Anil Deshmukh', mobile: '9654321098' },
-        ]);
+        // API failed — show empty dropdown with message, no fake fallback
+        setOperatorOptions([]);
       });
   }, []);
 
@@ -642,7 +632,6 @@ export default function GeneratorOrderForm() {
           firmName:               o.firmName        || '',
           contactNumber:          o.contactNumber   || '',
           alternateContactNumber: o.alternateMobile || '',
-          telephoneNumber:        o.telephoneNumber || '',
           operators:              o.operatorName
             ? o.operatorName.split(',').map(s => s.trim()).filter(Boolean)
             : (o.operators || []),
@@ -693,15 +682,14 @@ export default function GeneratorOrderForm() {
       firmName:               cust.firmName         || '',
       contactNumber:          cust.mobile           || '',
       alternateContactNumber: cust.alternateMobile  || '',
-      telephoneNumber:        cust.telephoneNumber  || '',
-      siteAddress:            cust.address          || '',
-      siteAddressLink:        cust.addressLocationLink || '',
-      remarks:                cust.remarks          || '',
+      siteAddress:            '',
+      siteAddressLink:        '',
+      remarks:                '',
     }));
     // Clear relevant errors
     setOErr(prev => ({
       ...prev,
-      clientName: '', contactNumber: '', siteAddress: '',
+      clientName: '', contactNumber: '',
     }));
   };
 
@@ -711,7 +699,7 @@ export default function GeneratorOrderForm() {
     setOrder(prev => ({
       ...prev,
       clientName: '', firmName: '', contactNumber: '',
-      alternateContactNumber: '', telephoneNumber: '',
+      alternateContactNumber: '',
       siteAddress: '', siteAddressLink: '', remarks: '',
     }));
   };
@@ -769,8 +757,7 @@ export default function GeneratorOrderForm() {
         valid = false;
       }
     }
-    // operatorName is now optional — no required validation
-    if (!order.siteAddress.trim())   { oe.siteAddress   = 'Site address is required';   valid = false; }
+    // operatorName and siteAddress are optional
     if (!order.functionDate?.trim()) { oe.functionDate  = 'Function date range is required'; valid = false; }
 
     setOErr(oe);
@@ -823,14 +810,13 @@ export default function GeneratorOrderForm() {
       firmName:        order.firmName?.trim()        || null,
       contactNumber:   order.contactNumber.trim(),
       alternateMobile: order.alternateContactNumber.trim() || null,
-      telephoneNumber: order.telephoneNumber?.trim()  || null,
       operators:       order.operators,
       operatorMobile:  order.operatorMobile.trim() || null,
       assignedToId,
       cableRequired:   order.cableRequired,
       dieselType:      order.dieselType,
-      siteAddress:     order.siteAddress.trim(),
-      siteAddressLink: order.siteAddressLink.trim() || null,
+      siteAddress:     order.siteAddress?.trim() || null,
+      siteAddressLink: order.siteAddressLink?.trim() || null,
       remarks:         order.remarks.trim() || null,
       functionDate:    order.functionDate.trim(),
       functionDateFrom,
@@ -838,13 +824,13 @@ export default function GeneratorOrderForm() {
       generators: generators.map(g => ({
         generatorId: g.generatorId,
         cableSize:   order.cableRequired ? (g.cableSize || null) : null,
+        cableRate:   order.cableRequired && g.cableSize ? getCableRate(g.cableSize) : null,
       })),
     };
 
     try {
       if (isEdit) {
         await generatorOrderService.update(id, payload);
-        setToast({ title: 'Order Updated!', msg: `Order ${id} updated successfully.` });
       } else {
         // Auto-create customer if no existing customer was selected
         if (!selectedCustomer && order.clientName.trim()) {
@@ -854,9 +840,7 @@ export default function GeneratorOrderForm() {
               firmName:            order.firmName?.trim()               || undefined,
               mobile:              order.contactNumber.trim(),
               alternateMobile:     order.alternateContactNumber.trim()  || undefined,
-              telephoneNumber:     order.telephoneNumber?.trim()        || undefined,
               address:             order.siteAddress.trim()             || undefined,
-              addressLocationLink: order.siteAddressLink.trim()         || undefined,
               remarks:             order.remarks.trim()                 || undefined,
             });
           } catch (_) {
@@ -864,9 +848,8 @@ export default function GeneratorOrderForm() {
           }
         }
         await generatorOrderService.create(payload);
-        setToast({ title: 'Order Saved!', msg: 'New generator order created successfully.' });
       }
-      setTimeout(() => { setToast(null); navigate(ROUTES.GENERATOR_ORDERS); }, 1800);
+      navigate(ROUTES.GENERATOR_ORDERS);
     } catch (err) {
       const msg = err?.response?.data?.message || err?.message || 'Failed to save. Please try again.';
       setToast({ title: '❌ Error', msg });
@@ -880,15 +863,15 @@ export default function GeneratorOrderForm() {
     const printWindow = window.open('', '_blank', 'width=860,height=900');
     if (!printWindow) { alert('Please allow popups to print the order sheet.'); return; }
 
-    // Use the real order number (e.g. GO20261) — fall back to id only as last resort
+    // Use the real order number (e.g. GO20261) - fall back to id only as last resort
     const orderRef = order.orderNumber || id || 'New Order';
     const dateStr  = formatToDMY(new Date());
 
     const gensRows = generators.map((g, idx) => {
       const found = generatorOptions.find(item => String(item.id) === String(g.generatorId));
-      const name  = found ? found.name : (g.generatorName || '—');
+      const name  = found ? found.name : (g.generatorName || '-');
       const cable = order.cableRequired && g.cableSize
-        ? (g.cableSize === 'Earth Rod' ? ' | Cable: Earth Rod' : ` | Cable: ${g.cableSize} mm²`)
+        ? (g.cableSize === 'Earth Rod' ? ' | Cable: Earth Rod' : g.cableSize === 'Other' ? ' | Cable: Other' : ` | Cable: ${g.cableSize} mm²`)
         : '';
       return `
         <tr>
@@ -951,14 +934,14 @@ export default function GeneratorOrderForm() {
           <div class="details-grid">
             <div>
               <div class="section-label">Client Details</div>
-              <div class="info-row"><span class="info-key">Name</span><span class="info-val">: ${order.clientName || '—'}</span></div>
-              <div class="info-row"><span class="info-key">Contact</span><span class="info-val">: ${order.contactNumber || '—'}</span></div>
+              <div class="info-row"><span class="info-key">Name</span><span class="info-val">: ${order.clientName || '-'}</span></div>
+              <div class="info-row"><span class="info-key">Contact</span><span class="info-val">: ${order.contactNumber || '-'}</span></div>
               ${order.alternateContactNumber ? `<div class="info-row"><span class="info-key">Alt. Contact</span><span class="info-val">: ${order.alternateContactNumber}</span></div>` : ''}
             </div>
             <div>
               <div class="section-label">Service Details</div>
               <div class="info-row"><span class="info-key">Function Date</span><span class="info-val">: ${formatRangeToDMY(order.functionDate)}</span></div>
-              <div class="info-row"><span class="info-key">Operator</span><span class="info-val">: ${order.operatorName || '—'}</span></div>
+              <div class="info-row"><span class="info-key">Operator</span><span class="info-val">: ${order.operatorName || '-'}</span></div>
               ${order.operatorMobile ? `<div class="info-row"><span class="info-key">Operator Mo. No.</span><span class="info-val">: ${order.operatorMobile}</span></div>` : ''}
               <div class="info-row"><span class="info-key">Cable Required</span><span class="info-val">: ${order.cableRequired ? 'Yes' : 'No'}</span></div>
               <div class="info-row"><span class="info-key">Diesel Type</span><span class="info-val">: ${order.dieselType === DIESEL_TYPES.WITH_OWNER ? 'With Diesel' : 'Party Diesel'}</span></div>
@@ -967,7 +950,7 @@ export default function GeneratorOrderForm() {
 
           <div style="margin-bottom:22px;">
             <div class="section-label">Site Address</div>
-            <div class="site-val">${order.siteAddress || '—'}${order.siteAddressLink ? `<br><a href="${order.siteAddressLink}" style="color:#2563eb;font-size:12px;">📍 View Location</a>` : ''}</div>
+            <div class="site-val">${order.siteAddress || '-'}${order.siteAddressLink ? `<br><a href="${order.siteAddressLink}" style="color:#2563eb;font-size:12px;">📍 View Location</a>` : ''}</div>
           </div>
 
           <div class="section-label">Generator Details</div>
@@ -995,7 +978,7 @@ export default function GeneratorOrderForm() {
   const handleShareOption = channel => {
     const orderRef   = id || 'New Order';
     const clientName = order.clientName || 'Client';
-    const funcDate   = formatRangeToDMY(order.functionDate) || '—';
+    const funcDate   = formatRangeToDMY(order.functionDate) || '-';
     const rawMsg =
       `Generator Order Details:\nOrder Ref: ${orderRef}\nClient: ${clientName}\n` +
       `Function Date: ${funcDate}\nFor full order sheet, use the Print option.`;
@@ -1087,7 +1070,7 @@ export default function GeneratorOrderForm() {
           {/* Row 1: Client Name | Firm/Company Name | Order Number | Function Date */}
           <div className="gf2-grid-2" style={{ marginBottom: 20 }}>
 
-            {/* Client Name — searchable customer dropdown */}
+            {/* Client Name - searchable customer dropdown */}
             <div className="gf2-field" style={{ position: 'relative' }} ref={custWrapRef}>
               <Label required>Client Name</Label>
               {!selectedCustomer ? (
@@ -1120,7 +1103,7 @@ export default function GeneratorOrderForm() {
                         if (filtered.length === 0) {
                           return (
                             <div style={{ padding: '10px 13px', fontSize: 13, color: 'var(--color-text-muted)' }}>
-                              {custSearch.trim() ? 'No existing customer found — will be created as new.' : 'Start typing to search customers…'}
+                              {custSearch.trim() ? 'No existing customer found - will be created as new.' : 'Start typing to search customers…'}
                             </div>
                           );
                         }
@@ -1143,14 +1126,16 @@ export default function GeneratorOrderForm() {
               ) : (
                 <div>
                   <input
-                    className="gf2-input gf2-locked"
+                    id="inp-client-name"
+                    className={`gf2-input${orderErrors.clientName ? ' err' : ''}`}
                     value={order.clientName}
-                    readOnly disabled
+                    disabled={isDisabled}
+                    onChange={e => handleOrderChange('clientName', e.target.value)}
                   />
                   <div className="gf2-cust-badge" style={{ marginTop: 6 }}>
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><polyline points="20 6 9 17 4 12"/></svg>
-                    Existing customer linked
-                    <span className="gf2-cust-badge-x" onClick={!isDisabled ? handleClearCustomer : undefined} title="Unlink customer">✕</span>
+                    Customer selected (pre-filled)
+                    <span className="gf2-cust-badge-x" onClick={!isDisabled ? handleClearCustomer : undefined} title="Clear selected customer">✕</span>
                   </div>
                 </div>
               )}
@@ -1162,12 +1147,11 @@ export default function GeneratorOrderForm() {
               <Label>Firm / Company Name</Label>
               <input
                 id="inp-firm-name"
-                className={`gf2-input${selectedCustomer ? ' gf2-locked' : ''}`}
+                className="gf2-input"
                 placeholder="e.g. Rajesh Enterprises Pvt. Ltd."
                 value={order.firmName}
-                onChange={e => !selectedCustomer && handleOrderChange('firmName', e.target.value)}
-                disabled={isDisabled || !!selectedCustomer}
-                readOnly={!!selectedCustomer}
+                onChange={e => handleOrderChange('firmName', e.target.value)}
+                disabled={isDisabled}
               />
             </div>
 
@@ -1196,8 +1180,8 @@ export default function GeneratorOrderForm() {
             </div>
           </div>
 
-          {/* Row 2: Contact | Alternate Contact | Telephone | Operator */}
-          <div className="gf2-grid-3" style={{ marginBottom: 20 }}>
+          {/* Row 2: Contact | Alternate Contact | Operator */}
+          <div className="gf2-grid-2" style={{ marginBottom: 20 }}>
             <div className="gf2-field">
               <Label required>Mobile Number</Label>
               <input
@@ -1205,12 +1189,11 @@ export default function GeneratorOrderForm() {
                 type="tel"
                 maxLength={10}
                 inputMode="numeric"
-                className={`gf2-input${orderErrors.contactNumber ? ' err' : ''}${selectedCustomer ? ' gf2-locked' : ''}`}
+                className={`gf2-input${orderErrors.contactNumber ? ' err' : ''}`}
                 placeholder="e.g. 9876543210"
                 value={order.contactNumber}
-                onChange={e => !selectedCustomer && handlePhoneChange('contactNumber', e.target.value)}
-                disabled={isDisabled || !!selectedCustomer}
-                readOnly={!!selectedCustomer}
+                onChange={e => handlePhoneChange('contactNumber', e.target.value)}
+                disabled={isDisabled}
               />
               <ErrMsg msg={orderErrors.contactNumber} />
             </div>
@@ -1222,85 +1205,73 @@ export default function GeneratorOrderForm() {
                 type="tel"
                 maxLength={10}
                 inputMode="numeric"
-                className={`gf2-input${orderErrors.alternateContactNumber ? ' err' : ''}${selectedCustomer ? ' gf2-locked' : ''}`}
+                className={`gf2-input${orderErrors.alternateContactNumber ? ' err' : ''}`}
                 placeholder="e.g. 9876543210"
                 value={order.alternateContactNumber}
-                onChange={e => !selectedCustomer && handlePhoneChange('alternateContactNumber', e.target.value)}
-                disabled={isDisabled || !!selectedCustomer}
-                readOnly={!!selectedCustomer}
+                onChange={e => handlePhoneChange('alternateContactNumber', e.target.value)}
+                disabled={isDisabled}
               />
               <ErrMsg msg={orderErrors.alternateContactNumber} />
             </div>
+          </div>
 
-            <div className="gf2-field">
-              <Label>Telephone Number</Label>
-              <input
-                id="inp-telephone"
-                type="tel"
-                className={`gf2-input${selectedCustomer ? ' gf2-locked' : ''}`}
-                placeholder="e.g. 020-27654321"
-                value={order.telephoneNumber}
-                onChange={e => !selectedCustomer && handleOrderChange('telephoneNumber', e.target.value)}
-                disabled={isDisabled || !!selectedCustomer}
-                readOnly={!!selectedCustomer}
-              />
-            </div>
-
-            <div className="gf2-field" style={{ gridColumn: '1 / -1' }}>
-              <Label>Operator Name <span style={{ fontSize: 11, color: 'var(--color-text-subtle)', fontWeight: 500 }}>(Optional — select one or more)</span></Label>
-              <div style={{
-                display: 'flex',
-                flexWrap: 'wrap',
-                gap: 8,
-                padding: '10px 12px',
-                border: '1.5px solid var(--color-border)',
-                borderRadius: 'var(--radius-md)',
-                background: 'var(--color-surface)',
-                minHeight: 44,
-              }}>
-                {operatorOptions.length === 0 && (
-                  <span style={{ fontSize: 13, color: 'var(--color-text-subtle)', alignSelf: 'center' }}>Loading operators…</span>
-                )}
-                {operatorOptions.map(op => {
-                  const isSelected = order.operators.includes(op.name);
-                  return (
-                    <button
-                      key={op.id || op.name}
-                      type="button"
-                      disabled={isDisabled}
-                      onClick={() => {
-                        if (isDisabled) return;
-                        const next = isSelected
-                          ? order.operators.filter(n => n !== op.name)
-                          : [...order.operators, op.name];
-                        handleOrderChange('operators', next);
-                      }}
-                      style={{
-                        display: 'inline-flex', alignItems: 'center', gap: 6,
-                        padding: '5px 12px', borderRadius: 20, fontSize: 13, fontWeight: 500,
-                        cursor: isDisabled ? 'not-allowed' : 'pointer',
-                        border: isSelected ? '1.5px solid var(--color-primary)' : '1.5px solid var(--color-border)',
-                        background: isSelected ? 'var(--color-primary-50)' : 'var(--color-surface-2)',
-                        color: isSelected ? 'var(--color-primary)' : 'var(--color-text-muted)',
-                        transition: 'all .15s', fontFamily: 'inherit',
-                      }}
-                    >
-                      {isSelected && (
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
-                          <polyline points="20 6 9 17 4 12" />
-                        </svg>
-                      )}
-                      {op.name}
-                    </button>
-                  );
-                })}
-              </div>
-              {order.operators.length > 0 && (
-                <p style={{ fontSize: 11.5, color: 'var(--color-text-muted)', marginTop: 4 }}>
-                  Selected: <strong>{order.operators.join(', ')}</strong>
-                </p>
+          {/* Operator Name */}
+          <div className="gf2-field" style={{ marginBottom: 20 }}>
+            <Label>Operator Name <span style={{ fontSize: 11, color: 'var(--color-text-subtle)', fontWeight: 500 }}>(Optional - select one or more)</span></Label>
+            <div style={{
+              display: 'flex',
+              flexWrap: 'wrap',
+              gap: 8,
+              padding: '10px 12px',
+              border: '1.5px solid var(--color-border)',
+              borderRadius: 'var(--radius-md)',
+              background: 'var(--color-surface)',
+              minHeight: 44,
+            }}>
+              {operatorOptions.length === 0 && (
+                <span style={{ fontSize: 13, color: 'var(--color-text-subtle)', alignSelf: 'center', fontStyle: 'italic' }}>
+                  No operators found — add staff in Staff Management first.
+                </span>
               )}
+              {operatorOptions.map(op => {
+                const isSelected = order.operators.includes(op.name);
+                return (
+                  <button
+                    key={op.id || op.name}
+                    type="button"
+                    disabled={isDisabled}
+                    onClick={() => {
+                      if (isDisabled) return;
+                      const next = isSelected
+                        ? order.operators.filter(n => n !== op.name)
+                        : [...order.operators, op.name];
+                      handleOrderChange('operators', next);
+                    }}
+                    style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 6,
+                      padding: '5px 12px', borderRadius: 20, fontSize: 13, fontWeight: 500,
+                      cursor: isDisabled ? 'not-allowed' : 'pointer',
+                      border: isSelected ? '1.5px solid var(--color-primary)' : '1.5px solid var(--color-border)',
+                      background: isSelected ? 'var(--color-primary-50)' : 'var(--color-surface-2)',
+                      color: isSelected ? 'var(--color-primary)' : 'var(--color-text-muted)',
+                      transition: 'all .15s', fontFamily: 'inherit',
+                    }}
+                  >
+                    {isSelected && (
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                    )}
+                    {op.name}
+                  </button>
+                );
+              })}
             </div>
+            {order.operators.length > 0 && (
+              <p style={{ fontSize: 11.5, color: 'var(--color-text-muted)', marginTop: 4 }}>
+                Selected: <strong>{order.operators.join(', ')}</strong>
+              </p>
+            )}
           </div>
 
           {/* Row 3: Cable Required | Diesel Type */}
@@ -1390,16 +1361,15 @@ export default function GeneratorOrderForm() {
         <CardSection icon={Icon.MapPin} title="Additional Information">
           <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
             <div className="gf2-field">
-              <Label required>Site Address</Label>
+              <Label>Site Address</Label>
               <textarea
                 id="inp-site-address"
-                className={`gf2-textarea${orderErrors.siteAddress ? ' err' : ''}${selectedCustomer ? ' gf2-locked' : ''}`}
+                className={`gf2-textarea${orderErrors.siteAddress ? ' err' : ''}`}
                 placeholder="Enter the full site address…"
                 value={order.siteAddress}
-                onChange={e => !selectedCustomer && handleOrderChange('siteAddress', e.target.value)}
+                onChange={e => handleOrderChange('siteAddress', e.target.value)}
                 rows={3}
-                disabled={isDisabled || !!selectedCustomer}
-                readOnly={!!selectedCustomer}
+                disabled={isDisabled}
               />
               <ErrMsg msg={orderErrors.siteAddress} />
             </div>
@@ -1409,12 +1379,11 @@ export default function GeneratorOrderForm() {
               <input
                 id="inp-site-link"
                 type="url"
-                className={`gf2-input${selectedCustomer ? ' gf2-locked' : ''}`}
+                className="gf2-input"
                 placeholder="e.g. https://maps.google.com/..."
                 value={order.siteAddressLink}
-                onChange={e => !selectedCustomer && handleOrderChange('siteAddressLink', e.target.value)}
-                disabled={isDisabled || !!selectedCustomer}
-                readOnly={!!selectedCustomer}
+                onChange={e => handleOrderChange('siteAddressLink', e.target.value)}
+                disabled={isDisabled}
               />
             </div>
 
@@ -1422,13 +1391,12 @@ export default function GeneratorOrderForm() {
               <Label>Remarks</Label>
               <textarea
                 id="inp-remarks"
-                className={`gf2-textarea${selectedCustomer ? ' gf2-locked' : ''}`}
+                className="gf2-textarea"
                 placeholder="Any additional notes or special instructions…"
                 value={order.remarks}
-                onChange={e => !selectedCustomer && handleOrderChange('remarks', e.target.value)}
+                onChange={e => handleOrderChange('remarks', e.target.value)}
                 rows={4}
-                disabled={isDisabled || !!selectedCustomer}
-                readOnly={!!selectedCustomer}
+                disabled={isDisabled}
               />
             </div>
 
@@ -1444,7 +1412,7 @@ export default function GeneratorOrderForm() {
                   <line x1="12" y1="8" x2="12" y2="12"/>
                   <line x1="12" y1="16" x2="12.01" y2="16"/>
                 </svg>
-                Fields are pre-filled from the selected customer and are read-only. Click ✕ on the badge above to enter different details.
+                Customer details pre-filled. Changes made to site address, contact numbers, or remarks apply exclusively to this order and will not alter the customer's permanent profile.
               </div>
             )}
           </div>
@@ -1466,7 +1434,7 @@ export default function GeneratorOrderForm() {
               <Icon.Printer /> Print
             </button>
 
-            {/* Share button — opens InvoiceShareModal */}
+            {/* Share button - opens InvoiceShareModal */}
             <button id="btn-share" className="gf2-btn gf2-btn-share" type="button"
               onClick={() => setShowShareModal(true)} disabled={!isEdit}>
               <Icon.Share /> Share

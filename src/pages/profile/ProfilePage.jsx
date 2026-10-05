@@ -4,36 +4,29 @@ import {
   User, Mail, Phone, Shield, Clock, Calendar,
   KeyRound, Eye, EyeOff, CheckCircle2, XCircle,
   AlertTriangle, Loader2, RefreshCw, X, LogOut,
-  Pencil, Save, RotateCcw, Info,
+  Pencil, Save, RotateCcw, Info, MapPin, Camera, Trash2, Upload,
 } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { useAuthStore } from '@/store/authStore'
 import { authService } from '@/services/authService'
 import { useToast } from '@/components/shared/toast/ToastProvider'
+import { getImageUrl } from '@/utils/imageUrl'
 import ConfirmModal from '@/components/shared/modal/ConfirmModal'
 
 // ─── Role config (CSS vars only) ─────────────────────────────────────────────
 const ROLE_MAP = {
   SUPER_ADMIN: { label: 'Super Admin', bg: 'var(--color-primary-50)',  color: 'var(--color-primary)',    border: 'var(--color-primary-100)' },
   ADMIN:       { label: 'Admin',       bg: 'var(--color-info-light)',  color: 'var(--color-info)',       border: '#BFDBFE' },
+  STAFF:       { label: 'Staff',       bg: '#D1FAE5',                  color: '#065F46',                 border: '#A7F3D0' },
+  ROLE_STAFF:  { label: 'Staff',       bg: '#D1FAE5',                  color: '#065F46',                 border: '#A7F3D0' },
   USER:        { label: 'User',        bg: 'var(--color-surface-2)',   color: 'var(--color-text-muted)', border: 'var(--color-border)' },
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-const fmtDateTime = (dt) =>
-  dt
-    ? new Date(dt).toLocaleString('en-IN', {
-        day: '2-digit', month: 'short', year: 'numeric',
-        hour: '2-digit', minute: '2-digit',
-      })
-    : '—'
+import { formatToDMY, formatDateTime } from '@/utils/helpers'
 
-const fmtDate = (dt) =>
-  dt
-    ? new Date(dt).toLocaleDateString('en-IN', {
-        day: '2-digit', month: 'short', year: 'numeric',
-      })
-    : '—'
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+const fmtDateTime = (dt) => formatDateTime(dt)
+const fmtDate = (dt) => formatToDMY(dt)
 
 const initials = (name) =>
   (name ?? '?')
@@ -43,7 +36,7 @@ const initials = (name) =>
     .join('')
 
 // ─── Field validation ─────────────────────────────────────────────────────────
-function validateProfileForm({ name, email, mobile }) {
+function validateProfileForm({ name, email, mobile, address }) {
   const errors = {}
   if (!name || name.trim().length < 2)
     errors.name = 'Name must be at least 2 characters.'
@@ -55,6 +48,9 @@ function validateProfileForm({ name, email, mobile }) {
 
   if (!mobile || !/^[6-9]\d{9}$/.test(mobile))
     errors.mobile = 'Enter a valid 10-digit Indian mobile number.'
+
+  if (address && address.length > 500)
+    errors.address = 'Address cannot exceed 500 characters.'
 
   return errors
 }
@@ -80,7 +76,7 @@ function InfoRow({ icon: Icon, label, value, last = false }) {
           className="text-sm font-medium break-all"
           style={{ color: value ? 'var(--color-text)' : 'var(--color-text-subtle)' }}
         >
-          {value || '—'}
+          {value || '-'}
         </p>
       </div>
     </div>
@@ -328,12 +324,12 @@ function ChangePasswordModal({ onClose, changePassword }) {
 }
 
 // ─── Profile Skeleton ─────────────────────────────────────────────────────────
-function ProfileSkeleton() {
+function ProfileSkeleton({ isStaff = false }) {
   const P = ({ cls }) => (
     <div className={`rounded-lg animate-pulse ${cls}`} style={{ background: 'var(--color-border)' }} />
   )
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 max-w-5xl">
+    <div className={isStaff ? 'max-w-2xl mx-auto space-y-5' : 'grid grid-cols-1 lg:grid-cols-2 max-w-5xl gap-5'}>
       {/* Left skeleton */}
       <div className="space-y-5">
         <div className="rounded-2xl p-6" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
@@ -343,27 +339,29 @@ function ProfileSkeleton() {
           </div>
         </div>
         <div className="rounded-2xl px-6 py-2" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
-          {[1,2,3,4,5].map((i) => (
+          {[1,2,3,4,5,6,7].map((i) => (
             <div key={i} className="flex items-center gap-4 py-3.5"
-              style={{ borderBottom: i < 5 ? '1px solid var(--color-border)' : 'none' }}>
+              style={{ borderBottom: i < 7 ? '1px solid var(--color-border)' : 'none' }}>
               <P cls="w-7 h-7 rounded-lg" />
               <div className="space-y-2 flex-1"><P cls="h-2.5 w-16" /><P cls="h-4 w-40" /></div>
             </div>
           ))}
         </div>
       </div>
-      {/* Right skeleton */}
-      <div className="space-y-5">
-        <div className="rounded-2xl p-6 space-y-4" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
-          <P cls="h-4 w-32" />
-          {[1,2,3].map((i) => <div key={i} className="space-y-2"><P cls="h-3 w-20" /><P cls="h-10 w-full rounded-lg" /></div>)}
-          <P cls="h-10 w-full rounded-xl" />
+      {/* Right skeleton (admins only) */}
+      {!isStaff && (
+        <div className="space-y-5">
+          <div className="rounded-2xl p-6 space-y-4" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
+            <P cls="h-4 w-32" />
+            {[1,2,3,4].map((i) => <div key={i} className="space-y-2"><P cls="h-3 w-20" /><P cls="h-10 w-full rounded-lg" /></div>)}
+            <P cls="h-10 w-full rounded-xl" />
+          </div>
+          <div className="rounded-2xl p-6" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
+            <P cls="h-4 w-24 mb-4" />
+            <div className="flex items-center justify-between"><div className="flex items-center gap-3"><P cls="w-9 h-9 rounded-xl" /><div className="space-y-2"><P cls="h-4 w-24" /><P cls="h-3 w-40" /></div></div><P cls="h-9 w-28 rounded-xl" /></div>
+          </div>
         </div>
-        <div className="rounded-2xl p-6" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
-          <P cls="h-4 w-24 mb-4" />
-          <div className="flex items-center justify-between"><div className="flex items-center gap-3"><P cls="w-9 h-9 rounded-xl" /><div className="space-y-2"><P cls="h-4 w-24" /><P cls="h-3 w-40" /></div></div><P cls="h-9 w-28 rounded-xl" /></div>
-        </div>
-      </div>
+      )}
     </div>
   )
 }
@@ -381,10 +379,14 @@ export default function ProfilePage() {
   const [showPwdModal, setShowPwdModal] = useState(false)
 
   // Edit form state
-  const [editForm, setEditForm] = useState({ name: '', email: '', mobile: '' })
+  const [editForm, setEditForm] = useState({ name: '', email: '', mobile: '', address: '' })
   const [formErrors, setFormErrors] = useState({})
   const [saving, setSaving] = useState(false)
   const [dirty, setDirty]   = useState(false)
+
+  // Avatar upload state
+  const avatarInputRef = useRef(null)
+  const [uploadingAvatar, setUploadingAvatar] = useState(false)
 
   // Confirm modal for mobile change
   const [showMobileConfirm, setShowMobileConfirm] = useState(false)
@@ -401,7 +403,7 @@ export default function ProfilePage() {
   const formInitialized = useRef(false)
 
   // ── Load profile ─────────────────────────────────────────────────────────────
-  // useCallback has NO deps — loadProfile is a stable function for the lifetime
+  // useCallback has NO deps - loadProfile is a stable function for the lifetime
   // of the component. It reads refreshProfile through the ref above.
   const loadProfile = useCallback(async ({ resetForm = false } = {}) => {
     setLoading(true)
@@ -422,11 +424,14 @@ export default function ProfilePage() {
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Pre-fill the edit form the FIRST time user data arrives.
-  // After that, form state is owned by the component; we never overwrite it
-  // automatically (that's what causes the flickering reset while editing).
   useEffect(() => {
     if (user && !formInitialized.current) {
-      setEditForm({ name: user.name ?? '', email: user.email ?? '', mobile: user.mobile ?? '' })
+      setEditForm({
+        name: user.name ?? '',
+        email: user.email ?? '',
+        mobile: user.mobile ?? '',
+        address: user.address ?? '',
+      })
       setDirty(false)
       formInitialized.current = true
     }
@@ -441,9 +446,72 @@ export default function ProfilePage() {
 
   const handleReset = () => {
     if (!user) return
-    setEditForm({ name: user.name ?? '', email: user.email ?? '', mobile: user.mobile ?? '' })
+    setEditForm({
+      name: user.name ?? '',
+      email: user.email ?? '',
+      mobile: user.mobile ?? '',
+      address: user.address ?? '',
+    })
     setFormErrors({})
     setDirty(false)
+  }
+
+  // ── Avatar Upload Handlers ──────────────────────────────────────────────────
+  const handleAvatarUpload = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    if (!file.type.startsWith('image/')) {
+      toast({ type: 'error', title: 'Invalid File', message: 'Please select an image file (JPG, PNG, WebP).' })
+      return
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast({ type: 'error', title: 'File Too Large', message: 'Image size must be less than 5MB.' })
+      return
+    }
+
+    setUploadingAvatar(true)
+    try {
+      const uploadRes = await authService.uploadProfilePic(file)
+      const picPath = uploadRes?.path
+      if (picPath) {
+        const updateRes = await authService.updateProfile({
+          name: editForm.name.trim() || user.name,
+          email: editForm.email.trim() || user.email,
+          mobile: editForm.mobile.trim() || user.mobile,
+          address: editForm.address.trim() || null,
+          profilePic: picPath,
+        })
+        setUser(updateRes.user || { ...user, profilePic: picPath })
+        toast({ type: 'success', title: 'Photo Updated', message: 'Profile picture updated successfully.' })
+      }
+    } catch (err) {
+      const msg = err?.response?.data?.message || err?.message || 'Failed to upload photo.'
+      toast({ type: 'error', title: 'Upload Failed', message: msg })
+    } finally {
+      setUploadingAvatar(false)
+      if (avatarInputRef.current) avatarInputRef.current.value = ''
+    }
+  }
+
+  const handleRemoveAvatar = async () => {
+    setUploadingAvatar(true)
+    try {
+      const updateRes = await authService.updateProfile({
+        name: editForm.name.trim() || user.name,
+        email: editForm.email.trim() || user.email,
+        mobile: editForm.mobile.trim() || user.mobile,
+        address: editForm.address.trim() || null,
+        profilePic: null,
+      })
+      setUser(updateRes.user || { ...user, profilePic: null })
+      toast({ type: 'success', title: 'Photo Removed', message: 'Profile picture removed.' })
+    } catch (err) {
+      const msg = err?.response?.data?.message || err?.message || 'Failed to remove photo.'
+      toast({ type: 'error', title: 'Remove Failed', message: msg })
+    } finally {
+      setUploadingAvatar(false)
+    }
   }
 
   // Called after confirm (or directly if no mobile change)
@@ -452,13 +520,14 @@ export default function ProfilePage() {
     setShowMobileConfirm(false)
     try {
       const result = await authService.updateProfile({
-        name:   editForm.name.trim(),
-        email:  editForm.email.trim(),
-        mobile: editForm.mobile.trim(),
+        name:    editForm.name.trim(),
+        email:   editForm.email.trim(),
+        mobile:  editForm.mobile.trim(),
+        address: editForm.address.trim() || null,
       })
 
       if (result.mobileChanged) {
-        // Server revoked all tokens — must re-login
+        // Server revoked all tokens - must re-login
         toast({
           type:    'warning',
           title:   'Mobile number changed',
@@ -472,13 +541,11 @@ export default function ProfilePage() {
         }, 1800)
       } else {
         setUser(result.user)
-        // Sync the form to the freshly-saved values and mark clean.
-        // Done explicitly here so the user-effect (which only runs on first
-        // load) never fires again and doesn't reset an in-progress edit.
         setEditForm({
-          name:   result.user.name   ?? '',
-          email:  result.user.email  ?? '',
-          mobile: result.user.mobile ?? '',
+          name:    result.user.name    ?? '',
+          email:   result.user.email   ?? '',
+          mobile:  result.user.mobile  ?? '',
+          address: result.user.address ?? '',
         })
         setDirty(false)
         toast({ type: 'success', title: 'Profile updated', message: 'Your information has been saved.' })
@@ -507,6 +574,8 @@ export default function ProfilePage() {
     }
   }
 
+  const isAdmin  = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN' || user?.role === 'ROLE_ADMIN' || user?.role === 'ROLE_SUPER_ADMIN'
+  const isStaff  = !isAdmin
   const role     = ROLE_MAP[user?.role] ?? ROLE_MAP.USER
   const isActive = user?.isActive ?? false
 
@@ -520,7 +589,7 @@ export default function ProfilePage() {
             My Profile
           </h1>
           <p className="text-sm mt-0.5" style={{ color: 'var(--color-text-muted)' }}>
-            View and manage your account details
+            {isStaff ? 'View your account details' : 'View and manage your account details'}
           </p>
         </div>
         <button
@@ -548,11 +617,11 @@ export default function ProfilePage() {
       )}
 
       {/* ── Skeleton ───────────────────────────────────────────────────── */}
-      {loading && <ProfileSkeleton />}
+      {loading && <ProfileSkeleton isStaff={isStaff} />}
 
-      {/* ── Main content (2-col grid) ──────────────────────────────────── */}
+      {/* ── Main content (grid) ────────────────────────────────────────── */}
       {!loading && user && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 max-w-5xl">
+        <div className={isStaff ? 'max-w-2xl mx-auto space-y-5' : 'grid grid-cols-1 lg:grid-cols-2 max-w-5xl gap-5'}>
 
           {/* ══════════════ LEFT COLUMN ══════════════ */}
           <div className="space-y-5">
@@ -563,36 +632,106 @@ export default function ProfilePage() {
               style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', boxShadow: 'var(--shadow-md)' }}
             >
               <div className="h-1.5" style={{ background: 'var(--color-primary)' }} />
-              <div className="p-5 flex items-start gap-4">
-                {/* Avatar */}
-                <div className="relative flex-shrink-0">
+              <div className="p-5 sm:p-6 flex items-start gap-4 sm:gap-5">
+                {/* Avatar with photo */}
+                <div className="flex flex-col items-center gap-2 flex-shrink-0">
                   <div
-                    className="w-16 h-16 rounded-2xl flex items-center justify-center text-xl font-bold select-none"
-                    style={{
-                      background:  'var(--color-primary-100)',
-                      color:       'var(--color-primary)',
-                      border:      '3px solid var(--color-primary-50)',
-                    }}
+                    className={`relative ${isAdmin ? 'group cursor-pointer' : ''}`}
+                    onClick={() => isAdmin && avatarInputRef.current?.click()}
                   >
-                    {initials(user.name)}
+                    <div
+                      className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl flex items-center justify-center text-xl sm:text-2xl font-black select-none overflow-hidden shadow-xs"
+                      style={{
+                        background:  'var(--color-primary-100)',
+                        color:       'var(--color-primary)',
+                        border:      '3px solid var(--color-primary-50)',
+                      }}
+                    >
+                      {user.profilePic ? (
+                        <img
+                          src={getImageUrl(user.profilePic)}
+                          alt={user.name}
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            e.currentTarget.style.display = 'none'
+                            e.currentTarget.parentElement.innerText = initials(user.name)
+                          }}
+                        />
+                      ) : (
+                        initials(user.name)
+                      )}
+                    </div>
+
+                    {/* Camera overlay on hover (Admins only) */}
+                    {isAdmin && (
+                      <div
+                        className="absolute inset-0 rounded-2xl bg-black/45 text-white flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                        title="Click to change profile picture"
+                      >
+                        {uploadingAvatar ? (
+                          <Loader2 size={18} className="animate-spin text-white" />
+                        ) : (
+                          <Camera size={20} className="text-white" />
+                        )}
+                      </div>
+                    )}
+
+                    <span
+                      className="absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full border-2"
+                      style={{
+                        background:  isActive ? 'var(--color-success)' : 'var(--color-text-subtle)',
+                        borderColor: 'var(--color-surface)',
+                      }}
+                      title={isActive ? 'Active' : 'Inactive'}
+                    />
                   </div>
-                  <span
-                    className="absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full border-2"
-                    style={{
-                      background:  isActive ? 'var(--color-success)' : 'var(--color-text-subtle)',
-                      borderColor: 'var(--color-surface)',
-                    }}
-                    title={isActive ? 'Active' : 'Inactive'}
-                  />
+
+                  {/* Hidden file input & Quick Actions (Admins only) */}
+                  {isAdmin && (
+                    <>
+                      <input
+                        type="file"
+                        ref={avatarInputRef}
+                        onChange={handleAvatarUpload}
+                        accept="image/png,image/jpeg,image/jpg,image/webp"
+                        className="hidden"
+                      />
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => avatarInputRef.current?.click()}
+                          disabled={uploadingAvatar}
+                          className="text-[11px] font-semibold text-blue-600 hover:text-blue-700 hover:underline flex items-center gap-1"
+                        >
+                          <Camera size={11} />
+                          {user.profilePic ? 'Change' : 'Upload'}
+                        </button>
+                        {user.profilePic && (
+                          <>
+                            <span className="text-slate-300 text-xs">•</span>
+                            <button
+                              type="button"
+                              onClick={handleRemoveAvatar}
+                              disabled={uploadingAvatar}
+                              className="text-[11px] font-semibold text-rose-500 hover:text-rose-600 hover:underline flex items-center gap-0.5"
+                            >
+                              <Trash2 size={11} />
+                              Remove
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </>
+                  )}
                 </div>
 
                 {/* Name / badges / action */}
                 <div className="flex-1 min-w-0">
-                  <h2 className="text-lg font-bold truncate" style={{ color: 'var(--color-text)' }}>
+                  <h2 className="text-lg sm:text-xl font-bold truncate" style={{ color: 'var(--color-text)' }}>
                     {user.name}
                   </h2>
-                  <p className="text-sm mb-2.5 truncate" style={{ color: 'var(--color-text-muted)' }}>
-                    {user.email}
+                  <p className="text-xs sm:text-sm mb-2.5 truncate" style={{ color: 'var(--color-text-muted)' }}>
+                    {user.email || 'No email provided'}
                   </p>
                   <div className="flex flex-wrap items-center gap-2">
                     <span
@@ -617,23 +756,44 @@ export default function ProfilePage() {
 
             {/* Account details (read-only) */}
             <div
-              className="rounded-2xl px-5 py-2"
+              className="rounded-2xl px-5 sm:px-6 py-2"
               style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', boxShadow: 'var(--shadow-sm)' }}
             >
-              <p className="text-xs font-semibold uppercase tracking-widest pt-4 pb-1" style={{ color: 'var(--color-text-subtle)' }}>
-                Account Details
-              </p>
-              <InfoRow icon={User}     label="Full Name"    value={user.name} />
-              <InfoRow icon={Mail}     label="Email"        value={user.email} />
-              <InfoRow icon={Phone}    label="Mobile"       value={user.mobile} />
-              <InfoRow icon={Shield}   label="Role"         value={role.label} />
-              <InfoRow icon={Clock}    label="Last Login"   value={fmtDateTime(user.lastLogin)} />
+              <div className="pt-3 pb-2 border-b border-slate-100 flex items-center justify-between">
+                <p className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                  Account Details
+                </p>
+                <span className="text-[11px] font-medium text-slate-400">
+                  {isStaff ? 'Staff Profile' : 'Admin Profile'}
+                </span>
+              </div>
+
+              {/* 1. Full Name */}
+              <InfoRow icon={User} label="Full Name" value={user.name} />
+
+              {/* 2. Mobile Num */}
+              <InfoRow icon={Phone} label="Mobile Number" value={user.mobile ? `+91 ${user.mobile}` : '-'} />
+
+              {/* 4. Address */}
+              <InfoRow icon={MapPin} label="Address" value={user.address} />
+
+              {/* 5. Role */}
+              <InfoRow icon={Shield} label="Role" value={role.label} />
+
+              {/* 6. Last Login */}
+              <InfoRow icon={Clock} label="Last Login" value={fmtDateTime(user.lastLogin)} />
+
+              {/* 7. Email Address (at last) */}
+              <InfoRow icon={Mail} label="Email Address" value={user.email} />
+
+              {/* 8. Member Since (at last) */}
               <InfoRow icon={Calendar} label="Member Since" value={fmtDate(user.createdAt)} last />
             </div>
           </div>
 
-          {/* ══════════════ RIGHT COLUMN ══════════════ */}
-          <div className="space-y-5">
+          {/* ══════════════ RIGHT COLUMN (Admins only) ══════════════ */}
+          {isAdmin && (
+            <div className="space-y-5">
 
             {/* ── Edit Profile card ── */}
             <div
@@ -722,6 +882,29 @@ export default function ProfilePage() {
                   />
                 </FormField>
 
+                {/* Address (Optional) */}
+                <FormField
+                  label="Address" id="edit-address" icon={MapPin}
+                  error={formErrors.address}
+                  hint="Optional communication or residential address (max 500 characters)"
+                >
+                  <textarea
+                    id="edit-address"
+                    rows={2}
+                    maxLength={500}
+                    value={editForm.address}
+                    onChange={setField('address')}
+                    placeholder="Enter your address..."
+                    disabled={saving}
+                    className="w-full rounded-lg px-3 py-2 text-sm outline-none transition-all resize-none disabled:opacity-50"
+                    style={{
+                      background: 'var(--color-surface-2)',
+                      border: `1.5px solid ${formErrors.address ? 'var(--color-danger)' : 'var(--color-border)'}`,
+                      color: 'var(--color-text)',
+                    }}
+                  />
+                </FormField>
+
                 {/* Mobile change warning banner (shown only when mobile is different) */}
                 {editForm.mobile.trim() !== (user?.mobile ?? '') && editForm.mobile.trim() !== '' && (
                   <div
@@ -807,53 +990,56 @@ export default function ProfilePage() {
               </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
+    )}
 
-      {/* ── Change Password Modal ───────────────────────────────────────── */}
-      {showPwdModal && (
+      {/* ── Change Password Modal (Admins only) ─────────────────────────── */}
+      {isAdmin && showPwdModal && (
         <ChangePasswordModal
           onClose={() => setShowPwdModal(false)}
           changePassword={changePassword}
         />
       )}
 
-      {/* ── Mobile Change Confirm Modal ─────────────────────────────────── */}
-      <ConfirmModal
-        isOpen={showMobileConfirm}
-        onClose={() => setShowMobileConfirm(false)}
-        onConfirm={doSave}
-        title="Change Mobile Number?"
-        variant="warning"
-        confirmLabel="Yes, Update & Sign Out"
-        cancelLabel="Cancel"
-        loading={pendingSubmit}
-      >
-        <div className="space-y-2.5">
-          <div
-            className="rounded-xl p-3.5 space-y-1.5"
-            style={{ background: 'var(--color-warning-light)', border: '1px solid #FDE68A' }}
-          >
-            <p className="text-xs font-semibold" style={{ color: '#92400E' }}>
-              What will happen next:
-            </p>
-            <ul className="text-xs space-y-1.5" style={{ color: '#92400E' }}>
-              <li className="flex items-start gap-2">
-                <span className="font-bold mt-0.5">1.</span>
-                Your mobile number will be updated to <strong>{editForm.mobile}</strong>.
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="font-bold mt-0.5">2.</span>
-                All active sessions on every device will be <strong>immediately signed out</strong>.
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="font-bold mt-0.5">3.</span>
-                You will be redirected to the login page and must sign in with your <strong>new mobile number</strong>.
-              </li>
-            </ul>
+      {/* ── Mobile Change Confirm Modal (Admins only) ───────────────────── */}
+      {isAdmin && (
+        <ConfirmModal
+          isOpen={showMobileConfirm}
+          onClose={() => setShowMobileConfirm(false)}
+          onConfirm={doSave}
+          title="Change Mobile Number?"
+          variant="warning"
+          confirmLabel="Yes, Update & Sign Out"
+          cancelLabel="Cancel"
+          loading={pendingSubmit}
+        >
+          <div className="space-y-2.5">
+            <div
+              className="rounded-xl p-3.5 space-y-1.5"
+              style={{ background: 'var(--color-warning-light)', border: '1px solid #FDE68A' }}
+            >
+              <p className="text-xs font-semibold" style={{ color: '#92400E' }}>
+                What will happen next:
+              </p>
+              <ul className="text-xs space-y-1.5" style={{ color: '#92400E' }}>
+                <li className="flex items-start gap-2">
+                  <span className="font-bold mt-0.5">1.</span>
+                  Your mobile number will be updated to <strong>{editForm.mobile}</strong>.
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="font-bold mt-0.5">2.</span>
+                  All active sessions on every device will be <strong>immediately signed out</strong>.
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="font-bold mt-0.5">3.</span>
+                  You will be redirected to the login page and must sign in with your <strong>new mobile number</strong>.
+                </li>
+              </ul>
+            </div>
           </div>
-        </div>
-      </ConfirmModal>
+        </ConfirmModal>
+      )}
     </div>
   )
 } 

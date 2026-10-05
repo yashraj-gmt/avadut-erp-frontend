@@ -50,7 +50,7 @@ export const authService = {
    * Body:    { name, email, mobile }
    * Returns: ProfileUpdateResponse
    *
-   * IMPORTANT — mobileChanged handling:
+   * IMPORTANT - mobileChanged handling:
    *   If result.mobileChanged === true the server has already revoked all
    *   refresh tokens and cleared the cookie. The caller MUST:
    *     1. Call authStore.logout() to clear client state.
@@ -71,4 +71,19 @@ export const authService = {
    */
   changePassword: (data) =>
     api.patch('/auth/change-password', data).then((r) => r),
+
+  /**
+   * POST /api/auth/upload-profile-pic
+   * Body: FormData with 'file'
+   * Returns: { path: "staff/profiles/..." }
+   */
+  uploadProfilePic: (file) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    return api
+      .post('/auth/upload-profile-pic', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+      .then((r) => r.data)
+  },
 }

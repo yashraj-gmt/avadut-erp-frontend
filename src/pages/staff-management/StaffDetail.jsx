@@ -17,11 +17,14 @@ import {
   FileText,
   AlertCircle,
   Calendar,
+  Clock,
   X
 } from 'lucide-react'
 import { userService } from '@/services/userService'
 import { useToast } from '@/components/shared/toast/ToastProvider'
+import { getImageUrl } from '@/utils/imageUrl'
 import StaffModal from './StaffModal'
+import { formatToDMY } from '@/utils/helpers'
 
 export default function StaffDetail() {
   const { id } = useParams()
@@ -32,9 +35,6 @@ export default function StaffDetail() {
   const [orders, setOrders] = useState([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
-  const [selectedDate, setSelectedDate] = useState('')
-  const [serverError, setServerError] = useState('')
-
   // Today's date string YYYY-MM-DD
   const todayStr = useMemo(() => {
     const now = new Date()
@@ -43,6 +43,17 @@ export default function StaffDetail() {
     const day = String(now.getDate()).padStart(2, '0')
     return `${year}-${month}-${day}`
   }, [])
+
+  // Filter mode: 'today' (selected by default) | 'upcoming' | 'all' | 'custom'
+  const [filterMode, setFilterMode] = useState('today')
+  const [selectedDate, setSelectedDate] = useState(() => {
+    const now = new Date()
+    const year = now.getFullYear()
+    const month = String(now.getMonth() + 1).padStart(2, '0')
+    const day = String(now.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+  })
+  const [serverError, setServerError] = useState('')
 
   // Edit modal
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -78,43 +89,69 @@ export default function StaffDetail() {
   // Summary count
   const totalAssigned = orders.length
 
-  // Filtered orders based on selected date & search query
+  // Helper to extract comparable date strings YYYY-MM-DD from an order
+  const getOrderDateRange = useCallback((o) => {
+    let from = o.functionDateFrom ? String(o.functionDateFrom).substring(0, 10) : ''
+    let to = o.functionDateTo ? String(o.functionDateTo).substring(0, 10) : from
+    if (!from && o.deliveryDate) {
+      from = String(o.deliveryDate).substring(0, 10)
+      to = from
+    }
+    if (!from && o.orderDate) {
+      from = String(o.orderDate).substring(0, 10)
+      to = from
+    }
+    if (!from && o.createdAt) {
+      from = String(o.createdAt).substring(0, 10)
+      to = from
+    }
+    if (!from && o.functionDate) {
+      const parts = String(o.functionDate).split(' to ')
+      from = parts[0]?.trim() || ''
+      to = (parts[1] || parts[0])?.trim() || ''
+    }
+    return { from, to }
+  }, [])
+
+  // Check if an order matches a specific date target (e.g. today or picked date)
+  const isOrderMatchingDate = useCallback((o, targetDate) => {
+    if (!targetDate) return true
+    const { from, to } = getOrderDateRange(o)
+    if (from && to && targetDate >= from && targetDate <= to) return true
+    if (from && from === targetDate) return true
+    if (to && to === targetDate) return true
+    return false
+  }, [getOrderDateRange])
+
+  // Check if an order is upcoming (scheduled for future dates relative to today)
+  const isOrderUpcoming = useCallback((o) => {
+    if (o.orderStatus === 'CANCELLED') return false
+    const { from, to } = getOrderDateRange(o)
+    if (from && from > todayStr) return true
+    if (to && to > todayStr) return true
+    if (from && from >= todayStr && o.orderStatus !== 'COMPLETED') return true
+    return false
+  }, [getOrderDateRange, todayStr])
+
+  // Real-time counts for badges
+  const todayCount = useMemo(() => {
+    return orders.filter((o) => isOrderMatchingDate(o, todayStr)).length
+  }, [orders, isOrderMatchingDate, todayStr])
+
+  const upcomingCount = useMemo(() => {
+    return orders.filter((o) => isOrderUpcoming(o)).length
+  }, [orders, isOrderUpcoming])
+
+  // Filtered orders based on filterMode, selected date & search query
   const filteredOrders = useMemo(() => {
     let result = orders
 
-    // Filter by selected date
-    if (selectedDate) {
-      result = result.filter((o) => {
-        // 1. Function Date range (functionDateFrom to functionDateTo)
-        if (o.functionDateFrom) {
-          const from = String(o.functionDateFrom).substring(0, 10)
-          const to = o.functionDateTo ? String(o.functionDateTo).substring(0, 10) : from
-          if (selectedDate >= from && selectedDate <= to) {
-            return true
-          }
-        }
-        // 2. Delivery Date
-        if (o.deliveryDate) {
-          const delDate = String(o.deliveryDate).substring(0, 10)
-          if (delDate === selectedDate) {
-            return true
-          }
-        }
-        // 3. Fallback: orderDate / createdAt
-        if (o.orderDate) {
-          const oDate = String(o.orderDate).substring(0, 10)
-          if (oDate === selectedDate) {
-            return true
-          }
-        }
-        if (o.createdAt) {
-          const cDate = String(o.createdAt).substring(0, 10)
-          if (cDate === selectedDate) {
-            return true
-          }
-        }
-        return false
-      })
+    if (filterMode === 'today') {
+      result = result.filter((o) => isOrderMatchingDate(o, todayStr))
+    } else if (filterMode === 'upcoming') {
+      result = result.filter((o) => isOrderUpcoming(o))
+    } else if (filterMode === 'custom' && selectedDate) {
+      result = result.filter((o) => isOrderMatchingDate(o, selectedDate))
     }
 
     // Filter by search query
@@ -134,7 +171,7 @@ export default function StaffDetail() {
     }
 
     return result
-  }, [orders, selectedDate, searchQuery])
+  }, [orders, filterMode, selectedDate, searchQuery, todayStr, isOrderMatchingDate, isOrderUpcoming])
 
   // Edit submit
   const handleModalSubmit = async (formData) => {
@@ -202,19 +239,7 @@ export default function StaffDetail() {
       .join('')
   }
 
-  const formatDate = (dateStr) => {
-    if (!dateStr) return '—'
-    try {
-      const d = new Date(dateStr)
-      return d.toLocaleDateString('en-IN', {
-        day: '2-digit',
-        month: 'short',
-        year: 'numeric',
-      })
-    } catch {
-      return dateStr
-    }
-  }
+  const formatDate = (dateStr) => formatToDMY(dateStr)
 
   const getOrderStatusBadge = (status) => {
     switch (status) {
@@ -347,8 +372,20 @@ export default function StaffDetail() {
         <div className="bg-white rounded-2xl p-4 sm:p-6 border border-slate-200 shadow-2xs">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 sm:gap-6">
             <div className="flex items-start sm:items-center gap-3.5 sm:gap-4 min-w-0">
-              <div className="w-13 h-13 sm:w-16 sm:h-16 rounded-2xl bg-blue-600 text-white font-black text-lg sm:text-xl flex items-center justify-center shrink-0 shadow-xs">
-                {getInitials(staff.name)}
+              <div className="w-13 h-13 sm:w-16 sm:h-16 rounded-2xl bg-blue-600 text-white font-black text-lg sm:text-xl flex items-center justify-center shrink-0 shadow-xs overflow-hidden border border-slate-200">
+                {staff.profilePic ? (
+                  <img
+                    src={getImageUrl(staff.profilePic)}
+                    alt={staff.name}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      e.currentTarget.style.display = 'none'
+                      e.currentTarget.parentElement.innerText = getInitials(staff.name)
+                    }}
+                  />
+                ) : (
+                  getInitials(staff.name)
+                )}
               </div>
               <div className="min-w-0 flex-1 space-y-1">
                 <div className="flex items-center gap-2 flex-wrap">
@@ -392,6 +429,16 @@ export default function StaffDetail() {
                       <span className="truncate max-w-[180px] sm:max-w-none">{staff.email}</span>
                     </a>
                   )}
+
+                  {staff.address && (
+                    <div
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-50 text-slate-700 border border-slate-200 max-w-full"
+                      title={staff.address}
+                    >
+                      <MapPin size={13} className="text-emerald-600 shrink-0" />
+                      <span className="truncate max-w-[220px] sm:max-w-md">{staff.address}</span>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -425,10 +472,10 @@ export default function StaffDetail() {
               </p>
             </div>
 
-            {/* Filter controls: Date picker + Today shortcut + Search */}
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-              {/* Calendar Date Filter */}
-              <div className="flex items-center gap-1.5">
+            {/* Filter controls: Date picker + Today + Upcoming + All + Search */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 flex-wrap">
+              {/* Calendar Date Filter & Quick Filter Buttons */}
+              <div className="flex items-center gap-1.5 flex-wrap">
                 <div className="relative flex-1 sm:flex-initial">
                   <Calendar
                     size={15}
@@ -437,14 +484,27 @@ export default function StaffDetail() {
                   <input
                     type="date"
                     value={selectedDate}
-                    onChange={(e) => setSelectedDate(e.target.value)}
+                    onChange={(e) => {
+                      const val = e.target.value
+                      setSelectedDate(val)
+                      if (!val) {
+                        setFilterMode('all')
+                      } else if (val === todayStr) {
+                        setFilterMode('today')
+                      } else {
+                        setFilterMode('custom')
+                      }
+                    }}
                     className="w-full sm:w-auto pl-9 pr-8 py-2 text-xs sm:text-sm rounded-xl border border-slate-200 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all shadow-2xs font-medium cursor-pointer"
                     title="Select date to filter assigned orders"
                   />
                   {selectedDate && (
                     <button
                       type="button"
-                      onClick={() => setSelectedDate('')}
+                      onClick={() => {
+                        setSelectedDate('')
+                        setFilterMode('all')
+                      }}
                       className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 rounded-md hover:bg-slate-100 transition-colors"
                       title="Clear date filter"
                     >
@@ -453,17 +513,83 @@ export default function StaffDetail() {
                   )}
                 </div>
 
+                {/* Today Filter Button (Selected by default) */}
                 <button
                   type="button"
-                  onClick={() => setSelectedDate(selectedDate === todayStr ? '' : todayStr)}
-                  className={`px-3 py-2 rounded-xl text-xs font-semibold border transition-colors shrink-0 ${
-                    selectedDate === todayStr
+                  onClick={() => {
+                    if (filterMode === 'today') {
+                      setFilterMode('all')
+                      setSelectedDate('')
+                    } else {
+                      setFilterMode('today')
+                      setSelectedDate(todayStr)
+                    }
+                  }}
+                  className={`px-3 py-2 rounded-xl text-xs font-semibold border transition-all shrink-0 flex items-center gap-1.5 ${
+                    filterMode === 'today'
                       ? 'bg-blue-600 text-white border-blue-600 shadow-2xs'
                       : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-200 shadow-2xs'
                   }`}
                   title="Filter today's assigned orders"
                 >
-                  Today
+                  <span>Today</span>
+                  {todayCount > 0 && (
+                    <span
+                      className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+                        filterMode === 'today' ? 'bg-blue-500 text-white' : 'bg-blue-50 text-blue-700'
+                      }`}
+                    >
+                      {todayCount}
+                    </span>
+                  )}
+                </button>
+
+                {/* Upcoming Assigned Orders Filter Button */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (filterMode === 'upcoming') {
+                      setFilterMode('all')
+                    } else {
+                      setFilterMode('upcoming')
+                      setSelectedDate('')
+                    }
+                  }}
+                  className={`px-3 py-2 rounded-xl text-xs font-semibold border transition-all shrink-0 flex items-center gap-1.5 ${
+                    filterMode === 'upcoming'
+                      ? 'bg-blue-600 text-white border-blue-600 shadow-2xs'
+                      : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-200 shadow-2xs'
+                  }`}
+                  title="Filter upcoming assigned orders"
+                >
+                  <Clock size={13} />
+                  <span>Upcoming</span>
+                  {upcomingCount > 0 && (
+                    <span
+                      className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+                        filterMode === 'upcoming' ? 'bg-blue-500 text-white' : 'bg-slate-100 text-slate-700'
+                      }`}
+                    >
+                      {upcomingCount}
+                    </span>
+                  )}
+                </button>
+
+                {/* All Orders Button */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFilterMode('all')
+                    setSelectedDate('')
+                  }}
+                  className={`px-3 py-2 rounded-xl text-xs font-semibold border transition-all shrink-0 ${
+                    filterMode === 'all'
+                      ? 'bg-blue-600 text-white border-blue-600 shadow-2xs'
+                      : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-200 shadow-2xs'
+                  }`}
+                  title="Show all assigned orders"
+                >
+                  All
                 </button>
               </div>
 
@@ -495,18 +621,55 @@ export default function StaffDetail() {
           </div>
 
           {/* Active Filter Chips */}
-          {(selectedDate || searchQuery) && (
+          {(filterMode !== 'all' || searchQuery) && (
             <div className="flex flex-wrap items-center gap-2 pt-1 text-xs">
-              <span className="text-slate-500 font-medium">Active filters:</span>
-              {selectedDate && (
+              <span className="text-slate-500 font-medium">Active filter:</span>
+              {filterMode === 'today' && (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 font-semibold">
+                  <Calendar size={12} className="text-blue-600" />
+                  Today ({formatDate(todayStr)})
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFilterMode('all')
+                      setSelectedDate('')
+                    }}
+                    className="ml-0.5 hover:text-blue-900 font-bold"
+                    title="Show all orders"
+                  >
+                    ×
+                  </button>
+                </span>
+              )}
+              {filterMode === 'upcoming' && (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-200 font-semibold">
+                  <Clock size={12} className="text-indigo-600" />
+                  Upcoming Orders
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFilterMode('all')
+                      setSelectedDate('')
+                    }}
+                    className="ml-0.5 hover:text-indigo-900 font-bold"
+                    title="Show all orders"
+                  >
+                    ×
+                  </button>
+                </span>
+              )}
+              {filterMode === 'custom' && selectedDate && (
                 <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 font-semibold">
                   <Calendar size={12} className="text-blue-600" />
                   Date: {formatDate(selectedDate)}
                   <button
                     type="button"
-                    onClick={() => setSelectedDate('')}
+                    onClick={() => {
+                      setFilterMode('all')
+                      setSelectedDate('')
+                    }}
                     className="ml-0.5 hover:text-blue-900 font-bold"
-                    title="Remove date filter"
+                    title="Show all orders"
                   >
                     ×
                   </button>
@@ -528,6 +691,7 @@ export default function StaffDetail() {
               <button
                 type="button"
                 onClick={() => {
+                  setFilterMode('all')
                   setSelectedDate('')
                   setSearchQuery('')
                 }}
@@ -580,24 +744,27 @@ export default function StaffDetail() {
                           </div>
                           <h4 className="text-base font-bold text-slate-800">No orders found</h4>
                           <p className="text-xs text-slate-500 mt-1">
-                            {selectedDate && searchQuery
-                              ? `No orders match "${searchQuery}" on ${formatDate(selectedDate)}.`
+                            {searchQuery
+                              ? `No orders match "${searchQuery}".`
+                              : filterMode === 'today'
+                              ? 'No orders assigned for today.'
+                              : filterMode === 'upcoming'
+                              ? 'No upcoming orders assigned to this staff member.'
                               : selectedDate
                               ? `No orders assigned for ${formatDate(selectedDate)}.`
-                              : searchQuery
-                              ? 'No orders match your search query.'
                               : 'This staff member does not have any assigned or completed orders yet.'}
                           </p>
-                          {(selectedDate || searchQuery) && (
+                          {(filterMode !== 'all' || searchQuery) && (
                             <button
                               type="button"
                               onClick={() => {
+                                setFilterMode('all')
                                 setSelectedDate('')
                                 setSearchQuery('')
                               }}
-                              className="mt-3 px-3 py-1.5 text-xs font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
+                              className="mt-3 px-3.5 py-1.5 text-xs font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
                             >
-                              Clear filters
+                              Show all assigned orders
                             </button>
                           )}
                         </div>
@@ -631,7 +798,7 @@ export default function StaffDetail() {
 
                         {/* 3. Customer Name */}
                         <td className="py-3.5 px-3.5 font-bold text-slate-800 whitespace-nowrap">
-                          {order.customerName || '—'}
+                          {order.customerName || '-'}
                         </td>
 
                         {/* 4. Function Date */}
@@ -652,7 +819,7 @@ export default function StaffDetail() {
                               {formatDate(order.deliveryDate)}
                             </div>
                           ) : (
-                            <span className="text-slate-400">—</span>
+                            <span className="text-slate-400">-</span>
                           )}
                         </td>
 
@@ -680,13 +847,27 @@ export default function StaffDetail() {
 
                         {/* 6. Diesel Type */}
                         <td className="py-3.5 px-3.5 whitespace-nowrap">
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold ${
-                            order.dieselType === 'With Diesel'
-                              ? 'bg-amber-50 text-amber-700 border border-amber-200'
-                              : 'bg-slate-100 text-slate-700 border border-slate-200'
-                          }`}>
-                            {order.dieselType || (order.withDiesel ? 'With Diesel' : 'Party Diesel')}
-                          </span>
+                          {(() => {
+                            const isWithDiesel =
+                              order.withDiesel === true ||
+                              (order.dieselType && (
+                                String(order.dieselType).toLowerCase().includes('with') ||
+                                String(order.dieselType).toUpperCase() === 'WD' ||
+                                String(order.dieselType).toUpperCase() === 'WITH_OWNER'
+                              ))
+                            return (
+                              <span
+                                title={isWithDiesel ? 'WD (With Diesel)' : 'PD (Party Diesel)'}
+                                className={`inline-flex items-center px-2.5 py-0.5 rounded text-xs font-bold ${
+                                  isWithDiesel
+                                    ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                                    : 'bg-slate-100 text-slate-700 border border-slate-200'
+                                }`}
+                              >
+                                {isWithDiesel ? 'WD' : 'PD'}
+                              </span>
+                            )
+                          })()}
                         </td>
 
                         {/* 7. Cable Type */}

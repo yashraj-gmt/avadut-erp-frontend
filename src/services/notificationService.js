@@ -15,7 +15,7 @@ export const notificationService = {
 
   /**
    * Trigger backend scan for overdue payment orders.
-   * Idempotent — safe to call repeatedly; backend skips already-notified orders.
+   * Idempotent - safe to call repeatedly; backend skips already-notified orders.
    */
   checkOverdue: async () => {
     const response = await api.post('/admin/notifications/check-overdue');

@@ -1,7 +1,7 @@
 // src/components/shared/Badge.jsx
 
 /**
- * Badge — inline status / label chip.
+ * Badge - inline status / label chip.
  *
  * Variants:
  *   success | warning | danger | info | primary | neutral
@@ -9,7 +9,7 @@
  * Sizes:
  *   sm | md (default)
  *
- * dot — shows a leading coloured dot (useful for stock / status indicators)
+ * dot - shows a leading coloured dot (useful for stock / status indicators)
  *
  * Usage:
  *   <Badge variant="success" dot>In Stock</Badge>
@@ -26,7 +26,7 @@ const variantMap = {
   },
   warning: {
     bg:   'bg-[var(--color-warning-light)]',
-    text: 'text-[var(--color-warning)]',
+    text: 'text-amber-900 dark:text-amber-300 font-semibold',
     dot:  'bg-[var(--color-warning)]',
   },
   danger: {

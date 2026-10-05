@@ -19,7 +19,7 @@ const multipart = { headers: { 'Content-Type': 'multipart/form-data' } }
 
 // ── Generators ─────────────────────────────────────────────────────────────
 export const generatorService = {
-  /** GET /admin/generators — supports: search, isActive, page, size, sortBy, sortDir */
+  /** GET /admin/generators - supports: search, isActive, page, size, sortBy, sortDir */
   getAll:  (params)         => api.get('/admin/generators', { params }),
   getById: (id)             => api.get(`/admin/generators/${id}`),
   create:  (data, image)    => api.post('/admin/generators',      buildGeneratorFormData(data, image), multipart),

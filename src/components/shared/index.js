@@ -1,6 +1,6 @@
 // src/components/shared/index.js
 // ─────────────────────────────────────────────────────────────────────────────
-// Barrel export — import everything from one place:
+// Barrel export - import everything from one place:
 //   import { Button, Badge, DataTable, StatCard } from '@/components/shared';
 // ─────────────────────────────────────────────────────────────────────────────
 

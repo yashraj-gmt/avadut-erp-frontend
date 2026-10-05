@@ -13,7 +13,7 @@ import { useToast } from '@/components/shared/toast/ToastProvider'
 import { userService } from '@/services/userService'
 import { useAuthStore } from '@/store/authStore'
 
-// ── Role config — Super Admin & Staff only ───────────────────────────────────
+// ── Role config - Super Admin & Staff only ───────────────────────────────────
 const ROLE_CONFIG = {
   SUPER_ADMIN: {
     label: 'Super Admin',
@@ -32,15 +32,11 @@ const ROLE_CONFIG = {
 // Only SUPER_ADMIN and STAFF can be created/assigned
 const ASSIGNABLE_ROLES = ['SUPER_ADMIN', 'STAFF']
 
+import { formatToDMY, formatDateTime } from '@/utils/helpers'
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
-const formatDate = (iso) => {
-  if (!iso) return '—'
-  return new Date(iso).toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' })
-}
-const formatDateTime = (iso) => {
-  if (!iso) return '—'
-  return new Date(iso).toLocaleString('en-IN', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' })
-}
+const formatDate = (iso) => formatToDMY(iso)
+const formatDt = (iso) => formatDateTime(iso)
 const getInitials = (name = '') =>
   (name || '').split(' ').filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase() || 'U'
 
@@ -101,7 +97,7 @@ function UserModal({ isOpen, onClose, onSubmit, editUser, loading }) {
   const validate = () => {
     const e = {}
 
-    // Full Name — required, min 2 chars, letters/numbers/spaces allowed
+    // Full Name - required, min 2 chars, letters/numbers/spaces allowed
     const name = (form.name || '').trim()
     if (!name) {
       e.name = 'Full name is required'
@@ -111,7 +107,7 @@ function UserModal({ isOpen, onClose, onSubmit, editUser, loading }) {
       e.name = 'Name can only contain letters, numbers, spaces, and . \' -'
     }
 
-    // Mobile — required, exactly 10 digits
+    // Mobile - required, exactly 10 digits
     const mobile = (form.mobile || '').trim()
     if (!mobile) {
       e.mobile = 'Mobile number is required'
@@ -119,13 +115,13 @@ function UserModal({ isOpen, onClose, onSubmit, editUser, loading }) {
       e.mobile = 'Enter a valid 10-digit mobile number'
     }
 
-    // Email — optional but must be valid format if provided
+    // Email - optional but must be valid format if provided
     const email = (form.email || '').trim()
     if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       e.email = 'Enter a valid email address (e.g. user@company.com)'
     }
 
-    // Password — required for new users; optional for edit (only validate if entered)
+    // Password - required for new users; optional for edit (only validate if entered)
     const pwd = form.password || ''
     if (!editUser) {
       if (!pwd.trim()) {
@@ -184,10 +180,12 @@ function UserModal({ isOpen, onClose, onSubmit, editUser, loading }) {
         {/* Body */}
         <div className="px-5 py-4 flex flex-col gap-4 overflow-y-auto">
           <Input label="Full Name" placeholder="e.g. Arjun Mehta" required
+            autoComplete="off"
             value={form.name || ''} error={errors.name}
             onChange={(e) => set('name', e.target.value)} />
 
           <Input label="Mobile" placeholder="10-digit mobile number" required
+            autoComplete="off"
             value={form.mobile || ''} error={errors.mobile}
             inputMode="numeric"
             maxLength={10}
@@ -204,11 +202,13 @@ function UserModal({ isOpen, onClose, onSubmit, editUser, loading }) {
           />
 
           <Input label="Email Address (Optional)" type="email" placeholder="user@company.com"
+            autoComplete="off"
             value={form.email || ''} error={errors.email}
             onChange={(e) => set('email', e.target.value)} />
 
           {!editUser && (
             <Input label="Password" type="password" placeholder="Min. 6 characters" required
+              autoComplete="new-password"
               value={form.password} error={errors.password}
               onChange={(e) => set('password', e.target.value)} />
           )}
@@ -538,7 +538,7 @@ function UserManagement() {
     },
     {
       key: 'mobile', header: 'Mobile',
-      render: (val) => <span className="text-sm" style={{ color:'var(--color-text-muted)' }}>{val || '—'}</span>,
+      render: (val) => <span className="text-sm" style={{ color:'var(--color-text-muted)' }}>{val || '-'}</span>,
     },
     {
       key: 'role', header: 'Role', sortable: true,
@@ -612,10 +612,10 @@ function UserManagement() {
     <div className="flex flex-col gap-6">
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <StatCard value={loading ? '—' : total}       label="Total Users"  accent="primary" icon={<Users size={20} />} />
-        <StatCard value={loading ? '—' : superAdmins} label="Super Admins" accent="danger"  icon={<Crown size={20} />} />
-        <StatCard value={loading ? '—' : staffCount}  label="Staff"        accent="info"    icon={<Users size={20} />} />
-        <StatCard value={loading ? '—' : active}      label="Active Users" accent="success" icon={<CheckCircle size={20} />} />
+        <StatCard value={loading ? '-' : total}       label="Total Users"  accent="primary" icon={<Users size={20} />} />
+        <StatCard value={loading ? '-' : superAdmins} label="Super Admins" accent="danger"  icon={<Crown size={20} />} />
+        <StatCard value={loading ? '-' : staffCount}  label="Staff"        accent="info"    icon={<Users size={20} />} />
+        <StatCard value={loading ? '-' : active}      label="Active Users" accent="success" icon={<CheckCircle size={20} />} />
       </div>
 
       {/* Toolbar */}

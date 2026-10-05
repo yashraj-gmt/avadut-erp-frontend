@@ -7,6 +7,7 @@ import ConfirmModal                                from '@/components/shared/mod
 import { SpinnerInline }                           from '@/components/shared'
 import defaultImg                                  from '@/assets/images/default.png'
 import { getImageUrl }                             from '@/utils/imageUrl'
+import { formatToDMY }                             from '@/utils/helpers'
 
 /* ── Icons ─────────────────────────────────────────────────────────────── */
 const Icon = {
@@ -20,7 +21,7 @@ const Icon = {
   X:         () => <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>,
 }
 
-const fmt = (n) => n != null ? '₹' + Number(n).toLocaleString('en-IN', { maximumFractionDigits: 2 }) : '—'
+const fmt = (n) => n != null ? '₹' + Number(n).toLocaleString('en-IN', { maximumFractionDigits: 2 }) : '-'
 const imgSrc = (url) => getImageUrl(url) || defaultImg
 
 export default function ProductDetail() {
@@ -269,9 +270,9 @@ export default function ProductDetail() {
               </div>
 
               <div style={{ display: 'flex', gap: 12, marginTop: 16, fontSize: 12, color: 'var(--color-text-subtle)', flexWrap: 'wrap' }}>
-                {product.createdAt && <span>Created: <strong style={{ color: 'var(--color-text-muted)' }}>{new Date(product.createdAt).toLocaleDateString()}</strong></span>}
+                {product.createdAt && <span>Created: <strong style={{ color: 'var(--color-text-muted)' }}>{formatToDMY(product.createdAt)}</strong></span>}
                 {product.createdAt && product.updatedAt && <span>•</span>}
-                {product.updatedAt && <span>Last updated: <strong style={{ color: 'var(--color-text-muted)' }}>{new Date(product.updatedAt).toLocaleDateString()}</strong></span>}
+                {product.updatedAt && <span>Last updated: <strong style={{ color: 'var(--color-text-muted)' }}>{formatToDMY(product.updatedAt)}</strong></span>}
               </div>
             </div>
 

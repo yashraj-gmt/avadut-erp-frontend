@@ -1,13 +1,13 @@
 // src/components/shared/Card.jsx
 
 /**
- * Card — surface container with optional header / footer slots.
+ * Card - surface container with optional header / footer slots.
  *
  * Sub-components (named exports):
- *   CardHeader  — top section with title + optional action
- *   CardBody    — scrollable content area
- *   CardFooter  — bottom section
- *   StatCard    — KPI tile as seen in Products page (number + label + accent bar)
+ *   CardHeader  - top section with title + optional action
+ *   CardBody    - scrollable content area
+ *   CardFooter  - bottom section
+ *   StatCard    - KPI tile as seen in Products page (number + label + accent bar)
  *
  * Usage:
  *   <Card>
@@ -94,12 +94,12 @@ const accentColorMap = {
 /**
  * StatCard
  *
- * @param {string|number} value     — big number / text to display
- * @param {string}        label     — descriptor beneath the value
- * @param {string}        accent    — left-border color: primary|success|warning|danger|info
- * @param {ReactNode}     icon      — optional icon in top-right
- * @param {string}        sub       — optional small sub-text (e.g. "+5% from last month")
- * @param {string}        subVariant— success|warning|danger|neutral for sub text colour
+ * @param {string|number} value     - big number / text to display
+ * @param {string}        label     - descriptor beneath the value
+ * @param {string}        accent    - left-border color: primary|success|warning|danger|info
+ * @param {ReactNode}     icon      - optional icon in top-right
+ * @param {string}        sub       - optional small sub-text (e.g. "+5% from last month")
+ * @param {string}        subVariant- success|warning|danger|neutral for sub text colour
  */
 export function StatCard({
   value,
@@ -119,29 +119,40 @@ export function StatCard({
     neutral: 'text-[var(--color-text-muted)]',
   };
 
+  const valStr = value != null ? String(value) : '';
+  const isLongVal = valStr.length > 9;
+  const isMediumVal = valStr.length > 6;
+
+  const valueFontSize = isLongVal
+    ? 'text-lg sm:text-xl lg:text-2xl xl:text-3xl'
+    : isMediumVal
+    ? 'text-xl sm:text-2xl lg:text-3xl'
+    : 'text-2xl sm:text-3xl';
+
   return (
     <div
       className={[
         'relative bg-[var(--color-surface)] rounded-[var(--radius-lg)]',
         'border border-[var(--color-border)] shadow-[var(--shadow-sm)]',
-        'px-5 py-4 overflow-hidden',
+        'px-3.5 sm:px-4 lg:px-5 py-3.5 sm:py-4 overflow-hidden',
         className,
       ].join(' ')}
       style={{ borderLeft: `4px solid ${accentColor}` }}
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
+      <div className="flex items-start justify-between gap-2 sm:gap-3">
+        <div className="flex-1 min-w-0">
           <p
-            className="text-3xl font-bold leading-none tracking-tight"
+            className={`${valueFontSize} font-bold leading-tight tracking-tight truncate`}
             style={{ color: 'var(--color-text)' }}
+            title={valStr}
           >
             {value}
           </p>
-          <p className="mt-2 text-[11px] font-semibold uppercase tracking-widest text-[var(--color-text-muted)]">
+          <p className="mt-1.5 sm:mt-2 text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider sm:tracking-widest text-[var(--color-text-muted)] truncate" title={label}>
             {label}
           </p>
           {sub && (
-            <p className={['mt-1.5 text-xs font-medium', subColorMap[subVariant] ?? subColorMap.neutral].join(' ')}>
+            <p className={['mt-1 text-[11px] sm:text-xs font-medium truncate', subColorMap[subVariant] ?? subColorMap.neutral].join(' ')} title={sub}>
               {sub}
             </p>
           )}
@@ -149,7 +160,7 @@ export function StatCard({
 
         {icon && (
           <div
-            className="shrink-0 w-10 h-10 rounded-[var(--radius-md)] flex items-center justify-center [&_svg]:w-5 [&_svg]:h-5"
+            className="shrink-0 w-8 h-8 sm:w-9 sm:h-9 lg:w-10 lg:h-10 rounded-[var(--radius-md)] flex items-center justify-center [&_svg]:w-4 sm:[&_svg]:w-4.5 lg:[&_svg]:w-5 [&_svg]:h-4 sm:[&_svg]:h-4.5 lg:[&_svg]:h-5 transition-all"
             style={{
               backgroundColor: `${accentColor}18`,
               color: accentColor,

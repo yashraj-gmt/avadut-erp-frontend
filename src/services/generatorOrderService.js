@@ -19,6 +19,11 @@ export const generatorOrderService = {
     return response.data;
   },
 
+  getAssignedToMe: async () => {
+    const response = await api.get('/orders/assigned-to-me');
+    return response.data;
+  },
+
   getById: async (id) => {
     const response = await api.get(`/admin/orders/${id}`);
     return response.data;

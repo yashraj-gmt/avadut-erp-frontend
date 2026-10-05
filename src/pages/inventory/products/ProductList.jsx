@@ -20,7 +20,7 @@ const Icon = {
   Refresh: () => <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2"   viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>,
 }
 
-const fmt = (n) => n != null ? '₹' + Number(n).toLocaleString('en-IN') : '—'
+const fmt = (n) => n != null ? '₹' + Number(n).toLocaleString('en-IN') : '-'
 
 const stockStatus = (product) => {
   const stock = product.currentStock ?? 0
@@ -285,10 +285,10 @@ export default function ProductList() {
                           </div>
                         </td>
                         <td style={{ padding: '12px 16px' }}>
-                          <span style={{ fontFamily: 'monospace', fontSize: 13, background: 'var(--color-surface-2)', color: 'var(--color-text-muted)', padding: '3px 8px', borderRadius: 'var(--radius-sm)', fontWeight: 600 }}>{p.productCode ?? '—'}</span>
+                          <span style={{ fontFamily: 'monospace', fontSize: 13, background: 'var(--color-surface-2)', color: 'var(--color-text-muted)', padding: '3px 8px', borderRadius: 'var(--radius-sm)', fontWeight: 600 }}>{p.productCode ?? '-'}</span>
                         </td>
                         <td style={{ padding: '12px 16px' }}>
-                          <span style={{ fontSize: 13, color: 'var(--color-text-muted)', fontWeight: 500 }}>{p.productBy ?? '—'}</span>
+                          <span style={{ fontSize: 13, color: 'var(--color-text-muted)', fontWeight: 500 }}>{p.productBy ?? '-'}</span>
                         </td>
                         <td style={{ padding: '12px 16px', textAlign: 'right' }}>
                           <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--color-text)' }}>{fmt(p.purchasePrice)}</div>

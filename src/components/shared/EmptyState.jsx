@@ -1,15 +1,15 @@
 // src/components/shared/EmptyState.jsx
 
 /**
- * EmptyState — friendly zero-data / error placeholder.
+ * EmptyState - friendly zero-data / error placeholder.
  *
  * Props:
- *   icon      — ReactNode (SVG / emoji / image)  — displayed above the title
- *   title     — heading text
- *   message   — supporting description
- *   action    — ReactNode (e.g. a <Button>) shown below the description
- *   size      — 'sm' | 'md' (default) | 'lg'
- *   className — extra wrapper classes
+ *   icon      - ReactNode (SVG / emoji / image)  - displayed above the title
+ *   title     - heading text
+ *   message   - supporting description
+ *   action    - ReactNode (e.g. a <Button>) shown below the description
+ *   size      - 'sm' | 'md' (default) | 'lg'
+ *   className - extra wrapper classes
  *
  * Usage:
  *   <EmptyState

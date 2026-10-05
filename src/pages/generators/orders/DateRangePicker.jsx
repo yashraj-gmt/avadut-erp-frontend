@@ -57,7 +57,7 @@ export default function DateRangePicker({ value, onChange, placeholder = 'Select
 
   const containerRef = useRef(null);
 
-  // Sync state from external value — only when value changes, NOT when isOpen toggles.
+  // Sync state from external value - only when value changes, NOT when isOpen toggles.
   // Including isOpen caused the month to reset every time the popup opened.
   useEffect(() => {
     if (value && value.includes(' to ')) {
@@ -141,7 +141,7 @@ export default function DateRangePicker({ value, onChange, placeholder = 'Select
       setTempFrom(clickedDate);
       setTempTo(null);
       setSelecting(true);
-      // Don't call onChange yet — wait for the second date
+      // Don't call onChange yet - wait for the second date
     } else {
       // ── Second click: pick the end date ──
       if (clickedDate < tempFrom) {

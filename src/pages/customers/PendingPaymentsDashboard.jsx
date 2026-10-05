@@ -3,9 +3,8 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Wallet, AlertTriangle, ChevronDown, ChevronUp, Eye,
-  ArrowUpDown, TrendingDown, Clock, Search, X, CreditCard,
-  Building2, MapPin, Phone, RefreshCw, CheckCircle2,
-  FileText, IndianRupee, Filter, ArrowUpRight
+  TrendingDown, Search, X, CheckCircle2,
+  FileText, IndianRupee, RefreshCw
 } from 'lucide-react';
 import { customerService } from '@/services/customerService';
 import { useToast } from '@/components/shared/toast/ToastProvider';
@@ -16,13 +15,15 @@ import Button from '@/components/shared/Button';
 import { ROUTES } from '@/constants/routes';
 import OrderPaymentModal from '@/pages/generators/orders/OrderPaymentModal';
 
+import { formatToDMY } from '@/utils/helpers';
+
 // ── Helpers ────────────────────────────────────────────────────────────────
-const inr = (v) => v != null ? `₹${Number(v).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—';
-const fmt = (d) => d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
+const inr = (v) => v != null ? `₹${Number(v).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-';
+const fmt = (d) => formatToDMY(d);
 
 /** Truncate at 25 characters max, appending '…' if exceeded, full value on tooltip */
 function TruncatedText({ text, className = '' }) {
-  if (!text) return <span className="text-[var(--color-text-subtle)]">—</span>;
+  if (!text) return <span className="text-[var(--color-text-subtle)]">-</span>;
   const isLong = text.length > 25;
   return (
     <span
@@ -35,7 +36,7 @@ function TruncatedText({ text, className = '' }) {
 }
 
 const overdueBadge = (days) => {
-  if (days == null) return <span className="text-[var(--color-text-subtle)]">—</span>;
+  if (days == null) return <span className="text-[var(--color-text-subtle)]">-</span>;
   if (days > 30) return <Badge variant="danger" dot size="sm">{days}d overdue</Badge>;
   if (days > 0)  return <Badge variant="warning" dot size="sm">{days}d overdue</Badge>;
   if (days === 0) return <Badge variant="info" dot size="sm">Due today</Badge>;
@@ -49,7 +50,7 @@ function InvoiceBreakdown({ invoices, customer, onRecordPayment, navigate }) {
   }
 
   return (
-    <div className="overflow-x-auto rounded-[var(--radius-md)] border border-[var(--color-border)] shadow-sm">
+    <div className="overflow-x-auto rounded-[var(--radius-md)] border border-[var(--color-border)] shadow-xs">
       <table className="w-full text-xs sm:text-sm min-w-[720px]">
         <thead>
           <tr className="bg-[var(--color-surface-2)] text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-muted)] border-b border-[var(--color-border)]">
@@ -90,7 +91,7 @@ function InvoiceBreakdown({ invoices, customer, onRecordPayment, navigate }) {
                 {/* Order & Bill */}
                 <td className="px-3 sm:px-4 py-2.5 font-mono">
                   <div className="font-bold text-[var(--color-primary)]">
-                    {inv.orderNumber || inv.invoiceNumber || '—'}
+                    {inv.orderNumber || inv.invoiceNumber || '-'}
                   </div>
                   {inv.billNumber ? (
                     <div className="text-[11px] text-[var(--color-text-muted)] font-sans">
@@ -101,13 +102,13 @@ function InvoiceBreakdown({ invoices, customer, onRecordPayment, navigate }) {
 
                 {/* Function / Booking Date */}
                 <td className="px-3 sm:px-4 py-2.5 text-[var(--color-text-muted)] whitespace-nowrap">
-                  {inv.functionDate ? fmt(inv.functionDate) : '—'}
+                  {inv.functionDate ? fmt(inv.functionDate) : '-'}
                 </td>
 
                 {/* Billing Status */}
                 <td className="px-3 sm:px-4 py-2.5 text-center">
                   <Badge variant={isBilled ? 'success' : 'warning'} size="sm">
-                    {isBilled ? 'Billed' : 'Pending Bill'}
+                    {isBilled ? 'Completed' : 'Pending'}
                   </Badge>
                 </td>
 
@@ -117,12 +118,12 @@ function InvoiceBreakdown({ invoices, customer, onRecordPayment, navigate }) {
                 </td>
 
                 {/* Paid */}
-                <td className="px-3 sm:px-4 py-2.5 text-right font-semibold text-emerald-600 dark:text-emerald-400">
+                <td className="px-3 sm:px-4 py-2.5 text-right font-semibold text-emerald-600">
                   {inv.paidAmount != null ? inr(inv.paidAmount) : '₹0.00'}
                 </td>
 
                 {/* Pending */}
-                <td className="px-3 sm:px-4 py-2.5 text-right font-bold text-rose-600 dark:text-rose-400">
+                <td className="px-3 sm:px-4 py-2.5 text-right font-bold text-rose-600">
                   {inr(inv.pendingAmount)}
                 </td>
 
@@ -141,7 +142,7 @@ function InvoiceBreakdown({ invoices, customer, onRecordPayment, navigate }) {
                   {isBilled ? (
                     <button
                       onClick={() => onRecordPayment(orderObj)}
-                      className="px-2.5 py-1 text-xs font-bold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm inline-flex items-center gap-1 transition"
+                      className="px-2.5 py-1 text-xs font-bold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs inline-flex items-center gap-1 transition cursor-pointer"
                       title="Record Payment for this Bill"
                     >
                       <IndianRupee size={12} />
@@ -149,11 +150,16 @@ function InvoiceBreakdown({ invoices, customer, onRecordPayment, navigate }) {
                     </button>
                   ) : (
                     <button
-                      onClick={() => navigate(ROUTES.GENERATOR_BILLING || '/generators/billing', { state: { orderId: inv.orderId } })}
-                      className="px-2.5 py-1 text-xs font-semibold rounded-lg border border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400 hover:bg-amber-100 transition inline-flex items-center gap-1"
+                      onClick={() => {
+                        const billRoute = ROUTES.GENERATOR_ORDER_BILLING
+                          ? ROUTES.GENERATOR_ORDER_BILLING.replace(':id', inv.orderId)
+                          : `/generators/orders/${inv.orderId}/billing`;
+                        navigate(billRoute, { state: { orderId: inv.orderId } });
+                      }}
+                      className="px-2.5 py-1 text-xs font-bold rounded-lg border border-amber-400 bg-amber-100 hover:bg-amber-200 text-amber-950 transition inline-flex items-center gap-1.5 shadow-xs cursor-pointer"
                       title="Billing must be completed before recording payment"
                     >
-                      <FileText size={12} />
+                      <FileText size={12} className="text-amber-900" />
                       Complete Bill
                     </button>
                   )}
@@ -169,8 +175,8 @@ function InvoiceBreakdown({ invoices, customer, onRecordPayment, navigate }) {
 
 // ── Payment Row ────────────────────────────────────────────────────────────
 function PaymentRow({ row, srNo, expanded, onToggle, navigate, onRecordPayment }) {
-  // Find a payable order if any exists
   const payableInvoices = (row.overdueInvoices || []).filter(i => i.billingStatus === 'COMPLETED');
+  const pendingInvoices = (row.overdueInvoices || []).filter(i => (i.billingStatus || 'PENDING') === 'PENDING');
   const defaultPayable = payableInvoices[0] || (row.overdueInvoices || [])[0];
 
   const handleQuickPay = (e) => {
@@ -211,14 +217,14 @@ function PaymentRow({ row, srNo, expanded, onToggle, navigate, onRecordPayment }
           {srNo}
         </td>
 
-        {/* 2. Customer Name (no profile icon) */}
+        {/* 2. Customer Name */}
         <td className="px-3 sm:px-4 py-3 sm:py-3.5">
           <div className="min-w-0">
             <p className="text-xs sm:text-sm font-bold text-[var(--color-text)] leading-snug">
               <TruncatedText text={row.customerName} />
             </p>
             {row.totalDueAmount != null && (
-              <span className="text-[11px] font-semibold text-rose-600 dark:text-rose-400">
+              <span className="text-[11px] font-semibold text-rose-600">
                 Due: {inr(row.totalDueAmount)} ({invoiceCount} bill{invoiceCount !== 1 ? 's' : ''})
               </span>
             )}
@@ -226,36 +232,47 @@ function PaymentRow({ row, srNo, expanded, onToggle, navigate, onRecordPayment }
         </td>
 
         {/* 3. Firm Name */}
-        <td className="px-3 sm:px-4 py-3 sm:py-3.5 text-xs text-[var(--color-text)] font-medium">
+        <td className="px-3 sm:px-4 py-3 sm:py-3.5 text-xs sm:text-sm text-[var(--color-text)] font-medium">
           <TruncatedText text={row.firmName} />
         </td>
 
-        {/* 4. Contact Number */}
-        <td className="px-3 sm:px-4 py-3 sm:py-3.5 text-xs text-[var(--color-text)] font-mono whitespace-nowrap">
-          {row.mobile || '—'}
+        {/* 4. Mob. No. */}
+        <td className="px-3 sm:px-4 py-3 sm:py-3.5 text-xs sm:text-sm text-[var(--color-text)] font-mono whitespace-nowrap">
+          {row.mobile || '-'}
         </td>
 
-        {/* 5. Alternate Number */}
-        <td className="px-3 sm:px-4 py-3 sm:py-3.5 text-xs text-[var(--color-text-muted)] font-mono whitespace-nowrap">
-          {row.alternateMobile || '—'}
+        {/* 5. Alt. Mob. No. */}
+        <td className="px-3 sm:px-4 py-3 sm:py-3.5 text-xs sm:text-sm text-[var(--color-text-muted)] font-mono whitespace-nowrap">
+          {row.alternateMobile || '-'}
         </td>
 
-        {/* 6. Site Address (text format) */}
+        {/* 6. Site Address */}
         <td className="px-3 sm:px-4 py-3 sm:py-3.5 text-xs text-[var(--color-text-muted)]">
-          <TruncatedText text={row.siteAddress || row.address || [row.area, row.city].filter(Boolean).join(', ') || '—'} />
+          <TruncatedText text={row.siteAddress || row.address || [row.area, row.city].filter(Boolean).join(', ') || '-'} />
         </td>
 
-        {/* 7. Max Overdue */}
+        {/* 7. Billing Status Badge */}
+        <td className="px-3 sm:px-4 py-3 sm:py-3.5 text-center whitespace-nowrap">
+          {pendingInvoices.length > 0 && payableInvoices.length === 0 ? (
+            <Badge variant="warning" size="sm">Pending ({pendingInvoices.length})</Badge>
+          ) : payableInvoices.length > 0 && pendingInvoices.length === 0 ? (
+            <Badge variant="success" size="sm">Completed ({payableInvoices.length})</Badge>
+          ) : (
+            <Badge variant="info" size="sm">{payableInvoices.length} Done / {pendingInvoices.length} Pend.</Badge>
+          )}
+        </td>
+
+        {/* 8. Max Overdue */}
         <td className="px-3 sm:px-4 py-3 sm:py-3.5 text-center whitespace-nowrap">
           {overdueBadge(row.maxOverdueDays)}
         </td>
 
-        {/* 8. Last Payment */}
+        {/* 9. Last Payment */}
         <td className="px-3 sm:px-4 py-3 sm:py-3.5 text-center text-xs text-[var(--color-text-muted)] whitespace-nowrap">
-          {row.lastPaymentDate ? fmt(row.lastPaymentDate) : <span className="text-rose-500 font-medium">Never</span>}
+          {row.lastPaymentDate ? fmt(row.lastPaymentDate) : <span className="text-rose-600 font-semibold">Never</span>}
         </td>
 
-        {/* 9. Actions */}
+        {/* 10. Actions */}
         <td className="px-3 sm:px-4 py-3 sm:py-3.5 text-right whitespace-nowrap">
           <div className="flex items-center justify-end gap-1.5" onClick={e => e.stopPropagation()}>
             {/* Quick Pay button */}
@@ -263,7 +280,7 @@ function PaymentRow({ row, srNo, expanded, onToggle, navigate, onRecordPayment }
               <button
                 onClick={handleQuickPay}
                 title="Record Payment"
-                className="px-2 sm:px-2.5 py-1 text-xs font-bold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm inline-flex items-center gap-1 transition"
+                className="px-2 sm:px-2.5 py-1 text-xs font-bold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs inline-flex items-center gap-1 transition cursor-pointer"
               >
                 <IndianRupee size={12} />
                 <span className="hidden sm:inline">Pay</span>
@@ -274,7 +291,7 @@ function PaymentRow({ row, srNo, expanded, onToggle, navigate, onRecordPayment }
             <button
               onClick={() => navigate(ROUTES.CUSTOMER_PROFILE, { state: { id: row.customerId } })}
               title="View Customer Profile"
-              className="p-1.5 rounded-lg border border-[var(--color-border)] text-[var(--color-text-subtle)] hover:text-[var(--color-primary)] hover:bg-[var(--color-surface-2)] transition"
+              className="p-1.5 rounded-lg border border-[var(--color-border)] text-[var(--color-text-subtle)] hover:text-[var(--color-primary)] hover:bg-[var(--color-surface-2)] transition cursor-pointer"
             >
               <Eye size={15} />
             </button>
@@ -283,7 +300,7 @@ function PaymentRow({ row, srNo, expanded, onToggle, navigate, onRecordPayment }
             <button
               onClick={onToggle}
               title={expanded ? 'Collapse Bills' : 'Expand Bills'}
-              className="p-1.5 rounded-lg border border-[var(--color-border)] text-[var(--color-text-subtle)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-2)] transition"
+              className="p-1.5 rounded-lg border border-[var(--color-border)] text-[var(--color-text-subtle)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-2)] transition cursor-pointer"
             >
               {expanded ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
             </button>
@@ -293,19 +310,15 @@ function PaymentRow({ row, srNo, expanded, onToggle, navigate, onRecordPayment }
 
       {/* Expandable breakdown */}
       {expanded && (
-        <tr className="border-b border-[var(--color-border)] bg-[var(--color-surface-2)]">
-          <td colSpan={9} className="px-3 sm:px-6 py-4">
-            <div className="flex items-center justify-between mb-2.5">
-              <p className="text-[11px] font-bold uppercase tracking-wider text-[var(--color-text-muted)] flex items-center gap-1.5">
-                <FileText size={13} className="text-[var(--color-primary)]" />
-                Pending Orders & Bills for {row.customerName}
-              </p>
-              <button
-                onClick={() => navigate(ROUTES.CUSTOMER_PROFILE, { state: { id: row.customerId } })}
-                className="text-xs font-semibold text-[var(--color-primary)] hover:underline inline-flex items-center gap-1"
-              >
-                View full profile history <ArrowUpRight size={13} />
-              </button>
+        <tr className="bg-[var(--color-surface-2)]/60 border-b border-[var(--color-border)]">
+          <td colSpan={10} className="p-3 sm:p-4">
+            <div className="flex items-center justify-between gap-3 mb-2">
+              <span className="text-xs font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
+                Bills & Orders Breakdown for {row.customerName}
+              </span>
+              <span className="text-xs font-medium text-[var(--color-text-subtle)]">
+                {row.overdueInvoices?.length || 0} record{(row.overdueInvoices?.length || 0) !== 1 ? 's' : ''}
+              </span>
             </div>
             <InvoiceBreakdown
               invoices={row.overdueInvoices}
@@ -331,7 +344,7 @@ export default function PendingPaymentsDashboard() {
   const [loadingStats, setLoadingStats] = useState(false);
 
   const [page,       setPage]       = useState(0);
-  const [pageSize,   setPageSize]   = useState(50); // Page size defaults to 50 rows per user preference
+  const [pageSize,   setPageSize]   = useState(50);
   const [totalPages, setTotalPages] = useState(0);
   const [totalElements, setTotalElements] = useState(0);
 
@@ -340,8 +353,9 @@ export default function PendingPaymentsDashboard() {
   const [search,     setSearch]     = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
+  const [billingStatusFilter, setBillingStatusFilter] = useState('ALL'); // 'ALL' | 'PENDING' | 'COMPLETED'
 
-  const [expanded,   setExpanded]   = useState({});   // { [customerId]: boolean }
+  const [expanded,   setExpanded]   = useState({});
   const [selectedOrderForPayment, setSelectedOrderForPayment] = useState(null);
 
   // Debounce search input
@@ -368,7 +382,7 @@ export default function PendingPaymentsDashboard() {
   }, []);
 
   // Fetch paginated rows
-  const fetchData = useCallback(async (p, ps, sb, sd, q, sf) => {
+  const fetchData = useCallback(async (p, ps, sb, sd, q, sf, bf) => {
     setLoading(true);
     try {
       const res = await customerService.getPendingPayments({
@@ -378,6 +392,7 @@ export default function PendingPaymentsDashboard() {
         sortDir: sd,
         search: q?.trim() || undefined,
         status: sf !== 'ALL' ? sf : undefined,
+        billingStatus: bf !== 'ALL' ? bf : undefined,
       });
       const paged = res?.data ?? res;
       const content = paged?.content ?? [];
@@ -396,8 +411,8 @@ export default function PendingPaymentsDashboard() {
   }, [fetchStats]);
 
   useEffect(() => {
-    fetchData(page, pageSize, sortBy, sortDir, debouncedSearch, statusFilter);
-  }, [page, pageSize, sortBy, sortDir, debouncedSearch, statusFilter, fetchData]);
+    fetchData(page, pageSize, sortBy, sortDir, debouncedSearch, statusFilter, billingStatusFilter);
+  }, [page, pageSize, sortBy, sortDir, debouncedSearch, statusFilter, billingStatusFilter, fetchData]);
 
   const toggleSort = (field) => {
     if (sortBy === field) {
@@ -421,12 +436,14 @@ export default function PendingPaymentsDashboard() {
 
   const handleRefresh = () => {
     fetchStats();
-    fetchData(page, pageSize, sortBy, sortDir, debouncedSearch, statusFilter);
+    fetchData(page, pageSize, sortBy, sortDir, debouncedSearch, statusFilter, billingStatusFilter);
   };
 
-  const handlePaymentSuccess = () => {
-    setSelectedOrderForPayment(null);
+  const handlePaymentSuccess = (updatedOrder) => {
     handleRefresh();
+    if (updatedOrder) {
+      setSelectedOrderForPayment(prev => prev ? { ...prev, ...updatedOrder } : updatedOrder);
+    }
   };
 
   const thCls = (field, align = 'text-left') =>
@@ -442,14 +459,25 @@ export default function PendingPaymentsDashboard() {
   }, [rows]);
 
   const overdueOver30 = rows.filter(r => (r.maxOverdueDays ?? 0) > 30).length;
-  const neverPaid     = rows.filter(r => !r.lastPaymentDate).length;
+
+  // Filter rows by billing status (Instant client-side filter)
+  const displayedRows = useMemo(() => {
+    if (billingStatusFilter === 'ALL') return rows;
+    if (billingStatusFilter === 'PENDING') {
+      return rows.filter(r => (r.overdueInvoices || []).some(i => (i.billingStatus || 'PENDING') === 'PENDING'));
+    }
+    if (billingStatusFilter === 'COMPLETED') {
+      return rows.filter(r => (r.overdueInvoices || []).some(i => i.billingStatus === 'COMPLETED'));
+    }
+    return rows;
+  }, [rows, billingStatusFilter]);
 
   return (
     <div className="flex flex-col gap-4 sm:gap-6">
       {/* ── Page Header ── */}
       <PageHeader
         title="Pending Payments"
-        subtitle="Accounts receivable — track outstanding client balances, overdue invoices, and collect payments."
+        subtitle="Accounts receivable - track outstanding client balances, overdue invoices, and collect payments."
         breadcrumbs={[
           { label: 'Dashboard', href: '/dashboard' },
           { label: 'Customers', href: ROUTES.CUSTOMERS },
@@ -469,7 +497,7 @@ export default function PendingPaymentsDashboard() {
         }
       />
 
-      {/* ── Stat Cards Row (Live ERP Global Aggregates) ── */}
+      {/* ── Stat Cards Row ── */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
         <StatCard
           value={stats?.totalCustomersWithDues ?? totalElements}
@@ -495,66 +523,106 @@ export default function PendingPaymentsDashboard() {
         />
       </div>
 
-      {/* ── Main Data Card ── */}
+      {/* ── Main Data Card (Light surface) ── */}
       <div className="bg-[var(--color-surface)] rounded-[var(--radius-lg)] border border-[var(--color-border)] shadow-[var(--shadow-sm)] overflow-hidden">
         {/* Search, Filter & Controls Bar */}
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 p-3.5 sm:p-4 border-b border-[var(--color-border)] bg-[var(--color-surface-2)]">
-          {/* Search box */}
-          <div className="relative flex-1 max-w-md">
-            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-text-subtle)]" />
-            <input
-              type="text"
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder="Search by customer name, mobile, firm, or order/bill #…"
-              className="w-full pl-9 pr-8 py-2 text-xs sm:text-sm rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-text)] placeholder-[var(--color-text-subtle)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
-            />
-            {search && (
+        <div className="flex flex-col gap-3 p-3.5 sm:p-4 border-b border-[var(--color-border)] bg-[var(--color-surface-2)]">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+            {/* Search box */}
+            <div className="relative flex-1 max-w-md">
+              <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-text-subtle)] pointer-events-none" />
+              <input
+                type="text"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Search by customer name, mobile, firm, or bill #…"
+                className="w-full pl-9 pr-8 py-2 text-xs sm:text-sm rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-text)] placeholder-[var(--color-text-subtle)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
+              />
+              {search && (
+                <button
+                  onClick={() => setSearch('')}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-subtle)] hover:text-[var(--color-text)] cursor-pointer"
+                >
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+
+            {/* Quick Filter Chips & Controls */}
+            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+              {/* Billing Status Filter: All | Pending | Completed */}
+              <div className="flex items-center gap-1 bg-[var(--color-surface)] p-1 rounded-lg border border-[var(--color-border)]">
+                <span className="text-[11px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider px-1.5">
+                  Billing:
+                </span>
+                {[
+                  { id: 'ALL', label: 'All' },
+                  { id: 'PENDING', label: 'Pending' },
+                  { id: 'COMPLETED', label: 'Completed' },
+                ].map(b => (
+                  <button
+                    key={b.id}
+                    type="button"
+                    onClick={() => { setBillingStatusFilter(b.id); setPage(0); }}
+                    className={`text-xs px-2.5 py-1 rounded-md font-semibold transition cursor-pointer ${
+                      billingStatusFilter === b.id
+                        ? 'bg-[var(--color-primary)] text-white shadow-xs'
+                        : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-2)]'
+                    }`}
+                  >
+                    {b.label}
+                  </button>
+                ))}
+              </div>
+
+              <div className="h-5 w-px bg-[var(--color-border)] mx-1 hidden sm:block" />
+
+              {/* Due Status Filter: All Dues | Overdue Only | Critical (>30d) */}
+              {[
+                { id: 'ALL', label: 'All Dues' },
+                { id: 'OVERDUE', label: 'Overdue Only' },
+                { id: 'CRITICAL', label: 'Critical (>30d)' },
+              ].map(tab => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => { setStatusFilter(tab.id); setPage(0); }}
+                  className={`text-xs px-2.5 py-1.5 rounded-lg border font-semibold transition cursor-pointer ${
+                    statusFilter === tab.id
+                      ? 'bg-[var(--color-primary)] text-white border-[var(--color-primary)] shadow-xs'
+                      : 'border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-muted)] hover:bg-[var(--color-surface-2)]'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+
+              <div className="h-5 w-px bg-[var(--color-border)] mx-1 hidden sm:block" />
+
+              {/* Expand / Collapse all */}
               <button
-                onClick={() => setSearch('')}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-subtle)] hover:text-[var(--color-text)]"
+                type="button"
+                onClick={Object.keys(expanded).length > 0 ? collapseAll : expandAll}
+                className="text-xs px-2.5 py-1.5 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-2)] transition font-medium cursor-pointer"
               >
-                <X size={14} />
+                {Object.keys(expanded).length > 0 ? 'Collapse All' : 'Expand All'}
               </button>
-            )}
-          </div>
-
-          {/* Quick Filter Chips */}
-          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-            {[
-              { id: 'ALL', label: 'All Dues' },
-              { id: 'OVERDUE', label: 'Overdue Only' },
-              { id: 'CRITICAL', label: 'Critical (>30d)' },
-            ].map(tab => (
-              <button
-                key={tab.id}
-                onClick={() => { setStatusFilter(tab.id); setPage(0); }}
-                className={`text-xs px-2.5 py-1.5 rounded-lg border font-semibold transition ${
-                  statusFilter === tab.id
-                    ? 'bg-[var(--color-primary)] text-white border-[var(--color-primary)] shadow-sm'
-                    : 'border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-muted)] hover:bg-[var(--color-surface-2)]'
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-
-            <div className="h-5 w-px bg-[var(--color-border)] mx-1 hidden sm:block" />
-
-            {/* Expand / Collapse all */}
-            <button
-              onClick={Object.keys(expanded).length > 0 ? collapseAll : expandAll}
-              className="text-xs px-2.5 py-1.5 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition font-medium"
-            >
-              {Object.keys(expanded).length > 0 ? 'Collapse All' : 'Expand All'}
-            </button>
+            </div>
           </div>
         </div>
 
         {/* Results summary and Sorting bar */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 px-3.5 sm:px-5 py-2.5 border-b border-[var(--color-border)] bg-[var(--color-surface)] text-xs text-[var(--color-text-muted)]">
           <span>
-            {loading ? 'Loading pending payments…' : `Showing ${rows.length} of ${totalElements} customer${totalElements !== 1 ? 's' : ''} with pending dues (page size 50)`}
+            {loading
+              ? 'Loading pending payments…'
+              : `Showing ${displayedRows.length} of ${totalElements} customer${totalElements !== 1 ? 's' : ''} ${
+                  billingStatusFilter === 'PENDING'
+                    ? 'with pending billing'
+                    : billingStatusFilter === 'COMPLETED'
+                    ? 'with completed billing'
+                    : 'with pending dues'
+                } (page size 50)`}
           </span>
 
           <div className="flex flex-wrap items-center gap-1.5">
@@ -567,7 +635,7 @@ export default function PendingPaymentsDashboard() {
               <button
                 key={col.id}
                 onClick={() => toggleSort(col.id)}
-                className={`px-2.5 py-1 rounded-[var(--radius-sm)] border text-[11px] font-semibold transition inline-flex items-center gap-1 ${
+                className={`px-2.5 py-1 rounded-[var(--radius-sm)] border text-[11px] font-semibold transition inline-flex items-center gap-1 cursor-pointer ${
                   sortBy === col.id
                     ? 'bg-[var(--color-surface-2)] text-[var(--color-primary)] border-[var(--color-primary)]'
                     : 'border-[var(--color-border)] text-[var(--color-text-muted)] hover:bg-[var(--color-surface-2)]'
@@ -581,7 +649,7 @@ export default function PendingPaymentsDashboard() {
 
         {/* Table */}
         <div className="overflow-x-auto">
-          <table className="w-full border-collapse min-w-[900px]">
+          <table className="w-full border-collapse min-w-[960px]">
             <thead>
               <tr className="bg-[var(--color-surface-2)] border-b border-[var(--color-border)]">
                 <th className="px-3 sm:px-4 py-3 text-center text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-muted)] w-14">
@@ -594,13 +662,16 @@ export default function PendingPaymentsDashboard() {
                   Firm Name
                 </th>
                 <th className={thCls('mobile')}>
-                  Contact Number
+                  Mob. No.
                 </th>
                 <th className={thCls('alternateMobile')}>
-                  Alternate Number
+                  Alt. Mob. No.
                 </th>
                 <th className={thCls('siteAddress')}>
                   Site Address
+                </th>
+                <th className="px-3 sm:px-4 py-3 text-center text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-muted)] whitespace-nowrap">
+                  Billing Status
                 </th>
                 <th className={thCls('maxOverdueDays', 'text-center')} onClick={() => toggleSort('maxOverdueDays')}>
                   Max Overdue {sortIndicator('maxOverdueDays')}
@@ -608,7 +679,7 @@ export default function PendingPaymentsDashboard() {
                 <th className={thCls('lastPaymentDate', 'text-center')}>
                   Last Payment
                 </th>
-                <th className="px-3 sm:px-4 py-3 text-right text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
+                <th className="px-3 sm:px-4 py-3 text-right text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-muted)] whitespace-nowrap">
                   Actions
                 </th>
               </tr>
@@ -617,35 +688,48 @@ export default function PendingPaymentsDashboard() {
               {loading
                 ? Array.from({ length: 6 }).map((_, i) => (
                     <tr key={i} className="border-b border-[var(--color-border)]">
-                      {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(j => (
+                      {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(j => (
                         <td key={j} className="px-3 sm:px-4 py-4">
                           <div className="h-4 rounded bg-[var(--color-border)] animate-pulse" style={{ width: `${50 + (j % 4) * 12}%` }} />
                         </td>
                       ))}
                     </tr>
                   ))
-                : rows.length === 0
+                : displayedRows.length === 0
                 ? (
                   <tr>
-                    <td colSpan={9} className="py-20 text-center">
+                    <td colSpan={10} className="py-20 text-center">
                       <div className="flex flex-col items-center gap-2 text-[var(--color-text-muted)]">
                         <Wallet size={40} className="opacity-30 text-emerald-500" />
                         <p className="font-bold text-base text-[var(--color-text)]">
-                          {search ? 'No matching pending payments found' : 'All accounts are up to date! 🎉'}
+                          {search
+                            ? 'No matching pending payments found'
+                            : billingStatusFilter === 'PENDING'
+                            ? 'No customers with pending billing! 🎉'
+                            : billingStatusFilter === 'COMPLETED'
+                            ? 'No customers with completed billing found.'
+                            : 'All accounts are up to date! 🎉'}
                         </p>
                         <p className="text-xs text-[var(--color-text-muted)] max-w-md">
-                          {search ? 'Try adjusting your search or clear filters to see all outstanding accounts.' : 'There are no customers with pending balances matching the criteria.'}
+                          {search
+                            ? 'Try adjusting your search or clear filters to see all outstanding accounts.'
+                            : 'There are no customers matching the selected criteria.'}
                         </p>
-                        {search && (
-                          <Button size="sm" variant="ghost" onClick={() => setSearch('')} className="mt-2">
-                            Clear Search Filter
+                        {(search || billingStatusFilter !== 'ALL' || statusFilter !== 'ALL') && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => { setSearch(''); setBillingStatusFilter('ALL'); setStatusFilter('ALL'); }}
+                            className="mt-2"
+                          >
+                            Reset All Filters
                           </Button>
                         )}
                       </div>
                     </td>
                   </tr>
                 )
-                : rows.map((row, idx) => (
+                : displayedRows.map((row, idx) => (
                   <PaymentRow
                     key={row.customerId}
                     srNo={page * pageSize + idx + 1}
@@ -671,17 +755,17 @@ export default function PendingPaymentsDashboard() {
               <button
                 disabled={page === 0}
                 onClick={() => setPage(p => p - 1)}
-                className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-[var(--color-border)] disabled:opacity-40 hover:bg-[var(--color-surface-2)] transition"
+                className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text)] disabled:opacity-40 hover:bg-[var(--color-surface-2)] transition cursor-pointer"
               >
                 ‹ Previous
               </button>
-              <span className="text-xs font-bold px-2 py-1 bg-[var(--color-primary-50)] text-[var(--color-primary)] rounded">
+              <span className="text-xs font-bold px-2.5 py-1 bg-[var(--color-primary-50)] text-[var(--color-primary)] rounded-lg">
                 {page + 1} / {totalPages}
               </span>
               <button
                 disabled={page >= totalPages - 1}
                 onClick={() => setPage(p => p + 1)}
-                className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-[var(--color-border)] disabled:opacity-40 hover:bg-[var(--color-surface-2)] transition"
+                className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text)] disabled:opacity-40 hover:bg-[var(--color-surface-2)] transition cursor-pointer"
               >
                 Next ›
               </button>

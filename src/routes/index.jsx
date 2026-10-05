@@ -98,7 +98,7 @@ export const router = createBrowserRouter([
       // Dashboard
       rr(ROUTES.DASHBOARD, DashboardRouter),
 
-      // Inventory — Products
+      // Inventory - Products
       rr(ROUTES.PRODUCTS,       ProductList),
       rr(ROUTES.PRODUCT_ADD,    ProductForm),
       rr(ROUTES.PRODUCT_EDIT,   ProductForm),
@@ -137,7 +137,7 @@ export const router = createBrowserRouter([
       rr(ROUTES.CUSTOMER_EDIT,     CustomerList),
       rr(ROUTES.CUSTOMER_PROFILE,  CustomerProfile),
 
-      // Profile (no role gate — any authenticated user)
+      // Profile (no role gate - any authenticated user)
       { path: ROUTES.PROFILE, errorElement: <ErrorBoundary />, element: s(ProfilePage) },
 
       // Unauthorized

@@ -1,15 +1,15 @@
 // src/components/shared/Spinner.jsx
 
 /**
- * Spinner — animated loading indicator.
+ * Spinner - animated loading indicator.
  *
  * Variants:
- *   border   — classic spinning ring (default)
- *   dots     — three bouncing dots
- *   pulse    — fading circle
+ *   border   - classic spinning ring (default)
+ *   dots     - three bouncing dots
+ *   pulse    - fading circle
  *
  * Sizes:    xs | sm | md (default) | lg | xl
- * Colors:   primary (default) | white | muted  — maps to CSS variables
+ * Colors:   primary (default) | white | muted  - maps to CSS variables
  *
  * Usage:
  *   <Spinner />

@@ -7,8 +7,6 @@ import {
   formatToDMY,
   formatRangeToDMY,
   parseDateStr,
-  mockOrders,
-  MOCK_GENERATORS,
 } from './mockData';
 import { generatorOrderService } from '@/services/generatorOrderService';
 import { generatorService } from '@/services/generatorService';
@@ -255,28 +253,71 @@ const STYLES = `
   .go-stat-sublabel { font-size:10px; color:var(--color-text-subtle); margin-top:2px; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 
   /* ── Toolbar ── */
-  .go-toolbar { display:grid; grid-template-columns:1.4fr 1.3fr 1fr auto; gap:12px; margin-bottom:18px; align-items:center; }
-  .go-search-wrap { position:relative; flex:1; min-width:180px; max-width:360px; }
-  .go-search-icon { position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--color-text-subtle); pointer-events:none; display:flex; }
+  .go-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 18px;
+    flex-wrap: wrap;
+  }
+  .go-search-wrap {
+    position: relative;
+    flex: 1 1 200px;
+    min-width: 0;
+  }
+  .go-search-icon {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--color-text-subtle);
+    pointer-events: none;
+    display: flex;
+  }
   .go-search-input {
-    width:100%; padding:10px 14px 10px 36px;
-    border:1.5px solid var(--color-border); border-radius:var(--radius-md);
-    font-size:14px; color:var(--color-text); background:var(--color-surface);
-    outline:none; transition:border-color .2s,box-shadow .2s; font-family:inherit;
+    width: 100%;
+    height: 42px;
+    box-sizing: border-box;
+    padding: 10px 14px 10px 36px;
+    border: 1.5px solid var(--color-border);
+    border-radius: var(--radius-md);
+    font-size: 14px;
+    color: var(--color-text);
+    background: var(--color-surface);
+    outline: none;
+    transition: border-color .2s, box-shadow .2s;
+    font-family: inherit;
   }
   .go-search-input:focus { border-color:var(--color-primary); box-shadow:0 0 0 3px rgba(37,99,235,.15); }
-  .go-date-picker-wrap { min-width:200px; }
+  .go-date-picker-wrap {
+    flex: 0 0 auto;
+    width: auto;
+  }
   .go-single-date-box {
-    display:flex; align-items:center; gap:8px; height:42px;
-    background:var(--color-surface); border:1.5px solid var(--color-border);
-    border-radius:var(--radius-md); padding:0 10px 0 12px;
-    transition:border-color .2s,box-shadow .2s;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    height: 42px;
+    box-sizing: border-box;
+    background: var(--color-surface);
+    border: 1.5px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: 0 10px 0 12px;
+    transition: border-color .2s, box-shadow .2s;
   }
   .go-single-date-box:focus-within { border-color:var(--color-primary); box-shadow:0 0 0 3px rgba(37,99,235,.15); }
   .go-date-icon { display:flex; align-items:center; color:var(--color-text-subtle); flex-shrink:0; }
   .go-single-date-input {
-    border:none; background:transparent; font-size:13.5px; font-weight:600;
-    color:var(--color-text); outline:none; font-family:inherit; cursor:pointer; flex:1; min-width:0;
+    border: none;
+    background: transparent;
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--color-text);
+    outline: none;
+    font-family: inherit;
+    cursor: pointer;
+    width: 125px;
+    flex: none;
   }
   .go-quick-today-btn {
     font-size:11.5px; font-weight:700; padding:3px 8px; background:#EFF6FF;
@@ -290,10 +331,25 @@ const STYLES = `
     cursor:pointer; white-space:nowrap; transition:all .15s; font-family:inherit;
   }
   .go-date-clear-btn:hover { background:#FEE2E2; color:#DC2626; border-color:#FCA5A5; }
+  .go-filter-select-wrap {
+    flex: 0 0 auto;
+    width: auto;
+  }
   .go-filter-select {
-    padding:10px 14px; border:1.5px solid var(--color-border); border-radius:var(--radius-md);
-    font-size:14px; color:var(--color-text-muted); background:var(--color-surface);
-    cursor:pointer; outline:none; min-width:140px; font-family:inherit; transition:border-color .2s;
+    height: 42px;
+    box-sizing: border-box;
+    padding: 0 14px;
+    border: 1.5px solid var(--color-border);
+    border-radius: var(--radius-md);
+    font-size: 14px;
+    color: var(--color-text-muted);
+    background: var(--color-surface);
+    cursor: pointer;
+    outline: none;
+    width: auto;
+    min-width: 140px;
+    font-family: inherit;
+    transition: border-color .2s;
   }
   .go-filter-select:focus { border-color:var(--color-primary); }
   .go-result-count { font-size:13px; color:var(--color-text-muted); margin-left:auto; white-space:nowrap; }
@@ -453,15 +509,12 @@ const STYLES = `
   .go-modal-actions { display:flex; gap:10px; justify-content:flex-end; }
 
   /* ── Responsive ── */
-  @media (max-width:1400px) {
-    .go-toolbar { grid-template-columns: repeat(2, 1fr) !important; gap: 10px; }
-  }
   @media (max-width:850px) {
     .go-stats-row { grid-template-columns:repeat(2, minmax(0, 1fr)) !important; }
   }
   @media (max-width:639px) {
-    .go-page { padding:16px; }
-    .go-header { flex-direction:column; align-items:stretch; gap:12px; margin-bottom:16px; }
+    .go-page { padding:12px; }
+    .go-header { flex-direction:column; align-items:stretch; gap:10px; margin-bottom:14px; }
     .go-header-actions { display:flex; flex-direction:column; align-items:stretch; gap:8px; width:100%; }
     .go-availability-btn, .go-add-btn {
       width: 100%;
@@ -472,21 +525,29 @@ const STYLES = `
       justify-content: center;
       box-sizing: border-box;
     }
-    .go-stats-row { grid-template-columns:1fr !important; gap:10px; margin-bottom:16px; }
-    .go-stat-card { padding:10px 10px; gap:8px; }
+    .go-stats-row { grid-template-columns:repeat(2, minmax(0, 1fr)) !important; gap:8px; margin-bottom:12px; }
+    .go-stat-card { padding:10px; gap:8px; }
     .go-stat-value { font-size:18px; }
     .go-stat-label { font-size:9.5px; }
     .go-stat-sublabel { font-size:9px; }
-    .go-toolbar { grid-template-columns: 1fr !important; gap:8px; margin-bottom:14px; }
-    .go-search-wrap { max-width:none; min-width:0; }
-    .go-filter-select { flex:1; min-width:0 !important; }
+    .go-toolbar {
+      flex-direction: column !important;
+      align-items: stretch !important;
+      gap: 8px !important;
+      margin-bottom: 12px !important;
+    }
+    .go-search-wrap { width: 100% !important; min-width: 0 !important; flex: 1 1 auto !important; }
+    .go-date-picker-wrap, .go-single-date-box { width: 100% !important; box-sizing: border-box !important; }
+    .go-single-date-input { flex: 1 !important; width: auto !important; min-width: 0 !important; }
+    .go-filter-select-wrap, .go-filter-select { width: 100% !important; min-width: 0 !important; box-sizing: border-box !important; }
     .go-result-count { margin-left:0; }
     .go-table-wrap { display:none; }
     .go-mobile-list { display:block; }
-    .go-pagination { padding:12px 16px; }
+    .go-pagination { padding:10px 12px; }
   }
-  @media (max-width:480px) {
-    .go-stats-row { grid-template-columns:1fr !important; }
+  @media (max-width:380px) {
+    .go-stats-row { grid-template-columns:1fr !important; gap:8px; }
+    .go-page { padding:10px; }
   }
 `;
 
@@ -638,6 +699,17 @@ export const isOrderMatchesDate = (o, dateStr) => {
   );
 };
 
+/**
+ * Checks if an order has been cancelled
+ */
+export const isOrderCancelled = (o) => {
+  if (!o) return false;
+  const os = String(o.orderStatus || '').toUpperCase();
+  const bs = String(o.bookingStatus || '').toUpperCase();
+  const st = String(o.status || '').toUpperCase();
+  return os === 'CANCELLED' || bs === 'CANCELLED' || st === 'CANCELLED';
+};
+
 /* ─── Main Component ─────────────────────────────────────────────────────── */
 const PAGE_SIZE = 50;
 
@@ -723,19 +795,11 @@ export default function GeneratorOrderList() {
           ...prev,
           totalStock: total,
         }));
-      } else if (MOCK_GENERATORS && MOCK_GENERATORS.length > 0) {
-        setStockStats(prev => ({
-          ...prev,
-          totalStock: MOCK_GENERATORS.length,
-        }));
       }
+      // If API returns 0 generators, leave totalStock as 0 — no mock fallback
     } catch (e) {
-      if (MOCK_GENERATORS && MOCK_GENERATORS.length > 0) {
-        setStockStats(prev => ({
-          ...prev,
-          totalStock: MOCK_GENERATORS.length,
-        }));
-      }
+      console.warn('Generator list API failed:', e);
+      // No mock fallback — leave totalStock as 0
     }
   };
 
@@ -790,6 +854,11 @@ export default function GeneratorOrderList() {
         const q = search.toLowerCase().trim();
 
         const matchClient = (o.clientName && String(o.clientName).toLowerCase().includes(q)) ||
+                            (o.firmName && String(o.firmName).toLowerCase().includes(q)) ||
+                            (o.customer?.firmName && String(o.customer.firmName).toLowerCase().includes(q)) ||
+                            (o.contactNumber && String(o.contactNumber).toLowerCase().includes(q)) ||
+                            (o.alternateMobile && String(o.alternateMobile).toLowerCase().includes(q)) ||
+                            (o.customer?.alternateMobile && String(o.customer.alternateMobile).toLowerCase().includes(q)) ||
                             (o.customer?.name && String(o.customer.name).toLowerCase().includes(q));
 
         const matchOrderNo = (o.id != null && String(o.id).toLowerCase().includes(q)) ||
@@ -914,14 +983,13 @@ export default function GeneratorOrderList() {
   /* ── Calculations for the 3 Main Tabs ── */
   // 1. Total Stock
   const totalGeneratorsCount = useMemo(() => {
-    if (stockStats.totalStock > 0) return stockStats.totalStock;
-    if (MOCK_GENERATORS && MOCK_GENERATORS.length > 0) return MOCK_GENERATORS.length;
-    return 14;
+    // Use real API data; show 0 if API returned nothing
+    return stockStats.totalStock > 0 ? stockStats.totalStock : 0;
   }, [stockStats.totalStock]);
 
-  // 2. Todays Booking count
+  // 2. Todays Booking count (excludes cancelled bookings)
   const todayBookingCount = useMemo(() => {
-    return orders.filter(o => isOrderMatchesDate(o, todayYMD)).length;
+    return orders.filter(o => isOrderMatchesDate(o, todayYMD) && !isOrderCancelled(o)).length;
   }, [orders, todayYMD]);
 
   // 3. Todays Available Stock
@@ -1062,10 +1130,9 @@ export default function GeneratorOrderList() {
             </div>
           </div>
 
-          <div>
+          <div className="go-filter-select-wrap">
             <select
               className="go-filter-select"
-              style={{ width: '100%', minWidth: 'auto' }}
               value={filterBillingStatus}
               onChange={e => { setFilterBillingStatus(e.target.value); setPage(1); }}
             >
@@ -1117,7 +1184,9 @@ export default function GeneratorOrderList() {
                   <th style={thStyle}>Generator Name</th>
                   <th style={thStyle}>Order No.</th>
                   <th style={thStyle}>Client Name</th>
-                  <th style={thStyle}>Contact</th>
+                  <th style={thStyle}>Firm Name</th>
+                  <th style={thStyle}>Mob. No.</th>
+                  <th style={thStyle}>Alt. Mob. No</th>
                   <th style={thStyle}>Site Address</th>
                   <th style={{ ...thStyle, textAlign:'center' }}>Diesel Type</th>
                   <th style={{ ...thStyle, textAlign:'center' }}>Cable</th>
@@ -1132,10 +1201,10 @@ export default function GeneratorOrderList() {
               </thead>
               <tbody>
                 {loading ? (
-                  Array.from({ length: 6 }).map((_, i) => <SkeletonRow key={i} cols={15} />)
+                  Array.from({ length: 6 }).map((_, i) => <SkeletonRow key={i} cols={17} />)
                 ) : paged.length === 0 ? (
                   <tr>
-                    <td colSpan={15} style={{ padding:'64px 20px', textAlign:'center' }}>
+                    <td colSpan={17} style={{ padding:'64px 20px', textAlign:'center' }}>
                       <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:10, color:'var(--color-text-subtle)' }}>
                         <Icon.ClipboardEmpty />
                         <div style={{ fontWeight:600, color:'var(--color-text-muted)', fontSize:15 }}>
@@ -1161,12 +1230,12 @@ export default function GeneratorOrderList() {
                   </tr>
                 ) : paged.map((o, i) => {
                   const gens = o.generators || [];
-                  const firstName = gens[0]?.generatorName || '—';
+                  const firstName = gens[0]?.generatorName || '-';
                   const extra    = gens.length > 1 ? ` +${gens.length - 1} more` : '';
-                  const isCancelled = o.orderStatus === 'CANCELLED';
+                  const isCancelled = isOrderCancelled(o);
                   const isBilled = o.billingStatus === 'COMPLETED';
-                  const orderBookingStatus = o.orderStatus === 'CONFIRMED' ? 'Confirmed'
-                    : o.orderStatus === 'CANCELLED' ? 'Cancelled'
+                  const orderBookingStatus = isCancelled ? 'Cancelled'
+                    : o.orderStatus === 'CONFIRMED' ? 'Confirmed'
                     : (o.bookingStatus || 'Booked');
                   const isWithDiesel = o.withDiesel !== false && o.dieselType !== 'PARTY';
                   const hasCable = o.cableRequired !== false;
@@ -1207,21 +1276,31 @@ export default function GeneratorOrderList() {
 
                     {/* 4. Client Name */}
                     <td style={tdStyle}>
-                      <div style={{ fontWeight:600, whiteSpace:'nowrap' }}>{o.clientName || '—'}</div>
+                      <div style={{ fontWeight:600, whiteSpace:'nowrap' }}>{o.clientName || '-'}</div>
                     </td>
 
-                    {/* 5. Contact */}
+                    {/* 5. Firm Name */}
+                    <td style={tdStyle}>
+                      <div style={{ whiteSpace:'nowrap' }}>{o.firmName || o.customer?.firmName || '-'}</div>
+                    </td>
+
+                    {/* 6. Mob. No. */}
                     <td style={{ ...tdStyle, whiteSpace:'nowrap' }}>
-                      {o.contactNumber || '—'}
+                      {o.contactNumber || '-'}
+                    </td>
+
+                    {/* 7. Alt. Mob. No */}
+                    <td style={{ ...tdStyle, whiteSpace:'nowrap' }}>
+                      {o.alternateMobile || o.customer?.alternateMobile || '-'}
                     </td>
 
                     {/* 6. Site Address */}
                     <td style={tdStyle}>
                       <div
                         style={{ maxWidth:160, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}
-                        title={o.siteAddress || '—'}
+                        title={o.siteAddress || '-'}
                       >
-                        {o.siteAddress || '—'}
+                        {o.siteAddress || '-'}
                       </div>
                     </td>
 
@@ -1262,7 +1341,7 @@ export default function GeneratorOrderList() {
 
                     {/* 9. Operator Name */}
                     <td style={{ ...tdStyle, whiteSpace:'nowrap' }}>
-                      {o.operatorName || '—'}
+                      {o.operatorName || '-'}
                     </td>
 
                     {/* 10. Function Date */}
@@ -1314,7 +1393,7 @@ export default function GeneratorOrderList() {
                           {billNum}
                         </span>
                       ) : (
-                        <span style={{ color:'var(--color-text-subtle)' }}>—</span>
+                        <span style={{ color:'var(--color-text-subtle)' }}>-</span>
                       )}
                     </td>
 
@@ -1353,13 +1432,19 @@ export default function GeneratorOrderList() {
                             className="go-action-btn"
                             style={{
                               ...actionBtn('amber'),
-                              background: '#FEF3C7',
-                              color: '#B45309',
-                              border: '1.5px solid #FDE68A'
+                              background: isBilled || isCancelled ? '#F1F5F9' : '#FEF3C7',
+                              color: isBilled || isCancelled ? '#94A3B8' : '#B45309',
+                              border: isBilled || isCancelled ? '1.5px solid #CBD5E1' : '1.5px solid #FDE68A',
+                              ...(isBilled || isCancelled ? { opacity: 0.45, cursor: 'not-allowed' } : {}),
                             }}
-                            title="Diesel Running Hours Log"
+                            title={isBilled ? 'Diesel running hours log cannot be modified after billing is completed' : isCancelled ? 'Diesel log disabled for cancelled orders' : 'Diesel Running Hours Log'}
                             id={`btn-diesel-${o.id}`}
-                            onClick={() => setDieselModalTarget(o)}
+                            disabled={isBilled || isCancelled}
+                            onClick={() => {
+                              if (!isBilled && !isCancelled) {
+                                setDieselModalTarget(o);
+                              }
+                            }}
                           >
                             <Icon.Fuel />
                           </button>
@@ -1425,9 +1510,12 @@ export default function GeneratorOrderList() {
               </div>
             ) : paged.map(o => {
               const gens = o.generators || [];
-              const firstName = gens[0]?.generatorName || '—';
+              const firstName = gens[0]?.generatorName || '-';
+              const isCancelled = isOrderCancelled(o);
               const isBilled = o.billingStatus === 'COMPLETED';
-              const orderBookingStatus = o.orderStatus === 'CONFIRMED' ? 'Confirmed' : (o.bookingStatus || 'Booked');
+              const orderBookingStatus = isCancelled ? 'Cancelled'
+                : o.orderStatus === 'CONFIRMED' ? 'Confirmed'
+                : (o.bookingStatus || 'Booked');
               const isWithDiesel = o.withDiesel !== false && o.dieselType !== 'PARTY';
               const hasCable = o.cableRequired !== false;
               const billNum = o.billNumber || o.billingNumber;
@@ -1436,7 +1524,7 @@ export default function GeneratorOrderList() {
               <div key={o.id} className="go-mobile-card">
                 <div className="go-mc-header">
                   <div>
-                    <div className="go-mc-title">{o.clientName || '—'}</div>
+                    <div className="go-mc-title">{o.clientName || '-'}</div>
                     <div className="go-mc-sub">{o.orderNumber || `#${o.id}`}</div>
                   </div>
                 </div>
@@ -1451,12 +1539,20 @@ export default function GeneratorOrderList() {
                     )}
                   </div>
                   <div className="go-mc-field">
-                    <label>Contact</label>
-                    <span>{o.contactNumber || '—'}</span>
+                    <label>Firm Name</label>
+                    <span style={{ fontWeight:600 }}>{o.firmName || o.customer?.firmName || '-'}</span>
+                  </div>
+                  <div className="go-mc-field">
+                    <label>Mob. No.</label>
+                    <span>{o.contactNumber || '-'}</span>
+                  </div>
+                  <div className="go-mc-field">
+                    <label>Alt. Mob. No</label>
+                    <span>{o.alternateMobile || o.customer?.alternateMobile || '-'}</span>
                   </div>
                   <div className="go-mc-field" style={{ gridColumn:'span 2' }}>
                     <label>Site Address</label>
-                    <span>{o.siteAddress || '—'}</span>
+                    <span>{o.siteAddress || '-'}</span>
                   </div>
                   <div className="go-mc-field">
                     <label>Diesel Type</label>
@@ -1493,7 +1589,7 @@ export default function GeneratorOrderList() {
                   </div>
                   <div className="go-mc-field">
                     <label>Operator Name</label>
-                    <span>{o.operatorName || '—'}</span>
+                    <span>{o.operatorName || '-'}</span>
                   </div>
                   <div className="go-mc-field">
                     <label>Function Date</label>
@@ -1503,11 +1599,17 @@ export default function GeneratorOrderList() {
                   </div>
                   <div className="go-mc-field">
                     <label>Booking Status</label>
-                    <StatusChip
-                      bg={orderBookingStatus === 'Confirmed' ? '#D1FAE5' : '#DBEAFE'}
-                      color={orderBookingStatus === 'Confirmed' ? '#065F46' : '#1E40AF'}
-                      label={orderBookingStatus}
-                    />
+                    {isCancelled ? (
+                      <StatusChip bg="#FEE2E2" color="#B91C1C" label="Cancelled" />
+                    ) : o.orderStatus === 'COMPLETED' ? (
+                      <StatusChip bg="#ECFDF5" color="#059669" label="Returned" />
+                    ) : (
+                      <StatusChip
+                        bg={orderBookingStatus === 'Confirmed' ? '#D1FAE5' : '#DBEAFE'}
+                        color={orderBookingStatus === 'Confirmed' ? '#065F46' : '#1E40AF'}
+                        label={orderBookingStatus}
+                      />
+                    )}
                   </div>
                   <div className="go-mc-field">
                     <label>Billing Status</label>
@@ -1536,7 +1638,7 @@ export default function GeneratorOrderList() {
                         {billNum}
                       </span>
                     ) : (
-                      <span style={{ color:'var(--color-text-subtle)' }}>—</span>
+                      <span style={{ color:'var(--color-text-subtle)' }}>-</span>
                     )}
                   </div>
                 </div>
@@ -1563,13 +1665,19 @@ export default function GeneratorOrderList() {
                       className="go-action-btn"
                       style={{
                         ...actionBtn('amber'),
-                        background: '#FEF3C7',
-                        color: '#B45309',
-                        border: '1.5px solid #FDE68A'
+                        background: isBilled || isCancelled ? '#F1F5F9' : '#FEF3C7',
+                        color: isBilled || isCancelled ? '#94A3B8' : '#B45309',
+                        border: isBilled || isCancelled ? '1.5px solid #CBD5E1' : '1.5px solid #FDE68A',
+                        ...(isBilled || isCancelled ? { opacity: 0.45, cursor: 'not-allowed' } : {}),
                       }}
-                      title="Diesel Timings & Log"
+                      title={isBilled ? 'Diesel running hours log cannot be modified after billing is completed' : isCancelled ? 'Diesel log disabled for cancelled orders' : 'Diesel Timings & Log'}
                       id={`btn-mob-diesel-${o.id}`}
-                      onClick={() => setDieselModalTarget(o)}
+                      disabled={isBilled || isCancelled}
+                      onClick={() => {
+                        if (!isBilled && !isCancelled) {
+                          setDieselModalTarget(o);
+                        }
+                      }}
                     >
                       <Icon.Fuel />
                     </button>
@@ -1686,7 +1794,7 @@ export default function GeneratorOrderList() {
               <br /><br />
               The generator units will be immediately released and available for new bookings.
               <br />
-              <span style={{ color: '#059669', fontWeight: 600 }}>Billing is NOT affected</span> — it can still remain pending.
+              <span style={{ color: '#059669', fontWeight: 600 }}>Billing is NOT affected</span> - it can still remain pending.
             </p>
             <div className="go-modal-actions">
               <button
@@ -1838,21 +1946,43 @@ export default function GeneratorOrderList() {
           }}
           onClick={e => e.stopPropagation()}
         >
-          <button
-            className="go-dropdown-item"
-            id="menu-item-edit-order"
-            disabled={dropdownMenuState.order.orderStatus === 'CANCELLED'}
-            style={dropdownMenuState.order.orderStatus === 'CANCELLED' ? { opacity: 0.45, cursor: 'default' } : {}}
-            onClick={() => {
-              if (dropdownMenuState.order.orderStatus === 'CANCELLED') return;
-              const orderId = dropdownMenuState.order.id;
-              setDropdownMenuState(null);
-              navigate(ROUTES.GENERATOR_ORDER_EDIT.replace(':id', orderId));
-            }}
-          >
-            <Icon.Edit />
-            <span>Edit Order</span>
-          </button>
+          {(() => {
+            const isMenuBilled = dropdownMenuState.order.billingStatus === 'COMPLETED';
+            const isMenuCancelled = dropdownMenuState.order.orderStatus === 'CANCELLED';
+            const isEditDisabled = isMenuCancelled || isMenuBilled;
+
+            return (
+              <button
+                className="go-dropdown-item"
+                id="menu-item-edit-order"
+                disabled={isEditDisabled}
+                style={isEditDisabled ? { opacity: 0.45, cursor: 'not-allowed' } : {}}
+                title={
+                  isMenuBilled
+                    ? 'Order cannot be edited after billing is completed'
+                    : isMenuCancelled
+                    ? 'Cannot edit cancelled order'
+                    : 'Edit Order'
+                }
+                onClick={() => {
+                  if (isEditDisabled) return;
+                  const orderId = dropdownMenuState.order.id;
+                  setDropdownMenuState(null);
+                  navigate(ROUTES.GENERATOR_ORDER_EDIT.replace(':id', orderId));
+                }}
+              >
+                <Icon.Edit />
+                <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: 6 }}>
+                  <span>Edit Order</span>
+                  {isMenuBilled && (
+                    <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 4, background: '#E0F2FE', color: '#0369A1' }}>
+                      Billed
+                    </span>
+                  )}
+                </span>
+              </button>
+            );
+          })()}
 
           <button
             className="go-dropdown-item"
@@ -1930,27 +2060,41 @@ export default function GeneratorOrderList() {
             </button>
           )}
 
-          {/* Cancel Order — only visible if not already cancelled/completed */}
-          {dropdownMenuState.order.orderStatus !== 'CANCELLED' && dropdownMenuState.order.orderStatus !== 'COMPLETED' && (
-            <button
-              className="go-dropdown-item cancel-item"
-              id="menu-item-cancel-order"
-              onClick={() => {
-                const o = dropdownMenuState.order;
-                setDropdownMenuState(null);
-                setCancelOrderTarget(o);
-              }}
-            >
-              <svg width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                <circle cx="12" cy="12" r="10"/>
-                <line x1="8" y1="8" x2="16" y2="16"/>
-                <line x1="16" y1="8" x2="8" y2="16"/>
-              </svg>
-              <span>Cancel Order</span>
-            </button>
-          )}
+          {/* Cancel Order - disabled if billing completed, or hidden if cancelled/returned */}
+          {dropdownMenuState.order.orderStatus !== 'CANCELLED' && dropdownMenuState.order.orderStatus !== 'COMPLETED' && (() => {
+            const isMenuBilled = dropdownMenuState.order.billingStatus === 'COMPLETED';
+            return (
+              <button
+                className="go-dropdown-item cancel-item"
+                id="menu-item-cancel-order"
+                disabled={isMenuBilled}
+                style={isMenuBilled ? { opacity: 0.45, cursor: 'not-allowed' } : {}}
+                title={isMenuBilled ? 'Order cannot be cancelled after billing is completed' : 'Cancel Order'}
+                onClick={() => {
+                  if (isMenuBilled) return;
+                  const o = dropdownMenuState.order;
+                  setDropdownMenuState(null);
+                  setCancelOrderTarget(o);
+                }}
+              >
+                <svg width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <circle cx="12" cy="12" r="10"/>
+                  <line x1="8" y1="8" x2="16" y2="16"/>
+                  <line x1="16" y1="8" x2="8" y2="16"/>
+                </svg>
+                <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: 6 }}>
+                  <span>Cancel Order</span>
+                  {isMenuBilled && (
+                    <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 4, background: '#E0F2FE', color: '#0369A1' }}>
+                      Billed
+                    </span>
+                  )}
+                </span>
+              </button>
+            );
+          })()}
 
-          {/* Cancelled badge — shown when already cancelled */}
+          {/* Cancelled badge - shown when already cancelled */}
           {dropdownMenuState.order.orderStatus === 'CANCELLED' && (
             <button className="go-dropdown-item" disabled style={{ opacity: 0.5, cursor: 'default' }}>
               <svg width="15" height="15" fill="none" stroke="#B91C1C" strokeWidth="2" viewBox="0 0 24 24">

@@ -7,6 +7,7 @@ import {
   formatToDMY,
   formatRangeToDMY,
   parseDateStr,
+  getCableRate,
 } from './mockData';
 import { X, Fuel, AlertCircle, Plus, Trash2, CheckCircle2, Clock } from 'lucide-react';
 
@@ -16,6 +17,7 @@ const parseDurationToHours = (durStr) => {
   const [h, m] = durStr.split(':').map(Number);
   return (h || 0) + ((m || 0) / 60);
 };
+
 
 const parseRentalDays = (functionDate) => {
   if (!functionDate) return 1;
@@ -81,7 +83,7 @@ export default function GeneratorDieselModal({ isOpen, onClose, order, onSuccess
         if (dates.length === 0) {
           dates.push(new Date().toISOString().split('T')[0]);
         }
-
+        
         const entriesMap = {};
         (foundOrder.generators || []).forEach(g => {
           const gId = g.id || g._id;
@@ -101,7 +103,6 @@ export default function GeneratorDieselModal({ isOpen, onClose, order, onSuccess
             }));
           }
         });
-
         setDieselEntries(entriesMap);
         setLoading(false);
       })
@@ -227,7 +228,9 @@ export default function GeneratorDieselModal({ isOpen, onClose, order, onSuccess
           orderItemId: g.id,
           rentPerDay: g.rate != null ? g.rate : 0,
           dieselPerHour: g.dieselRate != null ? g.dieselRate : 0,
-          cableRate: g.cableRate != null ? g.cableRate : 0,
+          cableRate: (g.cableRate != null && Number(g.cableRate) > 0)
+            ? g.cableRate
+            : (g.cableSize ? getCableRate(g.cableSize) : 0),
           dieselEntries: (dieselEntries[gKey] || []).map(e => {
             const parsed = parseDateStr(e.date);
             const ymd = parsed ? `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, '0')}-${String(parsed.getDate()).padStart(2, '0')}` : e.date;
@@ -309,7 +312,7 @@ export default function GeneratorDieselModal({ isOpen, onClose, order, onSuccess
               <div className="text-[11px] sm:text-xs text-slate-500 mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5">
                 <span>Order: <strong className="text-slate-800">{order?.orderNumber || `#${order?.id}`}</strong></span>
                 <span>•</span>
-                <span className="truncate max-w-[140px] sm:max-w-none">Client: <strong className="text-slate-800">{order?.clientName || '—'}</strong></span>
+                <span className="truncate max-w-[140px] sm:max-w-none">Client: <strong className="text-slate-800">{order?.clientName || '-'}</strong></span>
                 {order?.functionDate && (
                   <>
                     <span>•</span>
@@ -374,12 +377,11 @@ export default function GeneratorDieselModal({ isOpen, onClose, order, onSuccess
                 </div>
 
                 <div className="overflow-x-auto">
-                  <table className="w-full border-collapse text-xs sm:text-sm text-left min-w-[760px]">
+                  <table className="w-full border-collapse text-xs sm:text-sm text-left min-w-[700px]">
                     <thead>
                       <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
                         <th className="py-2.5 px-2.5 w-10 text-center whitespace-nowrap">#</th>
                         <th className="py-2.5 px-3 whitespace-nowrap">Description</th>
-                        <th className="py-2.5 px-3 text-center w-14 whitespace-nowrap">Days</th>
                         <th className="py-2.5 px-3 text-center w-28 whitespace-nowrap">Date</th>
                         <th className="py-2.5 px-3 text-center w-32 whitespace-nowrap">Start Time</th>
                         <th className="py-2.5 px-3 text-center w-32 whitespace-nowrap">End Time</th>
@@ -453,11 +455,6 @@ export default function GeneratorDieselModal({ isOpen, onClose, order, onSuccess
                                     </div>
                                   </td>
                                 )}
-
-                                {/* Days */}
-                                <td style={{ padding: '10px 12px', textAlign: 'center', color: '#92400e', fontWeight: 600 }}>
-                                  —
-                                </td>
 
                                 {/* Date */}
                                 <td style={{

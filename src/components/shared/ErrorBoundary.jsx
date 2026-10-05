@@ -106,7 +106,7 @@ export default class ErrorBoundary extends React.Component {
 
             {isChunk && (
               <div className="eb-hint">
-                💡 This is normal after a new deployment — your browser was using old cached files.
+                💡 This is normal after a new deployment - your browser was using old cached files.
               </div>
             )}
 

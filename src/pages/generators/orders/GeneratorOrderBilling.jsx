@@ -293,6 +293,190 @@ const STYLES = `
     .gb2-summary-box { width: 100%; }
     .gb2-page { padding: 16px; }
   }
+
+  /* ── Other Charges Responsive Styles ── */
+  .gb2-oc-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px 12px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+  }
+  .gb2-oc-header-title-wrap {
+    display: flex;
+    align-items: baseline;
+    gap: 6px 10px;
+    flex-wrap: wrap;
+  }
+  .gb2-oc-add-btn {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    background: linear-gradient(135deg, #6366f1, #4f46e5);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 7px 14px;
+    font-size: 12.5px;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(99,102,241,0.25);
+    transition: transform 0.15s, box-shadow 0.15s;
+    font-family: inherit;
+    flex-shrink: 0;
+  }
+  .gb2-oc-add-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 14px rgba(99,102,241,0.35);
+  }
+  .gb2-oc-row {
+    background: var(--color-surface-2);
+    border: 1px solid var(--color-border);
+    border-radius: 10px;
+    padding: 10px 14px;
+    transition: border-color .2s;
+  }
+  .gb2-oc-row:focus-within {
+    border-color: var(--color-primary);
+  }
+  .gb2-oc-idx {
+    font-size: 13px;
+    color: var(--color-text-muted);
+    font-weight: 700;
+    min-width: 22px;
+    flex-shrink: 0;
+  }
+  .gb2-oc-name-input {
+    min-width: 0;
+  }
+  .gb2-oc-amount-wrap {
+    position: relative;
+  }
+  .gb2-oc-currency-symbol {
+    position: absolute;
+    left: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--color-text-muted);
+    font-weight: 700;
+    font-size: 13px;
+    pointer-events: none;
+  }
+  .gb2-oc-amount-input {
+    padding-left: 26px !important;
+  }
+  .gb2-oc-remove-btn {
+    background: #FEF2F2;
+    color: #DC2626;
+    border: 1px solid #FECACA;
+    border-radius: 7px;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-weight: 700;
+    font-size: 16px;
+    flex-shrink: 0;
+    transition: all .15s;
+    padding: 0;
+  }
+  .gb2-oc-remove-btn:hover {
+    background: #FEE2E2;
+    border-color: #DC2626;
+  }
+  .gb2-oc-formatted-amount {
+    font-family: monospace;
+    font-weight: 700;
+    color: var(--color-primary-dark);
+    font-size: 13.5px;
+    white-space: nowrap;
+  }
+
+  /* Desktop layout (> 640px) */
+  @media (min-width: 641px) {
+    .gb2-oc-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .gb2-oc-row-top {
+      display: contents;
+    }
+    .gb2-oc-row-bottom {
+      display: contents;
+    }
+    .gb2-oc-idx {
+      order: 1;
+    }
+    .gb2-oc-name-input {
+      order: 2;
+      flex: 2;
+      min-width: 0;
+    }
+    .gb2-oc-amount-wrap {
+      order: 3;
+      flex: 1;
+      min-width: 120px;
+    }
+    .gb2-oc-formatted-amount {
+      order: 4;
+      min-width: 90px;
+      text-align: right;
+      flex-shrink: 0;
+    }
+    .gb2-oc-remove-btn {
+      order: 5;
+    }
+  }
+
+  /* Mobile / Small screen layout (<= 640px) */
+  @media (max-width: 640px) {
+    .gb2-oc-row {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      padding: 10px 10px;
+    }
+    .gb2-oc-row-top {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      width: 100%;
+    }
+    .gb2-oc-name-input {
+      flex: 1 !important;
+      min-width: 0 !important;
+      width: 100%;
+    }
+    .gb2-oc-row-bottom {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      width: 100%;
+      padding-left: 28px;
+    }
+    .gb2-oc-amount-wrap {
+      flex: 1 !important;
+      min-width: 0 !important;
+    }
+    .gb2-oc-formatted-amount {
+      min-width: fit-content;
+      text-align: right;
+      flex-shrink: 0;
+    }
+  }
+
+  @media (max-width: 380px) {
+    .gb2-oc-row-bottom {
+      padding-left: 0;
+    }
+    .gb2-oc-row {
+      padding: 8px;
+    }
+  }
 `;
 
 /* ─── Sub-components ─────────────────────────────────────────────────────── */
@@ -366,6 +550,15 @@ export default function GeneratorOrderBilling() {
   const [showShareModal, setShowShareModal] = useState(false);
   const [generatorsList, setGeneratorsList] = useState([]);
   const [paymentDueDate, setPaymentDueDate] = useState('');
+
+  /* ── Auto-dismiss toast after 3.5 seconds ── */
+  useEffect(() => {
+    if (!toast) return;
+    const timer = setTimeout(() => {
+      setToast(null);
+    }, 3500);
+    return () => clearTimeout(timer);
+  }, [toast]);
 
   /* ── Disable Browser Inspect (F12, Right-Click, Ctrl+Shift+I, etc.) ── */
   useEffect(() => {
@@ -468,10 +661,13 @@ export default function GeneratorOrderBilling() {
         if (foundOrder.generators) {
             foundOrder.generators.forEach(g => {
                 const gId = g.id || g._id;
-                // Keep as the API value (may be null for new orders — auto-populate will fill it)
+                // Keep as the API value (may be null for new orders - auto-populate will fill it)
                 existingRent[gId] = g.rate != null ? g.rate : '';
                 existingDiesel[gId] = g.dieselRate != null ? g.dieselRate : null;
-                existingCable[gId] = g.cableRate != null ? g.cableRate : (g.cableSize ? getCableRate(g.cableSize) : 0);
+                const defaultCableRate = g.cableSize ? getCableRate(g.cableSize) : '';
+                existingCable[gId] = (g.cableRate != null && Number(g.cableRate) > 0)
+                  ? g.cableRate
+                  : (defaultCableRate || '');
                 
                 if (g.dieselEntries && g.dieselEntries.length > 0) {
                     existingEntries[gId] = g.dieselEntries.map(e => ({
@@ -502,7 +698,7 @@ export default function GeneratorOrderBilling() {
           setOtherCharges([]);
         }
         setDiscount(foundOrder.discountAmount || 0);
-        setBillNo(foundOrder.billNumber || '—');
+        setBillNo(foundOrder.billNumber || '-');
         // Load paymentDueDate: if saved use it, else default to today + 7 days
         if (foundOrder.paymentDueDate) {
           setPaymentDueDate(foundOrder.paymentDueDate);
@@ -521,60 +717,71 @@ export default function GeneratorOrderBilling() {
 
   /* ── Auto-fetch and populate default rates from catalog when both order and generators are ready ── */
   useEffect(() => {
-    if (!order || !generatorsList.length) return;
+    if (!order) return;
 
     let updated = false;
     const nextRent = { ...rentPerDay };
     const nextDiesel = { ...dieselPerHour };
+    const nextCable = { ...cableRatePerDay };
 
     (order.generators || []).forEach(g => {
       const gId = g.id || g._id;
       const isWithDiesel = order.withDiesel || (order.dieselType && order.dieselType !== 'PARTY');
 
-      // 1. Rent price per day = partyDieselRentPrice (base generator rent WITHOUT diesel component)
-      //    This is always the base rent regardless of which party provides diesel.
-      if (!nextRent[gId]) {
-        const genObj = generatorsList.find(item => String(item.id) === String(g.generatorId));
-        
+      if (generatorsList && generatorsList.length) {
+        // 1. Rent price per day = partyDieselRentPrice (base generator rent WITHOUT diesel component)
+        //    This is always the base rent regardless of which party provides diesel.
+        if (!nextRent[gId]) {
+          const genObj = generatorsList.find(item => String(item.id) === String(g.generatorId));
+          const isLikelyBugged = isWithDiesel && genObj && g.rate === genObj.withDieselRentPrice && g.rate !== genObj.partyDieselRentPrice;
 
-        const isLikelyBugged = isWithDiesel && genObj && g.rate === genObj.withDieselRentPrice && g.rate !== genObj.partyDieselRentPrice;
-
-        if (g.rate && !isLikelyBugged) {
-          nextRent[gId] = g.rate;
-        } else {
-          if (genObj && genObj.partyDieselRentPrice != null) {
-            nextRent[gId] = genObj.partyDieselRentPrice;
+          if (g.rate && !isLikelyBugged) {
+            nextRent[gId] = g.rate;
           } else {
-            nextRent[gId] = '';
+            if (genObj && genObj.partyDieselRentPrice != null) {
+              nextRent[gId] = genObj.partyDieselRentPrice;
+            } else {
+              nextRent[gId] = '';
+            }
           }
+          updated = true;
         }
-        updated = true;
+
+        // 2. Diesel price per hour - use the saved dieselRate from the order item.
+        //    For new orders (dieselRate not yet saved), fall back to the generator's
+        //    withDieselRentPrice from the inventory catalog as a sensible default.
+        //    Check falsy (covers: null, undefined, '', 0) to decide whether to auto-fill.
+        if (!nextDiesel[gId] && nextDiesel[gId] !== 0) {
+          if (g.dieselRate) {
+            nextDiesel[gId] = g.dieselRate;
+          } else {
+            const genObj = generatorsList.find(item => String(item.id) === String(g.generatorId));
+            if (genObj && genObj.withDieselRentPrice != null) {
+              // withDieselRentPrice is the per-day rent WITH diesel - use it as the diesel charge default
+              nextDiesel[gId] = genObj.withDieselRentPrice;
+            } else {
+              // No catalog data available; leave blank so user can enter manually
+              nextDiesel[gId] = '';
+            }
+          }
+          updated = true;
+        }
       }
 
-      // 2. Diesel price per hour — use the saved dieselRate from the order item.
-      //    For new orders (dieselRate not yet saved), fall back to the generator's
-      //    withDieselRentPrice from the inventory catalog as a sensible default.
-      //    Check falsy (covers: null, undefined, '', 0) to decide whether to auto-fill.
-      if (!nextDiesel[gId] && nextDiesel[gId] !== 0) {
-        if (g.dieselRate) {
-          nextDiesel[gId] = g.dieselRate;
-        } else {
-          const genObj = generatorsList.find(item => String(item.id) === String(g.generatorId));
-          if (genObj && genObj.withDieselRentPrice != null) {
-            // withDieselRentPrice is the per-day rent WITH diesel — use it as the diesel charge default
-            nextDiesel[gId] = genObj.withDieselRentPrice;
-          } else {
-            // No catalog data available; leave blank so user can enter manually
-            nextDiesel[gId] = '';
-          }
+      // 3. Cable price per day - auto-populate from catalog if not set or <= 0
+      if (g.cableSize && (nextCable[gId] === undefined || nextCable[gId] === '' || Number(nextCable[gId]) <= 0)) {
+        const stdRate = getCableRate(g.cableSize);
+        if (stdRate > 0) {
+          nextCable[gId] = stdRate;
+          updated = true;
         }
-        updated = true;
       }
     });
 
     if (updated) {
       setRentPerDay(nextRent);
       setDieselPerHour(nextDiesel);
+      setCableRatePerDay(nextCable);
     }
   }, [order, generatorsList]);
 
@@ -677,7 +884,9 @@ export default function GeneratorOrderBilling() {
       const cableSize   = g.cableSize || '';
       const rawCableRate = cableRatePerDay[gKey];
       const cableRate   = (cableRequired && cableSize)
-        ? (rawCableRate !== undefined && rawCableRate !== '' ? (parseFloat(rawCableRate) || 0) : getCableRate(cableSize))
+        ? (rawCableRate !== undefined && rawCableRate !== '' && Number(rawCableRate) > 0
+            ? (parseFloat(rawCableRate) || 0)
+            : (rawCableRate === '0' || rawCableRate === 0 ? 0 : getCableRate(cableSize)))
         : 0;
       const cableAmount = parseFloat((cableRate * rentalDays).toFixed(2));
 
@@ -821,17 +1030,17 @@ export default function GeneratorOrderBilling() {
     generatorOrderService.updateBilling(id, req)
        .then((res) => {
            setOrder(res);
-           // Bill number is only assigned after completeBilling — keep whatever is already shown
+           // Bill number is only assigned after completeBilling - keep whatever is already shown
            if (res.billNumber) setBillNo(res.billNumber);
            setToast({ title: 'Bill Saved!', msg: `Billing data saved successfully.` });
            if (showCompleteModal) {
                generatorOrderService.completeBilling(id).then((completeRes) => {
                    setOrder(completeRes);
-                   // Bill number is now assigned — update state
-                   setBillNo(completeRes.billNumber || '—');
+                   // Bill number is now assigned - update state
+                   setBillNo(completeRes.billNumber || '-');
                    setIsCompleted(true);
                    setShowCompleteModal(false);
-                   setToast({ title: 'Bill Completed!', msg: `Bill No: ${completeRes.billNumber || '—'} has been locked.` });
+                   setToast({ title: 'Bill Completed!', msg: `Bill No: ${completeRes.billNumber || '-'} has been locked.` });
                }).catch(e => {
                    console.error('completeBilling failed', e);
                    alert('Failed to complete bill. Please try again.');
@@ -858,32 +1067,38 @@ export default function GeneratorOrderBilling() {
 
     const rows = calculations.items.map((g, idx) => `
       <tr>
-        <td rowspan="${(g.cableSize && cableRequired ? 1 : 0) + (withDiesel && g.entries ? g.entries.length : 0) + 1}" style="border:1px solid #cbd5e1;padding:9px 10px;text-align:center;font-size:13px;vertical-align:top;">${idx+1}</td>
+        <td rowspan="${(g.cableSize && cableRequired ? 1 : 0) + (withDiesel && g.entries ? g.entries.length + (g.entries.length > 1 ? 1 : 0) : 0) + 1}" style="border:1px solid #cbd5e1;padding:9px 10px;text-align:center;font-size:13px;vertical-align:top;">${idx+1}</td>
         <td style="border:1px solid #cbd5e1;padding:9px 10px;font-size:13px;font-weight:700;">${g.generatorName}</td>
         <td style="border:1px solid #cbd5e1;padding:9px 10px;text-align:right;font-size:12px;font-family:monospace;">${fmtCurrency(g.rentDay)}/day</td>
         <td style="border:1px solid #cbd5e1;padding:9px 10px;text-align:center;font-size:12px;">${rentalDays} day${rentalDays!==1?'s':''}</td>
-        <td style="border:1px solid #cbd5e1;padding:9px 10px;text-align:center;font-size:12px;">—</td>
+        <td style="border:1px solid #cbd5e1;padding:9px 10px;text-align:center;font-size:12px;">-</td>
         ${withDiesel ? `<td style="border:1px solid #cbd5e1;"></td><td style="border:1px solid #cbd5e1;"></td><td style="border:1px solid #cbd5e1;"></td>` : ''}
         <td style="border:1px solid #cbd5e1;padding:9px 10px;text-align:right;font-size:13px;font-weight:800;color:#1e40af;font-family:monospace;">${fmtCurrency(g.genAmount)}</td>
       </tr>
       ${withDiesel && g.entries ? g.entries.map((de, dIdx) => {
         const isFirstForDate = dIdx === 0 || g.entries[dIdx - 1].date !== de.date;
+        const entryAmt = parseFloat((g.dPrice * (de.duration || 0)).toFixed(2));
         return `<tr style="background:#fffbeb;">
-        ${dIdx === 0 ? `<td rowspan="${g.entries.length}" style="border:1px solid #cbd5e1;padding:8px 10px;font-size:12.5px;color:#92400e;padding-left:18px;">⛽ Diesel Charge</td>` : ''}
-        ${dIdx === 0 ? `<td rowspan="${g.entries.length}" style="border:1px solid #cbd5e1;padding:8px 10px;text-align:right;font-size:12px;font-family:monospace;color:#92400e;">${fmtCurrency(g.dPrice)}/hr</td>` : ''}
-        <td style="border:1px solid #cbd5e1;padding:8px 10px;text-align:center;font-size:12px;color:#92400e;">—</td>
+        ${dIdx === 0 ? `<td rowspan="${g.entries.length + (g.entries.length > 1 ? 1 : 0)}" style="border:1px solid #cbd5e1;padding:8px 10px;font-size:12.5px;color:#92400e;padding-left:18px;">⛽ Diesel Charge</td>` : ''}
+        ${dIdx === 0 ? `<td rowspan="${g.entries.length + (g.entries.length > 1 ? 1 : 0)}" style="border:1px solid #cbd5e1;padding:8px 10px;text-align:right;font-size:12px;font-family:monospace;color:#92400e;">${fmtCurrency(g.dPrice)}/hr</td>` : ''}
+        <td style="border:1px solid #cbd5e1;padding:8px 10px;text-align:center;font-size:12px;color:#92400e;">-</td>
         <td style="border:1px solid #cbd5e1;padding:8px 10px;text-align:center;font-size:12px;color:${isFirstForDate ? '#92400e' : '#b45309'};font-weight:${isFirstForDate ? '600' : '400'}">${isFirstForDate ? fmtDate(de.date) : '&#8627;'}</td>
         <td style="border:1px solid #cbd5e1;padding:8px 10px;text-align:center;font-size:12px;color:#92400e;">${de.startTime}</td>
         <td style="border:1px solid #cbd5e1;padding:8px 10px;text-align:center;font-size:12px;color:#92400e;">${de.endTime}</td>
         <td style="border:1px solid #cbd5e1;padding:8px 10px;text-align:center;font-size:12px;color:#92400e;">${formatDurationDisplay(de.duration)}</td>
-        ${dIdx === 0 ? `<td rowspan="${g.entries.length}" style="border:1px solid #cbd5e1;padding:8px 10px;text-align:right;font-size:13px;font-weight:700;color:#92400e;font-family:monospace;">${fmtCurrency(g.dieselAmount)}</td>` : ''}
+        <td style="border:1px solid #cbd5e1;padding:8px 10px;text-align:right;font-size:12px;font-weight:700;color:#92400e;font-family:monospace;">${fmtCurrency(entryAmt)}</td>
       </tr>`;
       }).join('') : ''}
+      ${withDiesel && g.entries && g.entries.length > 1 ? `<tr style="background:#fef3c7;font-weight:700;">
+        <td colspan="4" style="border:1px solid #cbd5e1;padding:6px 10px;text-align:right;font-size:11.5px;color:#92400e;">Total Diesel:</td>
+        <td style="border:1px solid #cbd5e1;padding:6px 10px;text-align:center;font-size:12px;color:#92400e;font-weight:800;">${formatDurationDisplay(g.totalDieselHours)}</td>
+        <td style="border:1px solid #cbd5e1;padding:6px 10px;text-align:right;font-size:13px;font-weight:800;color:#92400e;font-family:monospace;">${fmtCurrency(g.dieselAmount)}</td>
+      </tr>` : ''}
       ${(g.cableSize && cableRequired) ? `<tr style="background:#eff6ff;">
-        <td style="border:1px solid #cbd5e1;padding:8px 10px;font-size:12.5px;color:#1e40af;padding-left:18px;">🔌 Cable ${g.cableSize}${g.cableSize!=='Earth Rod'?' mm²':''}</td>
+        <td style="border:1px solid #cbd5e1;padding:8px 10px;font-size:12.5px;color:#1e40af;padding-left:18px;">🔌 Cable ${g.cableSize}${g.cableSize!=='Earth Rod' && g.cableSize!=='Other'?' mm²':''}</td>
         <td style="border:1px solid #cbd5e1;padding:8px 10px;text-align:right;font-size:12px;font-family:monospace;color:#1e40af;">${fmtCurrency(g.cableRate)}/day</td>
         <td style="border:1px solid #cbd5e1;padding:8px 10px;text-align:center;font-size:12px;color:#1e40af;">${rentalDays} day${rentalDays!==1?'s':''}</td>
-        <td style="border:1px solid #cbd5e1;padding:8px 10px;text-align:center;font-size:12px;color:#1e40af;">—</td>
+        <td style="border:1px solid #cbd5e1;padding:8px 10px;text-align:center;font-size:12px;color:#1e40af;">-</td>
         ${withDiesel ? `<td style="border:1px solid #cbd5e1;"></td><td style="border:1px solid #cbd5e1;"></td><td style="border:1px solid #cbd5e1;"></td>` : ''}
         <td style="border:1px solid #cbd5e1;padding:8px 10px;text-align:right;font-size:13px;font-weight:700;color:#1e40af;font-family:monospace;">${fmtCurrency(g.cableAmount)}</td>
       </tr>` : ''}
@@ -935,9 +1150,9 @@ export default function GeneratorOrderBilling() {
 
         <div class="sec">
           <div class="half"><div class="slabel">Client Details</div>
-            <div class="dr"><span class="dk">Name</span><span class="dv">: ${order.clientName||'—'}</span></div>
-            <div class="dr"><span class="dk">Contact</span><span class="dv">: ${order.contactNumber||'—'}</span></div>
-            ${order.alternateMobile?`<div class="dr"><span class="dk">Alt. Mobile</span><span class="dv">: ${order.alternateMobile}</span></div>`:''}
+            <div class="dr"><span class="dk">Name</span><span class="dv">: ${order.clientName||'-'}</span></div>
+            <div class="dr"><span class="dk">Mob. No.</span><span class="dv">: ${order.contactNumber||'-'}</span></div>
+            ${order.alternateMobile?`<div class="dr"><span class="dk">Alt. Mob. No.</span><span class="dv">: ${order.alternateMobile}</span></div>`:''}
           </div>
           <div class="half"><div class="slabel">Service Details</div>
             <div class="dr"><span class="dk">Function Date</span><span class="dv">: ${fmtFuncDate(order.functionDate)}</span></div>
@@ -945,7 +1160,7 @@ export default function GeneratorOrderBilling() {
         </div>
         <div class="site">
           <div class="slabel">Site Address</div>
-          <div style="font-size:13px;font-weight:600;margin-top:4px;">${order.siteAddress||'—'}</div>
+          <div style="font-size:13px;font-weight:600;margin-top:4px;">${order.siteAddress||'-'}</div>
           ${order.siteAddressLink?`<div style="font-size:12px;margin-top:3px;"><a href="${order.siteAddressLink}" style="color:#2563eb;">${order.siteAddressLink}</a></div>`:''}
         </div>
 
@@ -1090,7 +1305,7 @@ export default function GeneratorOrderBilling() {
             <div className="gb2-field"><Label>Contact Number</Label><input className="gb2-input" value={order.contactNumber} disabled readOnly /></div>
           </div>
           <div className="gb2-grid-3" style={{ marginBottom:18 }}>
-            <div className="gb2-field"><Label>Alternate Mobile</Label><input className="gb2-input" value={order.alternateMobile || '—'} disabled readOnly /></div>
+            <div className="gb2-field"><Label>Alternate Mobile</Label><input className="gb2-input" value={order.alternateMobile || '-'} disabled readOnly /></div>
             <div className="gb2-field"><Label>Function Date</Label>
               <input className="gb2-input" value={formatRangeToDMY(order.functionDate || (order.functionDateFrom && order.functionDateTo ? `${order.functionDateFrom} to ${order.functionDateTo}` : ''))} disabled readOnly />
             </div>
@@ -1100,14 +1315,14 @@ export default function GeneratorOrderBilling() {
             </div>
           </div>
           <div className="gb2-grid-3" style={{ marginBottom:18 }}>
-            <div className="gb2-field"><Label>Operator Name</Label><input className="gb2-input" value={order.operatorName || '—'} disabled readOnly /></div>
+            <div className="gb2-field"><Label>Operator Name</Label><input className="gb2-input" value={order.operatorName || '-'} disabled readOnly /></div>
             <div className="gb2-field"><Label>Cable Required</Label>
               <input className="gb2-input" style={{ fontWeight:700, color: order.cableRequired ? '#065F46' : '#991B1B' }}
                 value={order.cableRequired ? '✓ Yes - Cable charges apply' : '✗ No - No cable charges'} disabled readOnly />
             </div>
             <div className="gb2-field"><Label>Diesel</Label>
               <input className="gb2-input" style={{ fontWeight:700, color: withDiesel ? '#92400e' : '#475569' }}
-                value={withDiesel ? 'With Diesel - Diesel charges apply' : 'Party Diesel — No diesel charges'} disabled readOnly />
+                value={withDiesel ? 'With Diesel - Diesel charges apply' : 'Party Diesel - No diesel charges'} disabled readOnly />
             </div>
           </div>
           <div className="gb2-field" style={{ marginBottom:18 }}>
@@ -1143,7 +1358,6 @@ export default function GeneratorOrderBilling() {
                 className="gb2-input"
                 type="date"
                 value={paymentDueDate}
-                disabled={isCompleted}
                 onChange={e => setPaymentDueDate(e.target.value)}
                 style={{ fontWeight:600 }}
               />
@@ -1172,7 +1386,7 @@ export default function GeneratorOrderBilling() {
             <span>📋</span>
             <span>
               <strong>Billing for {rentalDays} day{rentalDays!==1?'s':''}</strong>
-              {' — '}Generator Rent = Rent/Day × Days
+              {' - '}Generator Rent = Rent/Day × Days
               {withDiesel && <> · <strong>Diesel</strong> = ₹/Hr × Diesel Hours</>}
               {cableRequired && <> · <strong>Cable</strong> = Rate/Day × Days (only if cable selected)</>}
             </span>
@@ -1229,7 +1443,7 @@ export default function GeneratorOrderBilling() {
 
                     {/* ── Generator Rent Row ── */}
                     <tr className="gb2-tr-gen">
-                      <td className="gb2-td" rowSpan={1 + (withDiesel ? (g.entries?.length || 0) : 0) + (g.cableSize && cableRequired ? 1 : 0)}
+                      <td className="gb2-td" rowSpan={1 + (withDiesel ? (g.entries?.length || 0) + ((g.entries?.length || 0) > 1 ? 1 : 0) : 0) + (g.cableSize && cableRequired ? 1 : 0)}
                         style={{ verticalAlign:'top', color:'var(--color-text-subtle)', fontWeight:700, paddingTop:14 }}>
                         {idx+1}
                       </td>
@@ -1247,7 +1461,6 @@ export default function GeneratorOrderBilling() {
                           onBlur={() => handleRentBlur(g._key, rentPerDay[g._key])}
                           placeholder="₹/day"
                           error={rentErrors[g._key]}
-                          disabled={isCompleted}
                         />
                         <div style={{ fontSize:10.5, color:'var(--color-text-subtle)', marginTop:3, textAlign:'right' }}>₹/day</div>
                       </td>
@@ -1255,27 +1468,29 @@ export default function GeneratorOrderBilling() {
                         {rentalDays}
                       </td>
                       <td className="gb2-td" style={{ textAlign:'center', fontWeight:700, color:'var(--color-text)' }}>
-                        —
+                        -
                       </td>
                       {withDiesel && <td className="gb2-td" />}
                       {withDiesel && <td className="gb2-td" />}
                       {withDiesel && <td className="gb2-td" />}
-                      {withDiesel && <td className="gb2-td" />}  {/* Actions placeholder */}
+                      {withDiesel && <td className="gb2-td" /* Actions placeholder */ />}
                       <td className="gb2-td" style={{ textAlign:'right', fontWeight:700, fontFamily:'monospace', color:'var(--color-primary-dark)' }}>
                         {fmtCurrency(g.genAmount)}
                       </td>
                     </tr>
 
-                    {/* ── Diesel Rows (only when withDiesel) — supports multiple slots per date ── */}
+                    {/* ── Diesel Rows (only when withDiesel) - supports multiple slots per date ── */}
                     {withDiesel && g.entries && g.entries.map((de, dIdx) => {
                       const slotsForDate = (g.dateGroupMap && g.dateGroupMap[de.date]) || [];
                       const isFirstForDate = slotsForDate.length === 0 || slotsForDate[0] === dIdx;
                       const isLastForDate  = slotsForDate.length === 0 || slotsForDate[slotsForDate.length - 1] === dIdx;
                       const slotCount = slotsForDate.length;
+                      const entryAmount = parseFloat((g.dPrice * (de.duration || 0)).toFixed(2));
+
                       return (
                         <tr className="gb2-tr-diesel" key={`diesel-${g._key}-${dIdx}`}>
                           {dIdx === 0 ? (
-                            <td className="gb2-td" style={{ paddingLeft:20 }} rowSpan={g.entries.length}>
+                            <td className="gb2-td" style={{ paddingLeft:20 }} rowSpan={g.entries.length + (g.entries.length > 1 ? 1 : 0)}>
                               <span className="gb2-badge gb2-badge-diesel">⛽ Diesel</span>
                               <div style={{ fontSize:11, color:'var(--color-text-subtle)', marginTop:2 }}>
                                 ₹/hr × {formatDurationDisplay(g.totalDieselHours)}
@@ -1283,21 +1498,20 @@ export default function GeneratorOrderBilling() {
                             </td>
                           ) : null}
                           {dIdx === 0 ? (
-                            <td className="gb2-td" style={{ textAlign:'right' }} rowSpan={g.entries.length}>
+                            <td className="gb2-td" style={{ textAlign:'right' }} rowSpan={g.entries.length + (g.entries.length > 1 ? 1 : 0)}>
                               <NumInput
                                 id={`inp-diesel-price-${idx}`}
                                 value={dieselPerHour[g._key] ?? ''}
                                 onChange={val => handleDieselPriceChange(g._key, val)}
                                 placeholder="₹/hr"
                                 error={dieselErrors[g.id || g._id]}
-                                disabled={isCompleted}
                               />
                               <div style={{ fontSize:10.5, color:'var(--color-text-subtle)', marginTop:3, textAlign:'right' }}>₹/hr</div>
                             </td>
                           ) : null}
                           {/* Days column */}
-                          <td className="gb2-td" style={{ textAlign:'center', color:'#92400e', fontWeight:600 }}>—</td>
-                          {/* Date column — show date on first slot, continuation marker on subsequent slots */}
+                          <td className="gb2-td" style={{ textAlign:'center', color:'#92400e', fontWeight:600 }}>-</td>
+                          {/* Date column - show date on first slot, continuation marker on subsequent slots */}
                           <td className="gb2-td" style={{ textAlign:'center', color: isFirstForDate ? '#92400e' : '#b45309', fontWeight: isFirstForDate ? 600 : 400 }}>
                             {isFirstForDate
                               ? formatToDMY(de.date)
@@ -1306,19 +1520,19 @@ export default function GeneratorOrderBilling() {
                           </td>
                           {/* Diesel Start */}
                           <td className="gb2-td" style={{ textAlign:'center' }}>
-                            <input type="time" className="gb2-inp-time" disabled={isCompleted}
+                            <input type="time" className="gb2-inp-time"
                               style={{ borderColor: dieselConflicts[g._key]?.[dIdx] ? '#ef4444' : undefined }}
                               value={de.startTime || '00:00'}
                               onChange={e => handleDieselEntryChange(g._key, dIdx, 'startTime', e.target.value)} />
                           </td>
                           {/* Diesel End */}
                           <td className="gb2-td" style={{ textAlign:'center' }}>
-                            <input type="time" className="gb2-inp-time" disabled={isCompleted}
+                            <input type="time" className="gb2-inp-time"
                               style={{ borderColor: dieselConflicts[g._key]?.[dIdx] ? '#ef4444' : undefined }}
                               value={de.endTime || '00:00'}
                               onChange={e => handleDieselEntryChange(g._key, dIdx, 'endTime', e.target.value)} />
                           </td>
-                          {/* Diesel Hours — shows conflict warning inline when there's an overlap */}
+                          {/* Diesel Hours - shows conflict warning inline when there's an overlap */}
                           <td className="gb2-td" style={{ textAlign:'center' }}>
                             <div style={{ fontWeight:700, color: dieselConflicts[g._key]?.[dIdx] ? '#dc2626' : '#92400e', whiteSpace:'nowrap' }}>
                               {formatDurationDisplay(de.duration)}
@@ -1331,41 +1545,54 @@ export default function GeneratorOrderBilling() {
                           </td>
                           {/* Actions: remove slot (×) and/or add slot (+) */}
                           <td className="gb2-td" style={{ textAlign:'center', padding:'6px 8px' }}>
-                            {!isCompleted && (
-                              <div style={{ display:'flex', gap:4, justifyContent:'center', alignItems:'center' }}>
-                                {slotCount > 1 && (
-                                  <button
-                                    className="gb2-slot-btn gb2-slot-btn-remove"
-                                    type="button"
-                                    onClick={() => handleRemoveSlot(g._key, dIdx)}
-                                    title="Remove this time slot"
-                                  >×</button>
-                                )}
-                                {isLastForDate && (
-                                  <button
-                                    className="gb2-slot-btn gb2-slot-btn-add"
-                                    type="button"
-                                    onClick={() => handleAddSlotForDate(g._key, de.date)}
-                                    title="Add another time slot for this date"
-                                  >+</button>
-                                )}
-                              </div>
-                            )}
+                            <div style={{ display:'flex', gap:4, justifyContent:'center', alignItems:'center' }}>
+                              {slotCount > 1 && (
+                                <button
+                                  className="gb2-slot-btn gb2-slot-btn-remove"
+                                  type="button"
+                                  onClick={() => handleRemoveSlot(g._key, dIdx)}
+                                  title="Remove this time slot"
+                                >×</button>
+                              )}
+                              {isLastForDate && (
+                                <button
+                                  className="gb2-slot-btn gb2-slot-btn-add"
+                                  type="button"
+                                  onClick={() => handleAddSlotForDate(g._key, de.date)}
+                                  title="Add another time slot for this date"
+                                >+</button>
+                              )}
+                            </div>
                           </td>
-                          {dIdx === 0 ? (
-                            <td className="gb2-td" style={{ textAlign:'right', fontWeight:700, fontFamily:'monospace', color:'#92400e' }} rowSpan={g.entries.length}>
-                              {fmtCurrency(g.dieselAmount)}
-                            </td>
-                          ) : null}
+                          {/* Amount for THIS specific entry */}
+                          <td className="gb2-td" style={{ textAlign:'right', fontWeight:700, fontFamily:'monospace', color:'#92400e' }}>
+                            {fmtCurrency(entryAmount)}
+                          </td>
                         </tr>
                       );
                     })}
+
+                    {/* Total Diesel summary sub-row when multiple entries exist */}
+                    {withDiesel && g.entries && g.entries.length > 1 && (
+                      <tr className="gb2-tr-diesel-total" style={{ background: '#fffbeb', borderTop: '1px dashed #fcd34d' }}>
+                        <td colSpan={4} style={{ padding: '7px 12px', textAlign: 'right', fontSize: 12, fontWeight: 700, color: '#92400e' }}>
+                          Total Diesel:
+                        </td>
+                        <td style={{ textAlign: 'center', fontWeight: 800, color: '#92400e', fontSize: 12.5, whiteSpace: 'nowrap' }}>
+                          {formatDurationDisplay(g.totalDieselHours)}
+                        </td>
+                        <td className="gb2-td"></td>
+                        <td className="gb2-td" style={{ textAlign: 'right', fontWeight: 800, fontFamily: 'monospace', color: '#92400e', fontSize: 13, borderTop: '1.5px solid #fcd34d' }}>
+                          {fmtCurrency(g.dieselAmount)}
+                        </td>
+                      </tr>
+                    )}
 
                     {/* ── Cable Row (only when cableRequired AND cableSize selected) ── */}
                     {g.cableSize && cableRequired && (
                       <tr className="gb2-tr-cable">
                         <td className="gb2-td" style={{ paddingLeft:20 }}>
-                          <span className="gb2-badge gb2-badge-cable">🔌 Cable {g.cableSize}{g.cableSize!=='Earth Rod'?' mm²':''}</span>
+                          <span className="gb2-badge gb2-badge-cable">🔌 Cable {g.cableSize}{g.cableSize!=='Earth Rod' && g.cableSize!=='Other'?' mm²':''}</span>
                           <div style={{ fontSize:11, color:'var(--color-text-subtle)', marginTop:2 }}>
                             {fmtCurrency(g.cableRate)}/day × {rentalDays} day{rentalDays!==1?'s':''}
                           </div>
@@ -1373,17 +1600,21 @@ export default function GeneratorOrderBilling() {
                         <td className="gb2-td" style={{ textAlign:'right' }}>
                           <NumInput
                             id={`inp-cable-rate-${idx}`}
-                            value={cableRatePerDay[g._key] ?? (g.cableSize ? getCableRate(g.cableSize) : '')}
+                            value={
+                              cableRatePerDay[g._key] !== undefined && cableRatePerDay[g._key] !== ''
+                                ? cableRatePerDay[g._key]
+                                : (g.cableSize ? getCableRate(g.cableSize) : '')
+                            }
                             onChange={val => handleCableRateChange(g._key, val)}
                             placeholder="₹/day"
-                            disabled={isCompleted}
+                           
                           />
                           <div style={{ fontSize:10.5, color:'var(--color-text-subtle)', marginTop:3, textAlign:'right' }}>₹/day</div>
                         </td>
                         <td className="gb2-td" style={{ textAlign:'center', fontWeight:700, color:'#1e40af' }}>
                           {rentalDays}
                         </td>
-                        <td className="gb2-td" style={{ textAlign:'center', color:'#94a3b8' }}>—</td>
+                        <td className="gb2-td" style={{ textAlign:'center', color:'#94a3b8' }}>-</td>
                         {withDiesel && <td className="gb2-td" />}
                         {withDiesel && <td className="gb2-td" />}
                         {withDiesel && <td className="gb2-td" />}
@@ -1419,33 +1650,22 @@ export default function GeneratorOrderBilling() {
 
           {/* ─────── Other Charges Section ─────── */}
           <div style={{ marginTop: 18, marginBottom: 4 }}>
-            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom: 10 }}>
-              <div style={{ display:'flex', alignItems:'center', gap: 8 }}>
+            <div className="gb2-oc-header">
+              <div className="gb2-oc-header-title-wrap">
                 <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-text)', textTransform:'uppercase', letterSpacing: '0.5px' }}>Other Charges</span>
-                <span style={{ fontSize: 11.5, color: 'var(--color-text-muted)', fontWeight: 400 }}>(Optional — e.g. catering, maintenance)</span>
+                <span style={{ fontSize: 11.5, color: 'var(--color-text-muted)', fontWeight: 400 }}>(Optional - e.g. catering, maintenance)</span>
               </div>
-              {!isCompleted && (
-                <button
-                  type="button"
-                  id="btn-add-other-charge"
-                  onClick={handleAddOtherCharge}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 5,
-                    background: 'linear-gradient(135deg,#6366f1,#4f46e5)',
-                    color: '#fff', border: 'none', borderRadius: 8,
-                    padding: '7px 14px', fontSize: 12.5, fontWeight: 700,
-                    cursor: 'pointer', boxShadow: '0 2px 8px rgba(99,102,241,0.25)',
-                    transition: 'transform 0.15s, box-shadow 0.15s',
-                  }}
-                  onMouseOver={e => { e.currentTarget.style.transform='translateY(-1px)'; e.currentTarget.style.boxShadow='0 4px 14px rgba(99,102,241,0.35)'; }}
-                  onMouseOut={e => { e.currentTarget.style.transform=''; e.currentTarget.style.boxShadow='0 2px 8px rgba(99,102,241,0.25)'; }}
-                >
-                  <span style={{ fontSize: 16, lineHeight: 1 }}>+</span> Add Charge
-                </button>
-              )}
+              <button
+                type="button"
+                id="btn-add-other-charge"
+                onClick={handleAddOtherCharge}
+                className="gb2-oc-add-btn"
+              >
+                <span style={{ fontSize: 16, lineHeight: 1 }}>+</span> Add Charge
+              </button>
             </div>
 
-            {otherCharges.length === 0 && !isCompleted && (
+            {otherCharges.length === 0 && (
               <div style={{
                 display: 'flex', alignItems: 'center', gap: 10,
                 padding: '12px 16px', borderRadius: 10,
@@ -1460,57 +1680,46 @@ export default function GeneratorOrderBilling() {
             {otherCharges.length > 0 && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {otherCharges.map((oc, idx) => (
-                  <div key={idx} style={{
-                    display: 'flex', alignItems: 'center', gap: 10,
-                    background: 'var(--color-surface-2)', border: '1px solid var(--color-border)',
-                    borderRadius: 10, padding: '10px 14px',
-                  }}>
-                    <span style={{ fontSize: 13, color: 'var(--color-text-muted)', fontWeight: 600, minWidth: 22 }}>{idx + 1}.</span>
-                    <input
-                      id={`inp-oc-name-${idx}`}
-                      type="text"
-                      className="gb2-input"
-                      placeholder="Charge name (e.g. Catering)"
-                      value={oc.name}
-                      onChange={e => handleOtherChargeChange(idx, 'name', e.target.value)}
-                      disabled={isCompleted}
-                      style={{ flex: 2, minWidth: 0 }}
-                    />
-                    <div style={{ flex: 1, minWidth: 110, position: 'relative' }}>
-                      <span style={{ position:'absolute', left:10, top:'50%', transform:'translateY(-50%)', color:'var(--color-text-muted)', fontWeight:700, fontSize:13, pointerEvents:'none' }}>₹</span>
+                  <div key={idx} className="gb2-oc-row">
+                    <div className="gb2-oc-row-top">
+                      <span className="gb2-oc-idx">{idx + 1}.</span>
                       <input
-                        id={`inp-oc-amount-${idx}`}
+                        id={`inp-oc-name-${idx}`}
                         type="text"
-                        inputMode="decimal"
-                        className="gb2-input"
-                        placeholder="Amount"
-                        value={oc.amount}
-                        onChange={e => handleOtherChargeChange(idx, 'amount', e.target.value)}
-                        disabled={isCompleted}
-                        style={{ paddingLeft: 26 }}
-                        onKeyDown={e => {
-                          const ok = ['Backspace','Delete','Tab','ArrowLeft','ArrowRight','Home','End','.'];
-                          if (!ok.includes(e.key) && !/^\d$/.test(e.key)) e.preventDefault();
-                        }}
+                        className="gb2-input gb2-oc-name-input"
+                        placeholder="Charge name (e.g. Catering)"
+                        value={oc.name}
+                        onChange={e => handleOtherChargeChange(idx, 'name', e.target.value)}
                       />
-                    </div>
-                    {!isCompleted && (
                       <button
-                        type="button"
-                        onClick={() => handleRemoveOtherCharge(idx)}
-                        title="Remove this charge"
-                        style={{
-                          background: '#FEF2F2', color: '#DC2626',
-                          border: '1px solid #FECACA', borderRadius: 7,
-                          width: 32, height: 32, display:'flex', alignItems:'center', justifyContent:'center',
-                          cursor: 'pointer', fontWeight: 700, fontSize: 16, flexShrink: 0,
-                        }}
-                      >
-                        ×
-                      </button>
-                    )}
-                    <div style={{ fontFamily:'monospace', fontWeight:700, color:'var(--color-primary-dark)', minWidth: 90, textAlign:'right', fontSize: 13.5, flexShrink:0 }}>
-                      {fmtCurrency(parseFloat(oc.amount) || 0)}
+                          type="button"
+                          className="gb2-oc-remove-btn"
+                          onClick={() => handleRemoveOtherCharge(idx)}
+                          title="Remove this charge"
+                        >
+                          ×
+                        </button>
+                    </div>
+                    <div className="gb2-oc-row-bottom">
+                      <div className="gb2-oc-amount-wrap">
+                        <span className="gb2-oc-currency-symbol">₹</span>
+                        <input
+                          id={`inp-oc-amount-${idx}`}
+                          type="text"
+                          inputMode="decimal"
+                          className="gb2-input gb2-oc-amount-input"
+                          placeholder="Amount"
+                          value={oc.amount}
+                          onChange={e => handleOtherChargeChange(idx, 'amount', e.target.value)}
+                          onKeyDown={e => {
+                            const ok = ['Backspace','Delete','Tab','ArrowLeft','ArrowRight','Home','End','.'];
+                            if (!ok.includes(e.key) && !/^\d$/.test(e.key)) e.preventDefault();
+                          }}
+                        />
+                      </div>
+                      <div className="gb2-oc-formatted-amount">
+                        {fmtCurrency(parseFloat(oc.amount) || 0)}
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -1546,7 +1755,6 @@ export default function GeneratorOrderBilling() {
                     placeholder="0.00"
                     value={discount === 0 ? '' : discount}
                     onChange={e => handleDiscountChange(e.target.value, calculations.totalAmount + otherChargesTotal)}
-                    disabled={isCompleted}
                     onKeyDown={e => {
                       const ok = ['Backspace','Delete','Tab','ArrowLeft','ArrowRight','Home','End','.'];
                       if (!ok.includes(e.key) && !/^\d$/.test(e.key)) e.preventDefault();
@@ -1576,15 +1784,24 @@ export default function GeneratorOrderBilling() {
             <button id="btn-share" className="gb2-btn gb2-btn-share" type="button" onClick={handleSharePDF} disabled={!isCompleted}>
               <Icon.Share /> Share Invoice
             </button>
-            {!isCompleted && <button id="btn-save-bill" className="gb2-btn gb2-btn-save" type="button" style={{ background: '#475569', boxShadow: 'none' }} onClick={() => handleSaveBill(false)} disabled={saving}>
-              <Icon.Save />{saving ? 'Saving…' : 'Save Draft'}
-            </button>}
-            {!isCompleted && <button id="btn-complete-bill" className="gb2-btn gb2-btn-save" type="button" onClick={() => setShowCompleteModal(true)} disabled={saving}>
-              <Icon.Save /> Complete Bill
-            </button>}
-            {isCompleted && <div style={{ display:'flex', alignItems:'center', gap:8, color:'#16a34a', fontWeight:700, padding:'0 10px' }}>
-              ✅ Bill Completed
-            </div>}
+            {isCompleted && (
+              <div style={{ display:'flex', alignItems:'center', gap:8, color:'#16a34a', fontWeight:700, padding:'0 10px', fontSize:13 }}>
+                ✅ Bill Completed
+              </div>
+            )}
+            {isCompleted
+              ? <button id="btn-update-bill" className="gb2-btn gb2-btn-save" type="button" style={{ background: '#0369a1', boxShadow: 'none' }} onClick={() => handleSaveBill(false)} disabled={saving}>
+                  <Icon.Save />{saving ? 'Saving…' : 'Update Bill'}
+                </button>
+              : <>
+                  <button id="btn-save-bill" className="gb2-btn gb2-btn-save" type="button" style={{ background: '#475569', boxShadow: 'none' }} onClick={() => handleSaveBill(false)} disabled={saving}>
+                    <Icon.Save />{saving ? 'Saving…' : 'Save Draft'}
+                  </button>
+                  <button id="btn-complete-bill" className="gb2-btn gb2-btn-save" type="button" onClick={() => setShowCompleteModal(true)} disabled={saving}>
+                    <Icon.Save /> Complete Bill
+                  </button>
+                </>
+            }
           </div>
         </div>
 
@@ -1607,7 +1824,7 @@ export default function GeneratorOrderBilling() {
           <div style={{ background:'#fff', padding:24, borderRadius:12, width:400, maxWidth:'90%' }}>
             <h3 style={{ margin:'0 0 16px 0', color:'#0f172a' }}>Complete Bill?</h3>
             <p style={{ margin:'0 0 20px 0', color:'#475569', fontSize:14, lineHeight:1.5 }}>
-              Are you sure you want to complete this bill? Once completed, the order and bill will be locked and cannot be edited.
+              Are you sure you want to mark this bill as <strong>Completed</strong>? The billing status will be set to Completed and a bill number will be assigned. You can still edit the billing fields and update the bill afterwards if needed.
             </p>
             <div style={{ display:'flex', justifyContent:'flex-end', gap:12 }}>
               <button className="gb2-btn gb2-btn-cancel" onClick={() => setShowCompleteModal(false)}>Cancel</button>
@@ -1618,12 +1835,35 @@ export default function GeneratorOrderBilling() {
       )}
       {/* Toast */}
       {toast && (
-        <div className="gb2-toast">
-          <span style={{ fontSize:20 }}>✅</span>
-          <div>
-            <div style={{ fontSize:14, fontWeight:700, color:'var(--color-text)' }}>{toast.title}</div>
-            <div style={{ fontSize:12, color:'var(--color-text-muted)', marginTop:2 }}>{toast.msg}</div>
+        <div className="gb2-toast" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1 }}>
+            <span style={{ fontSize:20 }}>✅</span>
+            <div>
+              <div style={{ fontSize:14, fontWeight:700, color:'var(--color-text)' }}>{toast.title}</div>
+              <div style={{ fontSize:12, color:'var(--color-text-muted)', marginTop:2 }}>{toast.msg}</div>
+            </div>
           </div>
+          <button
+            type="button"
+            onClick={() => setToast(null)}
+            title="Close"
+            style={{
+              background: 'transparent',
+              border: 'none',
+              cursor: 'pointer',
+              color: 'var(--color-text-muted)',
+              fontSize: 18,
+              lineHeight: 1,
+              padding: '2px 6px',
+              borderRadius: 4,
+              transition: 'color .15s',
+              flexShrink: 0,
+            }}
+            onMouseOver={e => e.currentTarget.style.color = 'var(--color-text)'}
+            onMouseOut={e => e.currentTarget.style.color = 'var(--color-text-muted)'}
+          >
+            ×
+          </button>
         </div>
       )}
     </>

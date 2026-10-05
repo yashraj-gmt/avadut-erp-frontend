@@ -19,7 +19,7 @@ const multipart = { headers: { 'Content-Type': 'multipart/form-data' } }
 
 // ── Products ───────────────────────────────────────────────────────────────
 export const productService = {
-  /** GET /inventory/products — supports: search, isActive, page, size, sortBy, sortDir */
+  /** GET /inventory/products - supports: search, isActive, page, size, sortBy, sortDir */
   getAll:      (params)                   => api.get('/inventory/products', { params }),
   getById:     (id)                       => api.get(`/inventory/products/${id}`),
   create:      (data, images)             => api.post(`/inventory/products`,      buildProductFormData(data, images), multipart),

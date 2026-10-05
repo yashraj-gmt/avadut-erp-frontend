@@ -1,9 +1,10 @@
 // src/pages/auth/LoginPage.jsx
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { Eye, EyeOff, Loader2, Phone, Lock, Package, Users, Clock, Truck } from 'lucide-react'
 import { useAuthStore } from '@/store/authStore'
 import { authService }  from '@/services/authService'
+import { doSilentRefresh } from '@/services/api'
 import { useToast }     from '@/components/shared/toast/ToastProvider'
 import { ROLE_DEFAULT_ROUTE } from '@/constants/roles'
 import { ENV } from '@/config/env'
@@ -11,7 +12,7 @@ import { ENV } from '@/config/env'
 /** Validate Indian mobile number: starts with 6–9, exactly 10 digits */
 const isValidMobile = (value) => /^[6-9]\d{9}$/.test(value)
 
-/** What this console manages — shown on the ops panel (desktop only) */
+/** What this console manages - shown on the ops panel (desktop only) */
 const CAPABILITIES = [
   { icon: Package, label: 'Stock & Equipment',  detail: 'Generators, lighting & décor inventory' },
   { icon: Users,   label: 'Customer Accounts',  detail: 'Bookings, billing & rental history' },
@@ -29,6 +30,22 @@ export default function LoginPage() {
   const [errors, setErrors]   = useState({})
   const [showPwd, setShowPwd] = useState(false)
   const [loading, setLoading] = useState(false)
+
+  // ── Block DevTools shortcuts (F12, Ctrl+Shift+I/J/C, Ctrl+U) ─────────────
+  useEffect(() => {
+    const blockDevTools = (e) => {
+      if (
+        e.key === 'F12' ||
+        (e.ctrlKey && e.shiftKey && ['I', 'J', 'C'].includes(e.key.toUpperCase())) ||
+        (e.ctrlKey && e.key.toUpperCase() === 'U')
+      ) {
+        e.preventDefault()
+        e.stopPropagation()
+      }
+    }
+    window.addEventListener('keydown', blockDevTools)
+    return () => window.removeEventListener('keydown', blockDevTools)
+  }, [])
 
   // ── Client-side validation ─────────────────────────────────────────────
   const validate = () => {
@@ -56,8 +73,8 @@ export default function LoginPage() {
         password: form.password,
       })
 
-      // Persist tokens + user to Zustand + localStorage
-      login(authData)
+      // Persist tokens + user to Zustand + localStorage, start proactive refresh timer
+      login(authData, doSilentRefresh)
 
       const from = location.state?.from?.pathname
                 ?? ROLE_DEFAULT_ROUTE[authData.user.role]
@@ -87,7 +104,7 @@ export default function LoginPage() {
     }
   }
 
-  // ── Mobile input handler — digits only ────────────────────────────────
+  // ── Mobile input handler - digits only ────────────────────────────────
   const handleMobileChange = (e) => {
     const value = e.target.value.replace(/\D/g, '').slice(0, 10)
     setForm((f) => ({ ...f, mobile: value }))
@@ -106,10 +123,14 @@ export default function LoginPage() {
   })
 
   return (
-    <div className="min-h-screen lg:grid lg:grid-cols-2" style={{ background: 'var(--color-bg)' }}>
+    <div
+      className="min-h-screen lg:grid lg:grid-cols-2"
+      style={{ background: 'var(--color-bg)' }}
+      onContextMenu={(e) => e.preventDefault()}
+    >
 
       {/* ════════════════════════════════════════════════════════════════
-          OPS PANEL — visible from lg breakpoint up only
+          OPS PANEL - visible from lg breakpoint up only
       ════════════════════════════════════════════════════════════════ */}
       <div
         className="hidden lg:flex lg:flex-col lg:justify-between relative overflow-hidden p-12"
@@ -144,11 +165,11 @@ export default function LoginPage() {
             One console for every generator, light, and event on the books.
           </h1>
           <p className="mt-4 text-sm leading-relaxed max-w-sm" style={{ color: 'var(--color-sidebar-text)' }}>
-            Track stock, manage customer accounts, and keep staff attendance straight — all from a single sign-in.
+            Track stock, manage customer accounts, and keep staff attendance straight - all from a single sign-in.
           </p>
         </div>
 
-        {/* Capability list — the signature element */}
+        {/* Capability list - the signature element */}
         <div className="relative z-10 space-y-4 mt-12">
           {CAPABILITIES.map(({ icon: Icon, label, detail }) => (
             <div key={label} className="flex items-start gap-3">
@@ -185,12 +206,12 @@ export default function LoginPage() {
       </div>
 
       {/* ════════════════════════════════════════════════════════════════
-          SIGN-IN PANEL — full width on mobile/tablet, right column on lg+
+          SIGN-IN PANEL - full width on mobile/tablet, right column on lg+
       ════════════════════════════════════════════════════════════════ */}
       <div className="flex items-center justify-center p-5 sm:p-8 lg:p-12">
         <div className="w-full max-w-sm">
 
-          {/* Compact brand header — hidden once the ops panel takes over */}
+          {/* Compact brand header - hidden once the ops panel takes over */}
           <div className="lg:hidden flex items-center gap-3 mb-8">
             <img
               src="/images/avadhut-logo-login.png"
@@ -211,7 +232,7 @@ export default function LoginPage() {
             className="font-mono text-[11px] tracking-wider uppercase mb-2"
             style={{ color: 'var(--color-text-subtle)' }}
           >
-            Admin &amp; super admin console
+            Super Admin &amp; Staff console
           </p>
           <h2 className="text-2xl font-bold mb-1.5" style={{ color: 'var(--color-text)' }}>
             Sign in

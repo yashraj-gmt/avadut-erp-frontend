@@ -26,7 +26,39 @@ const processQueue = (error, token = null) => {
   failedQueue = []
 }
 
-// ── Request interceptor — attach Bearer token ──────────────────────────────
+// ── Shared silent-refresh helper ───────────────────────────────────────────
+// Used by both the reactive 401 interceptor AND the proactive timer in authStore.
+export async function doSilentRefresh() {
+  const storedRefreshToken = useAuthStore.getState().refreshToken
+
+  const refreshResponse = await axios.post(
+    `${ENV.API_BASE_URL}/auth/refresh-token`,
+    storedRefreshToken ? { refreshToken: storedRefreshToken } : {},
+    {
+      withCredentials: true,
+      headers: { 
+        'Content-Type': 'application/json',
+        'ngrok-skip-browser-warning': 'true',
+      },
+    }
+  )
+
+  // Unwrap ApiResponse<AuthResponse>
+  const authData = refreshResponse.data?.data ?? refreshResponse.data
+
+  const newAccessToken  = authData.accessToken
+  const newRefreshToken = authData.refreshToken
+
+  // Persist tokens and restart the proactive timer
+  useAuthStore.getState().updateTokens(newAccessToken, newRefreshToken, doSilentRefresh)
+
+  // Keep default header in sync
+  api.defaults.headers.common.Authorization = `Bearer ${newAccessToken}`
+
+  return newAccessToken
+}
+
+// ── Request interceptor - attach Bearer token ──────────────────────────────
 api.interceptors.request.use(
   (config) => {
     const token = useAuthStore.getState().token
@@ -36,7 +68,7 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 )
 
-// ── Response interceptor — unwrap ApiResponse + silent refresh ─────────────
+// ── Response interceptor - unwrap ApiResponse + silent refresh ─────────────
 api.interceptors.response.use(
 
   // ✅ Success: unwrap the ApiResponse<T> envelope → return the `data` field
@@ -68,38 +100,10 @@ api.interceptors.response.use(
       originalRequest._retry = true
       isRefreshing            = true
 
-      const storedRefreshToken = useAuthStore.getState().refreshToken
-
-      // No refresh token stored and cookie may exist — still attempt refresh
       try {
-        // POST /api/auth/refresh-token
-        // Backend accepts: body { refreshToken } OR HTTP-only cookie
-        // withCredentials: true (set on instance) covers the cookie path
-        const refreshResponse = await axios.post(
-          `${ENV.API_BASE_URL}/auth/refresh-token`,
-          storedRefreshToken ? { refreshToken: storedRefreshToken } : {},
-          {
-            withCredentials: true,
-            headers: { 
-              'Content-Type': 'application/json',
-              'ngrok-skip-browser-warning': 'true',
-            },
-          }
-        )
+        const newAccessToken = await doSilentRefresh()
 
-        // Unwrap ApiResponse<AuthResponse>
-        const authData = refreshResponse.data?.data ?? refreshResponse.data
-
-        const newAccessToken  = authData.accessToken
-        const newRefreshToken = authData.refreshToken
-
-        // Persist new tokens
-        useAuthStore.getState().updateTokens(newAccessToken, newRefreshToken)
-
-        // Update default header so all future requests use the new token
-        api.defaults.headers.common.Authorization = `Bearer ${newAccessToken}`
-
-        // Drain the queue — all waiting requests get the new token
+        // Drain the queue - all waiting requests get the new token
         processQueue(null, newAccessToken)
 
         // Retry the original failed request

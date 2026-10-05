@@ -16,12 +16,29 @@ const Icon = {
       <line x1="3" y1="10" x2="21" y2="10"/>
     </svg>
   ),
+  Zap: ({ size = 24, ...props }) => (
+    <svg width={size} height={size} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" {...props}>
+      <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+    </svg>
+  ),
+  CheckCircle: ({ size = 24, ...props }) => (
+    <svg width={size} height={size} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" {...props}>
+      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+      <polyline points="22 4 12 14.01 9 11.01"/>
+    </svg>
+  ),
+  Search: ({ size = 20, ...props }) => (
+    <svg width={size} height={size} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" {...props}>
+      <circle cx="11" cy="11" r="8"/>
+      <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+    </svg>
+  ),
 };
 import { generatorService } from '@/services/generatorService';
 
 // Format currency
 const fmtCurrency = (val) => {
-  if (val == null) return "—";
+  if (val == null) return "-";
   return new Intl.NumberFormat("en-IN", {
     style: "currency",
     currency: "INR",
@@ -41,7 +58,7 @@ export default function GeneratorAvailability() {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [statusFilter, setStatusFilter] = useState('ALL'); // 'ALL', 'AVAILABLE', 'BOOKED', 'SERVICE'
+  const [search, setSearch] = useState('');
 
   const fetchAvailability = async (date) => {
     setLoading(true);
@@ -69,17 +86,39 @@ export default function GeneratorAvailability() {
   }, []);
 
   const filteredData = React.useMemo(() => {
-    if (statusFilter === 'AVAILABLE') {
-      return data.filter(row => row.availableQty > 0);
-    }
-    if (statusFilter === 'BOOKED') {
-      return data.filter(row => row.availableQty <= 0);
-    }
-    if (statusFilter === 'SERVICE') {
-      return data.filter(row => (row.underServiceQty || 0) > 0);
-    }
-    return data;
-  }, [data, statusFilter]);
+    if (!search.trim()) return data;
+    const q = search.toLowerCase().trim();
+    return data.filter(row => {
+      const name = (row.generatorName || '').toLowerCase();
+      const code = (row.generatorCode || '').toLowerCase();
+      return name.includes(q) || code.includes(q);
+    });
+  }, [data, search]);
+
+  // Overall Stock Counters
+  const totalStockCount = React.useMemo(() => {
+    return data.reduce((sum, row) => sum + (Number(row.totalStock) || 0), 0);
+  }, [data]);
+
+  const totalAvailableCount = React.useMemo(() => {
+    return data.reduce((sum, row) => sum + (Number(row.availableQty) || 0), 0);
+  }, [data]);
+
+  const totalBookedCount = React.useMemo(() => {
+    return data.reduce((sum, row) => {
+      const booked = row.bookings
+        ? row.bookings.reduce((bSum, b) => bSum + (Number(b.quantity) || 0), 0)
+        : (Number(row.bookedQty) || 0);
+      return sum + booked;
+    }, 0);
+  }, [data]);
+
+  const formattedSelectedDate = React.useMemo(() => {
+    if (!selectedDate) return '';
+    const parts = selectedDate.split('-');
+    if (parts.length === 3) return `${parts[2]}-${parts[1]}-${parts[0]}`;
+    return selectedDate;
+  }, [selectedDate]);
 
   return (
     <div className="ga-container">
@@ -111,9 +150,66 @@ export default function GeneratorAvailability() {
           display: flex;
           gap: 12px;
         }
+
+        /* ── Stat Cards ── */
+        .ga-stats-row {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 16px;
+          margin-bottom: 24px;
+        }
+        .ga-stat-card {
+          background: var(--color-surface);
+          border: 1.5px solid var(--color-border);
+          border-radius: var(--radius-xl);
+          padding: 16px 20px;
+          box-shadow: var(--shadow-sm);
+          display: flex;
+          align-items: center;
+          gap: 14px;
+          cursor: default;
+          user-select: text;
+          min-width: 0;
+        }
+        .ga-stat-icon {
+          width: 44px;
+          height: 44px;
+          border-radius: 12px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          flex-shrink: 0;
+        }
+        .ga-stat-value {
+          font-size: 24px;
+          font-weight: 800;
+          color: var(--color-text);
+          line-height: 1.1;
+        }
+        .ga-stat-label {
+          font-size: 11px;
+          color: var(--color-text-muted);
+          margin-top: 4px;
+          font-weight: 700;
+          text-transform: uppercase;
+          letter-spacing: .5px;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+        .ga-stat-sublabel {
+          font-size: 11px;
+          color: var(--color-text-subtle);
+          margin-top: 2px;
+          font-weight: 500;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
         .ga-toolbar {
           background: var(--color-surface);
-          padding: 20px;
+          padding: 16px 20px;
           border-radius: var(--radius-xl);
           box-shadow: var(--shadow-sm);
           margin-bottom: 24px;
@@ -122,43 +218,55 @@ export default function GeneratorAvailability() {
         .ga-toolbar-row {
           display: flex;
           align-items: center;
-          gap: 16px;
+          justify-content: space-between;
+          gap: 20px;
           flex-wrap: wrap;
         }
-        .ga-date-group {
-          flex: 1;
-          min-width: 250px;
+        .ga-search-group {
+          flex: 1 1 auto;
+          min-width: 240px;
         }
-        .ga-date-input {
+        .ga-search-input {
           width: 100%;
-          padding: 12px 14px 12px 40px;
+          height: 42px;
+          box-sizing: border-box;
+          padding: 10px 34px 10px 38px;
           border: 1.5px solid var(--color-border);
           border-radius: var(--radius-md);
-          font-size: 15px;
-          font-weight: 500;
+          font-size: 14px;
           color: var(--color-text);
           background: var(--color-surface);
           outline: none;
-          transition: border-color 0.2s;
+          transition: border-color 0.2s, box-shadow 0.2s;
           font-family: inherit;
-          max-width: 300px;
         }
-        .ga-filters-group {
-          display: flex;
-          gap: 12px;
-          margin-left: auto;
-          flex-wrap: wrap;
-          align-items: center;
+        .ga-search-input:focus {
+          border-color: var(--color-primary);
+          box-shadow: 0 0 0 3px rgba(37,99,235,.15);
         }
-        .ga-filter-btn {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          padding: 8px 16px;
-          border-radius: var(--radius-full);
-          cursor: pointer;
-          transition: all 0.15s;
+        .ga-date-group {
+          flex: 0 0 auto;
+          min-width: 200px;
+        }
+        .ga-date-input {
+          height: 42px;
+          box-sizing: border-box;
+          padding: 10px 14px 10px 38px;
+          border: 1.5px solid var(--color-border);
+          border-radius: var(--radius-md);
+          font-size: 14px;
+          font-weight: 600;
+          color: var(--color-text);
+          background: var(--color-surface);
           outline: none;
+          transition: border-color 0.2s, box-shadow 0.2s;
+          font-family: inherit;
+          cursor: pointer;
+          width: 200px;
+        }
+        .ga-date-input:focus {
+          border-color: var(--color-primary);
+          box-shadow: 0 0 0 3px rgba(37,99,235,.15);
         }
         .ga-table-card {
           background: var(--color-surface);
@@ -207,32 +315,39 @@ export default function GeneratorAvailability() {
           .ga-toolbar-row {
             flex-direction: column !important;
             align-items: stretch !important;
-            gap: 14px !important;
+            gap: 12px !important;
           }
+          .ga-search-group,
           .ga-date-group {
-            min-width: 100% !important;
-          }
-          .ga-date-input {
-            max-width: 100% !important;
-          }
-          .ga-filters-group {
-            margin-left: 0 !important;
+            flex: none !important;
             width: 100% !important;
-            justify-content: flex-start !important;
-            gap: 8px !important;
+            min-width: 0 !important;
           }
-          .ga-filter-btn {
-            flex: 1 1 calc(33.33% - 6px);
-            justify-content: center;
-            padding: 8px 10px !important;
-            font-size: 12px !important;
-            white-space: nowrap;
+          .ga-search-input,
+          .ga-date-input {
+            width: 100% !important;
+            max-width: 100% !important;
           }
         }
 
-        @media (max-width: 480px) {
-          .ga-filter-btn {
-            flex: 1 1 100% !important;
+        @media (max-width: 850px) {
+          .ga-stats-row {
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+            gap: 12px !important;
+            margin-bottom: 16px !important;
+          }
+        }
+
+        @media (max-width: 540px) {
+          .ga-stats-row {
+            grid-template-columns: 1fr !important;
+            gap: 10px !important;
+          }
+          .ga-stat-card {
+            padding: 12px 14px !important;
+          }
+          .ga-stat-value {
+            font-size: 20px !important;
           }
         }
       `}</style>
@@ -264,9 +379,94 @@ export default function GeneratorAvailability() {
         </div>
       </div>
 
+      {/* ── 3 Main Stat Cards ── */}
+      <div className="ga-stats-row">
+        {/* Card 1: Total Overall Stock */}
+        <div className="ga-stat-card">
+          <div className="ga-stat-icon" style={{ background: '#EFF6FF', color: 'var(--color-primary)' }}>
+            <Icon.Zap size={22} />
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div className="ga-stat-value">{totalStockCount}</div>
+            <div className="ga-stat-label">Total Overall Stock</div>
+            <div className="ga-stat-sublabel">Total fleet stock quantity</div>
+          </div>
+        </div>
+
+        {/* Card 2: Available Total Stock */}
+        <div className="ga-stat-card">
+          <div className="ga-stat-icon" style={{ background: '#F0FDF4', color: '#16A34A' }}>
+            <Icon.CheckCircle size={22} />
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div className="ga-stat-value" style={{ color: '#16A34A' }}>{totalAvailableCount}</div>
+            <div className="ga-stat-label">Available Total Stock</div>
+            <div className="ga-stat-sublabel">
+              {selectedDate === todayStr ? 'Available generators today' : `Available on ${formattedSelectedDate}`}
+            </div>
+          </div>
+        </div>
+
+        {/* Card 3: Total Booked Stock */}
+        <div className="ga-stat-card">
+          <div className="ga-stat-icon" style={{ background: '#FEF3C7', color: '#D97706' }}>
+            <Icon.Calendar size={22} />
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div className="ga-stat-value" style={{ color: '#D97706' }}>{totalBookedCount}</div>
+            <div className="ga-stat-label">Total Booked Stock</div>
+            <div className="ga-stat-sublabel">
+              {selectedDate === todayStr ? 'Booked generators today' : `Booked on ${formattedSelectedDate}`}
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* ── Toolbar ── */}
       <div className="ga-toolbar">
         <div className="ga-toolbar-row">
+          {/* Left Side: Search Bar */}
+          <div className="ga-search-group">
+            <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: 'var(--color-text-muted)', marginBottom: '6px' }}>
+              Search Generator
+            </label>
+            <div style={{ position: 'relative' }}>
+              <div style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-subtle)', pointerEvents: 'none', display: 'flex' }}>
+                <Icon.Search size={18} />
+              </div>
+              <input
+                type="text"
+                placeholder="Search generator name or code..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="ga-search-input"
+              />
+              {search && (
+                <button
+                  type="button"
+                  onClick={() => setSearch('')}
+                  style={{
+                    position: 'absolute',
+                    right: '10px',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    background: 'transparent',
+                    border: 'none',
+                    color: 'var(--color-text-subtle)',
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    fontWeight: 'bold',
+                    padding: '4px',
+                  }}
+                  title="Clear search"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Right Side: Date Selector */}
           <div className="ga-date-group">
             <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: 'var(--color-text-muted)', marginBottom: '6px' }}>
               Select Date to Check Availability
@@ -283,64 +483,6 @@ export default function GeneratorAvailability() {
                 className="ga-date-input"
               />
             </div>
-          </div>
-          
-          <div className="ga-filters-group">
-            {statusFilter !== 'ALL' && (
-              <button
-                onClick={() => setStatusFilter('ALL')}
-                style={{
-                  background: 'transparent', border: 'none', color: 'var(--color-text-subtle)',
-                  fontSize: '12px', fontWeight: '600', cursor: 'pointer', textDecoration: 'underline'
-                }}
-              >
-                Clear Filter
-              </button>
-            )}
-            <button
-              onClick={() => setStatusFilter(prev => prev === 'AVAILABLE' ? 'ALL' : 'AVAILABLE')}
-              className="ga-filter-btn"
-              style={{
-                background: '#F0FDF4',
-                border: statusFilter === 'AVAILABLE' ? '2px solid #22C55E' : '1px solid #BBF7D0',
-                opacity: statusFilter !== 'ALL' && statusFilter !== 'AVAILABLE' ? 0.4 : 1,
-                boxShadow: statusFilter === 'AVAILABLE' ? '0 0 0 3px rgba(34, 197, 94, 0.2)' : 'none',
-                transform: statusFilter === 'AVAILABLE' ? 'scale(1.03)' : 'scale(1)'
-              }}
-            >
-              <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#22C55E' }}></div>
-              <span style={{ fontSize: '13px', fontWeight: '700', color: '#166534' }}>Available</span>
-            </button>
-
-            <button
-              onClick={() => setStatusFilter(prev => prev === 'BOOKED' ? 'ALL' : 'BOOKED')}
-              className="ga-filter-btn"
-              style={{
-                background: '#FEF2F2',
-                border: statusFilter === 'BOOKED' ? '2px solid #EF4444' : '1px solid #FECACA',
-                opacity: statusFilter !== 'ALL' && statusFilter !== 'BOOKED' ? 0.4 : 1,
-                boxShadow: statusFilter === 'BOOKED' ? '0 0 0 3px rgba(239, 68, 68, 0.2)' : 'none',
-                transform: statusFilter === 'BOOKED' ? 'scale(1.03)' : 'scale(1)'
-              }}
-            >
-              <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#EF4444' }}></div>
-              <span style={{ fontSize: '13px', fontWeight: '700', color: '#991B1B' }}>Fully Booked</span>
-            </button>
-
-            <button
-              onClick={() => setStatusFilter(prev => prev === 'SERVICE' ? 'ALL' : 'SERVICE')}
-              className="ga-filter-btn"
-              style={{
-                background: '#FEF9C3',
-                border: statusFilter === 'SERVICE' ? '2px solid #EAB308' : '1px solid #FEF08A',
-                opacity: statusFilter !== 'ALL' && statusFilter !== 'SERVICE' ? 0.4 : 1,
-                boxShadow: statusFilter === 'SERVICE' ? '0 0 0 3px rgba(234, 179, 8, 0.25)' : 'none',
-                transform: statusFilter === 'SERVICE' ? 'scale(1.03)' : 'scale(1)'
-              }}
-            >
-              <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#EAB308' }}></div>
-              <span style={{ fontSize: '13px', fontWeight: '700', color: '#854D0E' }}>Under Service</span>
-            </button>
           </div>
         </div>
       </div>
@@ -378,16 +520,24 @@ export default function GeneratorAvailability() {
               ) : filteredData.length === 0 ? (
                 <tr>
                   <td colSpan="6" style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--color-text-subtle)' }}>
-                    {statusFilter !== 'ALL' ? 'No generators match the selected filter.' : 'No active generators found.'}
+                    {search ? `No generators match "${search}".` : 'No active generators found.'}
                   </td>
                 </tr>
               ) : (
                 filteredData.map((row, i) => {
-                  const rowBg = i % 2 === 0 ? "var(--color-surface)" : "var(--color-bg)";
+                  const rowBg = row.isOverbooked
+                    ? '#FFF5F5'   // red-tinted for conflict rows
+                    : i % 2 === 0 ? "var(--color-surface)" : "var(--color-bg)";
+
+                  const rowBorder = row.isOverbooked
+                    ? '1.5px solid #FECACA'
+                    : '1px solid var(--color-surface-2)';
                   
                   // Color coding for available stock
                   const isZeroStock = row.availableQty <= 0;
-                  const availableStyle = isZeroStock 
+                  const availableStyle = row.isOverbooked
+                    ? { background: '#FEE2E2', color: '#991B1B', border: '1.5px solid #FECACA' }
+                    : isZeroStock 
                     ? { background: '#FEF2F2', color: '#B91C1C', border: '1px solid #FECACA' }
                     : { background: '#F0FDF4', color: '#15803D', border: '1px solid #BBF7D0' };
 
@@ -396,12 +546,25 @@ export default function GeneratorAvailability() {
                     : (row.bookedQty || 0);
 
                   return (
-                    <tr key={row.generatorId} style={{ background: rowBg, borderBottom: '1px solid var(--color-surface-2)', transition: 'background 0.15s' }}>
+                    <tr key={row.generatorId} style={{ background: rowBg, borderBottom: rowBorder, transition: 'background 0.15s' }}>
                       
-                      {/* Name & Code */}
+                      {/* Name & Code — with overbooked indicator */}
                       <td style={{ padding: '14px 16px' }}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                          <span style={{ fontWeight: '600', color: 'var(--color-text)', fontSize: '14px' }}>{row.generatorName}</span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <span style={{ fontWeight: '600', color: 'var(--color-text)', fontSize: '14px' }}>{row.generatorName}</span>
+                            {row.isOverbooked && (
+                              <span style={{
+                                display: 'inline-flex', alignItems: 'center', gap: 4,
+                                background: '#FEE2E2', color: '#B91C1C',
+                                padding: '2px 8px', borderRadius: 20,
+                                fontSize: 11, fontWeight: 700,
+                                border: '1px solid #FECACA',
+                              }}>
+                                ⚠ Overbooked
+                              </span>
+                            )}
+                          </div>
                           {row.generatorCode && (
                             <span style={{ fontSize: '11px', fontWeight: '600', color: 'var(--color-primary-dark)', background: 'var(--color-primary-100)', padding: '2px 8px', borderRadius: '4px', width: 'fit-content', fontFamily: 'monospace' }}>
                               {row.generatorCode}
@@ -422,7 +585,7 @@ export default function GeneratorAvailability() {
                             ⚠ {row.underServiceQty}
                           </span>
                         ) : (
-                          <span style={{ color: 'var(--color-text-subtle)', fontWeight: '500' }}>—</span>
+                          <span style={{ color: 'var(--color-text-subtle)', fontWeight: '500' }}>-</span>
                         )}
                       </td>
 
@@ -434,6 +597,11 @@ export default function GeneratorAvailability() {
                         }}>
                           {row.availableQty}
                         </span>
+                        {row.isOverbooked && (
+                          <div style={{ fontSize: 10, color: '#B91C1C', fontWeight: 700, marginTop: 3 }}>
+                            CONFLICT
+                          </div>
+                        )}
                       </td>
 
                       {/* Total Booked */}

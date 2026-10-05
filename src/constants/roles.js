@@ -2,7 +2,7 @@
 
 /**
  * Must match com.erp.system.enums.UserRole exactly.
- * Spring serializes the enum as its name() — no prefix.
+ * Spring serializes the enum as its name() - no prefix.
  */
 export const ROLES = {
   SUPER_ADMIN: 'SUPER_ADMIN',

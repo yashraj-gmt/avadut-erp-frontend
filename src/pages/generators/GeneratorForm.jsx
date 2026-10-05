@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react'
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useNavigate, useParams }                          from 'react-router-dom'
 import { generatorService }        from '@/services/generatorService'
 import { useToast }                from '@/components/shared/toast/ToastProvider'
@@ -80,13 +80,10 @@ export default function GeneratorForm() {
   /* ── Form State ────────────────────────────────── */
   const initialFormState = {
     name: '',
-    generatorCode: '',
-    purchasePrice: '',
     partyDieselRentPrice: '',
     withDieselRentPrice: '',
     stockQuantity: '',
     underServiceQuantity: '0',
-    productBy: '',
     description: '',
     isActive: true,
   }
@@ -102,6 +99,11 @@ export default function GeneratorForm() {
   const [imageFile, setImageFile]       = useState(null)
   const [dragging, setDragging]         = useState(false)
 
+  // Booking conflict state for Under Service validation
+  const [maxBookedQty, setMaxBookedQty]           = useState(0)   // peak booked units across all active orders
+  const [forceServiceConfirmed, setForceServiceConfirmed] = useState(false)  // admin acknowledge checkbox
+  const [conflictData, setConflictData]           = useState(null) // { maxBooked, newEffective } when 409 received
+
   /* ── Load Generator (Edit Mode) ────────────────────────────────── */
   const fetchGenerator = useCallback(async () => {
     if (!isEdit) return
@@ -111,21 +113,25 @@ export default function GeneratorForm() {
       const g   = res.data?.data ?? res.data
       if (!g) throw new Error('Not found')
       setForm({
-        name:          g.name          ?? '',
-        generatorCode: g.generatorCode ?? '',
-        purchasePrice:        g.purchasePrice           != null ? String(g.purchasePrice)           : '',
-        partyDieselRentPrice: g.partyDieselRentPrice     != null ? String(g.partyDieselRentPrice)     : '',
-        withDieselRentPrice:  g.withDieselRentPrice      != null ? String(g.withDieselRentPrice)      : '',
-        stockQuantity:         g.stockQuantity         != null ? String(g.stockQuantity)         : '0',
-        underServiceQuantity:  g.underServiceQuantity  != null ? String(g.underServiceQuantity)  : '0',
-        productBy:     g.productBy     ?? '',
-        description:   g.description   ?? '',
-        isActive:      g.isActive      ?? true,
+        name:                 g.name                  ?? '',
+        partyDieselRentPrice: g.partyDieselRentPrice != null ? String(g.partyDieselRentPrice) : '',
+        withDieselRentPrice:  g.withDieselRentPrice  != null ? String(g.withDieselRentPrice)  : '',
+        stockQuantity:        g.stockQuantity        != null ? String(g.stockQuantity)        : '0',
+        underServiceQuantity: g.underServiceQuantity != null ? String(g.underServiceQuantity) : '0',
+        description:          g.description          ?? '',
+        isActive:             g.isActive             ?? true,
       })
       // Show existing image for edit mode (server returns public URL)
       if (g.imageUrl) {
         setImagePreview(g.imageUrl)
       }
+      // Fetch peak booked quantity so we can show live conflict warnings
+      try {
+        const today = new Date().toISOString().split('T')[0]
+        const avail = await generatorService.getDailyAvailabilityAll(today)
+        const row   = avail.find(r => String(r.generatorId) === String(id))
+        setMaxBookedQty(row ? (row.bookedQty || 0) : 0)
+      } catch (_) { /* non-critical — just won't show live conflict hint */ }
     } catch (err) {
       toast({ type: 'error', title: 'Failed to load generator', message: err?.response?.data?.message ?? 'Please try again.' })
       navigate('/generators')
@@ -172,9 +178,6 @@ export default function GeneratorForm() {
     const e = {}
     if (!form.name.trim())                                      e.name          = 'Generator name is required.'
     else if (form.name.trim().length < 2)                       e.name          = 'Name must be at least 2 characters.'
-    // if (!form.generatorCode.trim())                             e.generatorCode = 'Generator code is required.'
-    if (form.purchasePrice && (isNaN(form.purchasePrice) || Number(form.purchasePrice) < 0))
-                                                                e.purchasePrice = 'Enter a valid price.'
     if (form.partyDieselRentPrice && (isNaN(form.partyDieselRentPrice) || Number(form.partyDieselRentPrice) < 0))
                                                                 e.partyDieselRentPrice = 'Enter a valid party diesel rent price.'
     if (form.withDieselRentPrice && (isNaN(form.withDieselRentPrice) || Number(form.withDieselRentPrice) < 0))
@@ -197,8 +200,15 @@ export default function GeneratorForm() {
     if (fileRef.current) fileRef.current.value = ''
   }
 
+  /* ── Booking conflict live hint ─────────────────────────────────── */
+  // Shows inline warning when underServiceQty would conflict with existing bookings
+  const underServiceNum = parseInt(form.underServiceQuantity, 10) || 0
+  const stockNum        = parseInt(form.stockQuantity, 10)        || 0
+  const newEffective    = Math.max(0, stockNum - underServiceNum)
+  const hasLiveConflict = isEdit && maxBookedQty > 0 && maxBookedQty > newEffective
+
   /* ── Submit ────────────────────────────────────────────────────── */
-  const handleSubmit = async (action) => {
+  const handleSubmit = async (action, forceSave = false) => {
     const errs = validate()
     if (Object.keys(errs).length) {
       setErrors(errs)
@@ -211,16 +221,14 @@ export default function GeneratorForm() {
     setSaveAction(action)
     try {
       const payload = {
-        name:          form.name.trim(),
-        generatorCode: form.generatorCode.trim() ? form.generatorCode.trim().toUpperCase() : null,
-        purchasePrice:        form.purchasePrice        ? Number(form.purchasePrice)        : null,
+        name:                 form.name.trim(),
         partyDieselRentPrice: form.partyDieselRentPrice ? Number(form.partyDieselRentPrice) : null,
         withDieselRentPrice:  form.withDieselRentPrice  ? Number(form.withDieselRentPrice)  : null,
         stockQuantity:        form.stockQuantity        ? Number(form.stockQuantity)        : 0,
         underServiceQuantity: form.underServiceQuantity ? Number(form.underServiceQuantity) : 0,
-        productBy:     form.productBy.trim() || null,
-        description:   form.description.trim() || null,
-        isActive:      form.isActive,
+        description:          form.description.trim()   || null,
+        isActive:             form.isActive,
+        ...(forceSave ? { forceSave: true } : {}),
       }
 
       if (isEdit) {
@@ -238,11 +246,31 @@ export default function GeneratorForm() {
         navigate('/generators')
       }
     } catch (err) {
-      toast({ type: 'error', title: isEdit ? 'Update failed' : 'Create failed', message: err?.response?.data?.message ?? 'Something went wrong. Please try again.' })
+      const serverMsg = err?.response?.data?.message ?? ''
+      // Detect structured STOCK_CONFLICT response from backend (HTTP 409)
+      if (err?.response?.status === 409 && serverMsg.startsWith('STOCK_CONFLICT:')) {
+        // Parse: "STOCK_CONFLICT:maxBooked:newEffective — ..."
+        const parts = serverMsg.split(':')
+        const maxB  = parseInt(parts[1], 10) || maxBookedQty
+        const newE  = parseInt(parts[2], 10) || newEffective
+        setConflictData({ maxBooked: maxB, newEffective: newE, action })
+        setSaving(false)
+        setSaveAction(null)
+        return
+      }
+      toast({ type: 'error', title: isEdit ? 'Update failed' : 'Create failed', message: serverMsg || 'Something went wrong. Please try again.' })
     } finally {
       setSaving(false)
       setSaveAction(null)
     }
+  }
+
+  /* ── Force-Save (after admin confirms conflict) ─────────────────── */
+  const handleForceSave = async () => {
+    const action = conflictData?.action ?? 'save'
+    setConflictData(null)
+    setForceServiceConfirmed(false)
+    await handleSubmit(action, true)
   }
 
   if (loadingPage) {
@@ -338,19 +366,10 @@ export default function GeneratorForm() {
             <div className="pf-card">
               <CardHeader icon={Icon.Info}>Generator Information</CardHeader>
               <div className="pf-grid-2">
-                <div>
+                <div className="pf-full">
                   <Label req>Generator Name</Label>
-                  <TextField name="name" value={form.name} onChange={e => field('name', e.target.value)} hasError={!!errors.name} placeholder="e.g. Caterpillar 500kVA" />
+                  <TextField name="name" value={form.name} onChange={e => field('name', e.target.value)} hasError={!!errors.name} placeholder="e.g. DG KV 125" />
                   <ErrMsg message={errors.name} />
-                </div>
-                <div>
-                  <Label>Generator Code (SKU)</Label>
-                  <TextField name="generatorCode" value={form.generatorCode} onChange={e => field('generatorCode', e.target.value)} hasError={!!errors.generatorCode} placeholder="e.g. GEN-001" disabled={isEdit} />
-                  <ErrMsg message={errors.generatorCode} />
-                </div>
-                <div>
-                  <Label>Product By</Label>
-                  <TextField name="productBy" value={form.productBy} onChange={e => field('productBy', e.target.value)} placeholder="Manufacturer / Brand" />
                 </div>
                 <div className="pf-full">
                   <Label>Remarks</Label>
@@ -375,14 +394,6 @@ export default function GeneratorForm() {
             <div className="pf-card">
               <CardHeader>Pricing &amp; Stock</CardHeader>
               <div className="pf-grid-2">
-                <div>
-                  <Label>Purchase Price</Label>
-                  <div style={{ position: 'relative' }}>
-                    <span style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-muted)', fontSize: 14, fontWeight: 600 }}>₹</span>
-                    <TextField name="purchasePrice" value={form.purchasePrice} onChange={e => field('purchasePrice', e.target.value)} hasError={!!errors.purchasePrice} placeholder="0.00" type="number" min="0" step="0.01" style={{ paddingLeft: 28 }} />
-                  </div>
-                  <ErrMsg message={errors.purchasePrice} />
-                </div>
                 <div>
                   <Label>Rent Price (Per day)</Label>
                   <div style={{ position: 'relative' }}>
@@ -419,6 +430,7 @@ export default function GeneratorForm() {
                           field('underServiceQuantity', String(stock));
                         } else {
                           field('underServiceQuantity', val);
+                          setForceServiceConfirmed(false) // reset confirmation when value changes
                         }
                       }}
                       hasError={!!errors.underServiceQuantity}
@@ -429,7 +441,9 @@ export default function GeneratorForm() {
                     />
                   </div>
                   <ErrMsg message={errors.underServiceQuantity} />
-                  {(parseInt(form.underServiceQuantity, 10) || 0) > 0 && (
+
+                  {/* Normal info badge when no conflict */}
+                  {underServiceNum > 0 && !hasLiveConflict && (
                     <div style={{
                       marginTop: 6, display: 'flex', alignItems: 'center', gap: 6,
                       padding: '7px 12px', borderRadius: 8,
@@ -438,9 +452,45 @@ export default function GeneratorForm() {
                     }}>
                       <span>⚠️</span>
                       <span>
-                        {form.underServiceQuantity} unit{parseInt(form.underServiceQuantity, 10) !== 1 ? 's' : ''} under service —
-                        bookable stock = {Math.max(0, (parseInt(form.stockQuantity, 10) || 0) - (parseInt(form.underServiceQuantity, 10) || 0))} unit{Math.max(0, (parseInt(form.stockQuantity, 10) || 0) - (parseInt(form.underServiceQuantity, 10) || 0)) !== 1 ? 's' : ''}
+                        {form.underServiceQuantity} unit{underServiceNum !== 1 ? 's' : ''} under service —
+                        bookable stock = {newEffective} unit{newEffective !== 1 ? 's' : ''}
                       </span>
+                    </div>
+                  )}
+
+                  {/* Conflict warning when bookings exceed new effective stock */}
+                  {hasLiveConflict && (
+                    <div style={{
+                      marginTop: 8, borderRadius: 10,
+                      border: '1.5px solid #FECACA',
+                      background: '#FFF5F5',
+                      padding: '10px 14px',
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 8 }}>
+                        <span style={{ fontSize: 16, flexShrink: 0 }}>🚨</span>
+                        <div>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: '#B91C1C', marginBottom: 2 }}>
+                            Booking Conflict Detected
+                          </div>
+                          <div style={{ fontSize: 12, color: '#7F1D1D', lineHeight: 1.5 }}>
+                            <strong>{maxBookedQty}</strong> unit{maxBookedQty !== 1 ? 's' : ''} are currently booked in active orders,
+                            but the new effective stock will be only <strong>{newEffective}</strong>.
+                            Existing bookings will <strong>NOT</strong> be cancelled automatically —
+                            please contact the affected customers.
+                          </div>
+                        </div>
+                      </div>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', padding: '6px 8px', borderRadius: 6, background: '#FEE2E2' }}>
+                        <input
+                          type="checkbox"
+                          checked={forceServiceConfirmed}
+                          onChange={e => setForceServiceConfirmed(e.target.checked)}
+                          style={{ width: 15, height: 15, cursor: 'pointer', accentColor: '#DC2626' }}
+                        />
+                        <span style={{ fontSize: 12, fontWeight: 700, color: '#991B1B' }}>
+                          I understand — save anyway and I will resolve the conflict manually
+                        </span>
+                      </label>
                     </div>
                   )}
                 </div>
@@ -488,13 +538,14 @@ export default function GeneratorForm() {
                   <button
                     type="button"
                     className="pf-btn pf-btn-primary"
-                    style={{ width: '100%' }}
-                    disabled={saving}
+                    style={{ width: '100%', opacity: (hasLiveConflict && !forceServiceConfirmed) ? 0.5 : 1 }}
+                    disabled={saving || (hasLiveConflict && !forceServiceConfirmed)}
+                    title={hasLiveConflict && !forceServiceConfirmed ? 'Please acknowledge the booking conflict below first' : ''}
                     onClick={() => handleSubmit('save')}
                   >
                     {saving && saveAction === 'save'
                       ? <><span style={{ width: 14, height: 14, border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 0.7s linear infinite', display: 'inline-block' }} />Saving…</>
-                      : <><Icon.Check />Save Generator</>
+                      : <><Icon.Check />{hasLiveConflict ? 'Force Save (Conflict)' : 'Save Generator'}</>
                     }
                   </button>
 
@@ -591,6 +642,71 @@ export default function GeneratorForm() {
 
         </div>
       </div>
+
+      {/* ── Booking Conflict Confirmation Modal ─────────────────── */}
+      {conflictData && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 9999,
+          background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(4px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          padding: 16,
+        }}>
+          <div style={{
+            background: 'var(--color-surface)',
+            borderRadius: 16,
+            padding: '28px 32px',
+            maxWidth: 480,
+            width: '100%',
+            boxShadow: '0 20px 60px rgba(0,0,0,0.25)',
+            border: '1.5px solid #FECACA',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+              <div style={{ width: 42, height: 42, borderRadius: '50%', background: '#FEE2E2', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0 }}>
+                🚨
+              </div>
+              <div>
+                <div style={{ fontSize: 17, fontWeight: 800, color: '#B91C1C' }}>Booking Conflict</div>
+                <div style={{ fontSize: 12, color: 'var(--color-text-subtle)' }}>Action required before saving</div>
+              </div>
+            </div>
+            <div style={{ fontSize: 13, color: 'var(--color-text)', lineHeight: 1.7, marginBottom: 20, padding: '12px 16px', background: '#FFF5F5', borderRadius: 10, border: '1px solid #FECACA' }}>
+              <strong>{conflictData.maxBooked}</strong> unit{conflictData.maxBooked !== 1 ? 's' : ''} are currently booked in active orders,
+              but the new effective stock will be only <strong>{conflictData.newEffective}</strong>.
+              <br /><br />
+              Existing orders will <strong>NOT</strong> be automatically cancelled. You must contact the customers
+              whose bookings exceed the available stock.
+            </div>
+            <div style={{ display: 'flex', gap: 12 }}>
+              <button
+                type="button"
+                onClick={() => setConflictData(null)}
+                style={{
+                  flex: 1, padding: '10px 16px', borderRadius: 8,
+                  border: '1.5px solid var(--color-border)',
+                  background: 'var(--color-surface)', color: 'var(--color-text)',
+                  fontWeight: 600, fontSize: 13, cursor: 'pointer',
+                }}
+              >
+                Cancel — Go Back
+              </button>
+              <button
+                type="button"
+                onClick={handleForceSave}
+                disabled={saving}
+                style={{
+                  flex: 1, padding: '10px 16px', borderRadius: 8,
+                  border: 'none',
+                  background: '#DC2626', color: '#fff',
+                  fontWeight: 700, fontSize: 13, cursor: 'pointer',
+                  opacity: saving ? 0.6 : 1,
+                }}
+              >
+                {saving ? 'Saving…' : 'I Understand — Save Anyway'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   )
 }

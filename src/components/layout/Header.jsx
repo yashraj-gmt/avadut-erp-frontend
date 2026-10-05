@@ -8,13 +8,20 @@ import { usePermissions } from '@/hooks/usePermissions';
 import { ROUTES }         from '@/constants/routes';
 import { ROLE_LABELS }    from '@/constants/roles';
 import { notificationService } from '@/services/notificationService';
+import { getImageUrl } from '@/utils/imageUrl';
+import { formatToDMY } from '@/utils/helpers';
 
 export default function Header() {
   const navigate = useNavigate();
   const { toggleMobileSidebar } = useUIStore();
-  const { user, logout }        = useAuth();
+  const { user, token, logout } = useAuth();
   const { canAccess }           = usePermissions();
   const [currentDate, setCurrentDate] = useState('');
+  const [imgError, setImgError] = useState(false);
+
+  useEffect(() => {
+    setImgError(false);
+  }, [user?.profilePic]);
   
   // Notification states
   const [notifications, setNotifications] = useState([]);
@@ -22,21 +29,26 @@ export default function Header() {
   const notifRef                           = useRef(null);
 
   useEffect(() => {
-    const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
     const today = new Date();
-    setCurrentDate(today.toLocaleDateString('en-US', options));
+    const weekday = today.toLocaleDateString('en-US', { weekday: 'long' });
+    setCurrentDate(`${weekday}, ${formatToDMY(today)}`);
   }, []);
+
+  const checkedOverdueRef = useRef(false);
 
   // Fetch unread notifications & check overdue (admin/super-admin only)
   const fetchNotifications = async () => {
-    if (!user) return;
+    if (!user || !token) return;
     // /api/admin/notifications/** is restricted to ADMIN and SUPER_ADMIN roles
     const isAdmin = user.role === 'ROLE_ADMIN' || user.role === 'ROLE_SUPER_ADMIN'
                  || user.role === 'ADMIN'       || user.role === 'SUPER_ADMIN';
     if (!isAdmin) return;
     try {
-      // First check for overdue payments and create notifications
-      await notificationService.checkOverdue();
+      // Run overdue check once on initial load, not repeatedly on every 60s poll
+      if (!checkedOverdueRef.current) {
+        checkedOverdueRef.current = true;
+        await notificationService.checkOverdue().catch(() => {});
+      }
       // Then fetch unread list
       const res = await notificationService.getUnread();
       const list = res?.data || (Array.isArray(res) ? res : []);
@@ -60,7 +72,11 @@ export default function Header() {
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener('touchstart', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
   }, []);
 
   const handleMarkRead = async (id, refId) => {
@@ -80,7 +96,7 @@ export default function Header() {
 
   return (
     <header
-      className="flex items-center justify-between px-4 md:px-6 shrink-0 relative"
+      className="flex items-center justify-between px-4 md:px-6 shrink-0 relative z-30"
       style={{
         height:      'var(--header-height)',
         background:  'var(--color-surface)',
@@ -90,7 +106,7 @@ export default function Header() {
     >
       {/* Left side: Hamburger + Date */}
       <div className="flex items-center gap-4">
-        {/* Hamburger — mobile only (lg+: hidden) */}
+        {/* Hamburger - mobile only (lg+: hidden) */}
         <button
           onClick={toggleMobileSidebar}
           aria-label="Open menu"
@@ -133,10 +149,10 @@ export default function Header() {
           {/* Dropdown Menu */}
           {showNotifMenu && (
             <div
-              className="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-xl shadow-xl border border-slate-200 z-50 overflow-hidden"
+              className="fixed sm:absolute top-[calc(var(--header-height)+6px)] sm:top-full left-2 right-2 sm:left-auto sm:right-0 sm:mt-2 sm:w-96 max-w-md sm:max-w-none mx-auto sm:mx-0 bg-white rounded-xl shadow-2xl sm:shadow-xl border border-slate-200 z-50 overflow-hidden"
               style={{ animation: 'go-fadein 0.15s ease' }}
             >
-              <div className="flex items-center justify-between px-4 py-3 bg-slate-50 border-b border-slate-200">
+              <div className="flex items-center justify-between px-3.5 sm:px-4 py-2.5 sm:py-3 bg-slate-50 border-b border-slate-200">
                 <span className="text-xs font-bold uppercase tracking-wider text-slate-700">
                   Notifications ({unreadCount})
                 </span>
@@ -147,7 +163,7 @@ export default function Header() {
                 )}
               </div>
 
-              <div className="max-h-80 overflow-y-auto divide-y divide-slate-100">
+              <div className="max-h-[70vh] sm:max-h-80 overflow-y-auto divide-y divide-slate-100">
                 {notifications.length === 0 ? (
                   <div className="p-6 text-center text-xs text-slate-400">
                     🎉 No pending notifications
@@ -157,7 +173,7 @@ export default function Header() {
                     <div
                       key={n.id}
                       onClick={() => handleMarkRead(n.id, n.referenceId)}
-                      className="p-3.5 hover:bg-slate-50 transition-colors cursor-pointer flex gap-3 items-start"
+                      className="p-3 sm:p-3.5 hover:bg-slate-50 transition-colors cursor-pointer flex gap-2.5 sm:gap-3 items-start"
                     >
                       <div className="w-8 h-8 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center shrink-0 mt-0.5 font-bold text-xs">
                         ⚠️
@@ -169,7 +185,7 @@ export default function Header() {
                       </div>
                       <button
                         onClick={(e) => { e.stopPropagation(); handleMarkRead(n.id); }}
-                        className="text-slate-400 hover:text-green-600 p-1 rounded transition-colors"
+                        className="text-slate-400 hover:text-green-600 p-1 rounded transition-colors shrink-0"
                         title="Dismiss"
                       >
                         <Check size={14} />
@@ -190,13 +206,22 @@ export default function Header() {
             style={{ textDecoration: 'none' }}
           >
             <div
-              className="w-7 h-7 rounded-full flex items-center justify-center shrink-0"
+              className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 overflow-hidden"
               style={{
                 background: 'rgba(37,99,235,0.15)',
                 border:     '1px solid rgba(37,99,235,0.30)',
               }}
             >
-              <User size={14} className="text-blue-600" />
+              {user?.profilePic && !imgError ? (
+                <img
+                  src={getImageUrl(user.profilePic)}
+                  alt=""
+                  className="w-full h-full object-cover"
+                  onError={() => setImgError(true)}
+                />
+              ) : (
+                <User size={14} className="text-blue-600" />
+              )}
             </div>
 
             <div className="hidden sm:block text-left">
@@ -204,7 +229,7 @@ export default function Header() {
                 className="text-xs font-bold leading-none"
                 style={{ color: 'var(--color-text)', margin: 0 }}
               >
-                {user?.fullName}
+                {user?.fullName || user?.name}
               </p>
               <p
                 className="text-[10px] font-medium mt-0.5"

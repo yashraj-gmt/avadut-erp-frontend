@@ -22,6 +22,7 @@ const Icon = {
   X:         () => <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>,
   Zap:       () => <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2"   viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>,
   Warning:   () => <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2"   viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>,
+  Fuel:      () => <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2"   viewBox="0 0 24 24"><path d="M3 22h12M4 9h10M14 22V4a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v18M14 13h2a2 2 0 0 1 2 2v2a2 2 0 0 0 2 2h0a2 2 0 0 0 2-2V9.83a2 2 0 0 0-.59-1.42L18 5"/></svg>,
 }
 
 /* ── Label maps ───────────────────────────────────────────────────────────── */
@@ -51,19 +52,9 @@ const statusColor = (status) => {
 }
 
 /* ── Formatters ───────────────────────────────────────────────────────────── */
-const fmt     = (n) => n != null ? '₹' + Number(n).toLocaleString('en-IN', { maximumFractionDigits: 2 }) : '—'
+const fmt     = (n) => n != null ? '₹' + Number(n).toLocaleString('en-IN', { maximumFractionDigits: 2 }) : '-'
 const imgSrc  = (url) => getImageUrl(url) || DEFAULT_IMG
 const fmtDate = (dt) => formatToDMY(dt)
-
-/* ── Info Row ─────────────────────────────────────────────────────────────── */
-function InfoRow({ label, value }) {
-  return (
-    <div style={{ display: 'flex', gap: 12, padding: '10px 0', borderBottom: '1px solid var(--color-border)' }}>
-      <span style={{ width: 140, flexShrink: 0, fontSize: 13, color: 'var(--color-text-subtle)', fontWeight: 500 }}>{label}</span>
-      <span style={{ fontSize: 13, color: 'var(--color-text)', fontWeight: 500, wordBreak: 'break-word' }}>{value ?? '—'}</span>
-    </div>
-  )
-}
 
 /* ── Main Component ───────────────────────────────────────────────────────── */
 export default function GeneratorDetail() {
@@ -126,11 +117,41 @@ export default function GeneratorDetail() {
   if (!generator) return null
 
   /* ── Derived values ─────────────────────────────────────────────── */
-  const stock       = generator.stockQuantity ?? 0
+  const stock        = generator.stockQuantity ?? 0
+  const underService = generator.underServiceQuantity || 0
+  const bookable     = generator.effectiveStock ?? (stock - underService)
   const isOutOfStock = stock === 0
   const isLowStock   = stock <= 5 && stock > 0
   const sc           = statusColor(generator.currentStatus)
   const hasImage     = !!generator.imageUrl
+
+  const metricCards = [
+    {
+      label: 'Party Diesel Rent',
+      value: fmt(generator.partyDieselRentPrice),
+      color: 'var(--color-primary)',
+    },
+    {
+      label: 'With Diesel Price',
+      value: fmt(generator.withDieselRentPrice),
+      color: 'var(--color-primary)',
+    },
+    {
+      label: 'Total Stock',
+      value: `${stock} Units`,
+      color: 'var(--color-text)',
+    },
+    {
+      label: 'Bookable Stock',
+      value: `${bookable} Units`,
+      color: bookable === 0 ? 'var(--color-danger)' : '#059669',
+    },
+    {
+      label: 'Under Service',
+      value: `${underService} Units`,
+      color: underService > 0 ? '#d97706' : 'var(--color-text-muted)',
+    },
+  ]
 
   return (
     <>
@@ -138,37 +159,332 @@ export default function GeneratorDetail() {
         * { box-sizing: border-box; }
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap');
 
-        .gd-container   { min-height: 100vh; background: var(--color-bg); padding: 28px 32px; font-family: 'DM Sans', 'Segoe UI', sans-serif; }
-        .gd-page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; gap: 16px; flex-wrap: wrap; }
-        .gd-header-left { display: flex; align-items: center; gap: 14px; min-width: 0; flex: 1; }
-        .gd-actions     { display: flex; gap: 10px; flex-shrink: 0; flex-wrap: wrap; }
-        .gd-main-grid   { display: grid; grid-template-columns: 380px 1fr; gap: 20px; align-items: start; }
-        .gd-pricing     { display: flex; gap: 20px; padding: 16px; background: var(--color-surface-2); border-radius: var(--radius-lg); border: 1px solid var(--color-border); flex-wrap: wrap; }
-        .gd-pricing-item{ min-width: 110px; flex: 1; margin: 8px 0; }
-        .gd-divider     { width: 1px; background: var(--color-border); flex-shrink: 0; display: none !important; }
-        .gd-action-btn:hover { transform: translateY(-2px); }
-        .gd-img-wrap { position: relative; }
-        .gd-img-wrap:hover .gd-zoom-btn { opacity: 1 !important; }
+        .gd-container {
+          min-height: 100vh;
+          background: var(--color-bg);
+          padding: 24px 32px 48px;
+          font-family: 'DM Sans', 'Segoe UI', sans-serif;
+          max-width: 100%;
+          overflow-x: hidden;
+        }
 
-        @media (max-width: 900px) {
-          .gd-main-grid { grid-template-columns: 1fr !important; }
-          .gd-pricing   { gap: 12px !important; }
-          .gd-pricing-item { min-width: calc(33.33% - 10px) !important; flex: unset !important; width: calc(33.33% - 10px); }
-          .gd-divider   { display: none !important; }
+        .gd-page-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          margin-bottom: 20px;
+          gap: 16px;
+          flex-wrap: wrap;
         }
+        .gd-header-left {
+          display: flex;
+          align-items: center;
+          gap: 14px;
+          min-width: 0;
+          flex: 1;
+        }
+        .gd-back-btn {
+          width: 38px;
+          height: 38px;
+          border-radius: var(--radius-md);
+          border: 1.5px solid var(--color-border);
+          background: var(--color-surface);
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: var(--color-text-muted);
+          flex-shrink: 0;
+          transition: all 0.15s;
+        }
+        .gd-back-btn:hover {
+          background: var(--color-surface-2);
+          color: var(--color-text);
+        }
+        .gd-actions {
+          display: flex;
+          gap: 10px;
+          flex-shrink: 0;
+          flex-wrap: wrap;
+        }
+        .gd-action-btn {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          padding: 10px 18px;
+          border-radius: var(--radius-md);
+          font-weight: 600;
+          font-size: 14px;
+          cursor: pointer;
+          transition: all 0.2s;
+          white-space: nowrap;
+          font-family: inherit;
+        }
+        .gd-action-btn:hover {
+          transform: translateY(-1px);
+        }
+
+        /* ── Unified Details Card ── */
+        .gd-card {
+          background: var(--color-surface);
+          border-radius: var(--radius-xl);
+          border: 1px solid var(--color-border);
+          box-shadow: var(--shadow-sm);
+          padding: 28px;
+          width: 100%;
+        }
+
+        /* Top Hero section: Image + Details */
+        .gd-hero {
+          display: flex;
+          gap: 26px;
+          align-items: flex-start;
+          margin-bottom: 28px;
+        }
+
+        /* Image frame - compact and clean */
+        .gd-img-wrap {
+          width: 220px;
+          height: 220px;
+          flex-shrink: 0;
+          background: var(--color-surface-2);
+          border-radius: var(--radius-lg);
+          border: 1.5px solid var(--color-border);
+          overflow: hidden;
+          position: relative;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+        }
+        .gd-img-wrap:hover .gd-zoom-btn {
+          opacity: 1 !important;
+        }
+        .gd-img {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          display: block;
+        }
+        .gd-zoom-btn {
+          position: absolute;
+          top: 10px;
+          right: 10px;
+          width: 34px;
+          height: 34px;
+          border-radius: var(--radius-md);
+          background: rgba(255,255,255,0.92);
+          border: none;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: var(--color-text-muted);
+          opacity: 0;
+          transition: opacity 0.2s;
+          box-shadow: var(--shadow-md);
+        }
+
+        /* Info pane */
+        .gd-info-pane {
+          flex: 1;
+          min-width: 0;
+        }
+        .gd-badges {
+          display: flex;
+          gap: 8px;
+          margin-bottom: 12px;
+          flex-wrap: wrap;
+        }
+        .gd-title {
+          font-size: clamp(24px, 3.5vw, 30px);
+          font-weight: 800;
+          color: var(--color-text);
+          margin: 0 0 12px;
+          letter-spacing: -0.5px;
+          line-height: 1.2;
+          word-break: break-word;
+        }
+
+        /* Specs row */
+        .gd-specs-row {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 10px;
+          margin-bottom: 16px;
+        }
+        .gd-spec-pill {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          padding: 6px 14px;
+          background: var(--color-surface-2);
+          border: 1px solid var(--color-border);
+          border-radius: var(--radius-md);
+          font-size: 13.5px;
+          color: var(--color-text);
+        }
+        .gd-spec-label {
+          color: var(--color-text-subtle);
+          font-weight: 500;
+        }
+        .gd-spec-val {
+          font-weight: 700;
+        }
+
+        .gd-desc {
+          font-size: 14.5px;
+          color: var(--color-text-muted);
+          line-height: 1.65;
+          margin: 0;
+          word-break: break-word;
+        }
+
+        /* Divider */
+        .gd-section-divider {
+          height: 1px;
+          background: var(--color-border);
+          margin: 24px 0;
+        }
+
+        /* Operational Metrics Section */
+        .gd-metrics-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          margin-bottom: 16px;
+        }
+        .gd-metrics-title {
+          font-size: 12px;
+          font-weight: 700;
+          color: var(--color-text-subtle);
+          text-transform: uppercase;
+          letter-spacing: 0.6px;
+          margin: 0;
+        }
+
+        /* Metrics Grid */
+        .gd-metrics-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+          gap: 14px;
+          width: 100%;
+        }
+        .gd-metric-card {
+          background: var(--color-surface-2);
+          border: 1px solid var(--color-border);
+          border-radius: var(--radius-lg);
+          padding: 16px 18px;
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+          transition: all 0.15s;
+        }
+        .gd-metric-card:hover {
+          border-color: var(--color-border-strong);
+        }
+        .gd-metric-label {
+          font-size: 11px;
+          color: var(--color-text-subtle);
+          font-weight: 700;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+        }
+        .gd-metric-value {
+          font-size: 24px;
+          font-weight: 800;
+          letter-spacing: -0.4px;
+          line-height: 1.2;
+          word-break: break-word;
+        }
+
+        /* Timestamps footer */
+        .gd-timestamps {
+          display: flex;
+          gap: 12px;
+          margin-top: 24px;
+          padding-top: 16px;
+          border-top: 1px solid var(--color-border);
+          font-size: 12px;
+          color: var(--color-text-subtle);
+          flex-wrap: wrap;
+        }
+
+        /* ── Responsive breakpoints ── */
+        @media (max-width: 860px) {
+          .gd-hero {
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            gap: 20px;
+          }
+          .gd-img-wrap {
+            width: 200px;
+            height: 200px;
+            margin: 0 auto;
+          }
+          .gd-info-pane {
+            width: 100%;
+          }
+          .gd-badges {
+            justify-content: center;
+          }
+          .gd-specs-row {
+            justify-content: center;
+          }
+          .gd-metrics-grid {
+            grid-template-columns: repeat(2, 1fr);
+          }
+        }
+
         @media (max-width: 640px) {
-          .gd-container   { padding: 14px !important; }
-          .gd-page-header { flex-direction: column !important; align-items: stretch !important; gap: 12px !important; }
-          .gd-header-left { flex-wrap: wrap; }
-          .gd-actions     { width: 100% !important; }
-          .gd-actions button { flex: 1 !important; justify-content: center !important; }
-          .gd-pricing     { gap: 10px !important; }
-          .gd-pricing-item{ min-width: calc(50% - 8px) !important; width: calc(50% - 8px) !important; }
+          .gd-container {
+            padding: 14px 12px 32px !important;
+          }
+          .gd-card {
+            padding: 18px 16px;
+          }
+          .gd-page-header {
+            flex-direction: column !important;
+            align-items: stretch !important;
+            justify-content: flex-start !important;
+            gap: 12px !important;
+            margin-bottom: 16px !important;
+          }
+          .gd-header-left {
+            flex: none !important;
+            width: 100% !important;
+          }
+          .gd-actions {
+            width: 100% !important;
+          }
+          .gd-actions .gd-action-btn {
+            flex: 1 1 calc(50% - 6px);
+            justify-content: center !important;
+          }
+          .gd-metric-card {
+            padding: 12px 14px;
+          }
+          .gd-metric-value {
+            font-size: 20px;
+          }
+          .gd-metric-label {
+            font-size: 10px;
+          }
         }
-        @media (max-width: 400px) {
-          .gd-pricing-item { min-width: 100% !important; width: 100% !important; }
-          .gd-actions     { flex-direction: column !important; }
-          .gd-actions button { width: 100% !important; }
+
+        @media (max-width: 380px) {
+          .gd-page-header {
+            gap: 10px !important;
+            margin-bottom: 14px !important;
+          }
+          .gd-actions {
+            flex-direction: column !important;
+            gap: 8px !important;
+          }
+          .gd-actions .gd-action-btn {
+            width: 100% !important;
+          }
+          .gd-metrics-grid {
+            grid-template-columns: 1fr;
+          }
         }
       `}</style>
 
@@ -179,15 +495,20 @@ export default function GeneratorDetail() {
           <div className="gd-header-left">
             <button
               onClick={() => navigate(ROUTES.GENERATORS)}
-              style={{ width: 38, height: 38, borderRadius: 'var(--radius-md)', border: '1.5px solid var(--color-border)', background: 'var(--color-surface)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-text-muted)', flexShrink: 0 }}
+              className="gd-back-btn"
+              title="Back to Generators"
             >
               <Icon.ArrowLeft />
             </button>
             <div style={{ minWidth: 0 }}>
-              <h1 style={{ fontSize: 22, fontWeight: 800, color: 'var(--color-text)', margin: 0, letterSpacing: '-0.4px' }}>Generator Details</h1>
+              <h1 style={{ fontSize: 22, fontWeight: 800, color: 'var(--color-text)', margin: 0, letterSpacing: '-0.4px' }}>
+                Generator Details
+              </h1>
               <p style={{ fontSize: 13, color: 'var(--color-text-subtle)', margin: '3px 0 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 <a href="#" style={{ color: 'var(--color-primary)', textDecoration: 'none' }}>Home</a> ›{' '}
-                <a href="#" onClick={e => { e.preventDefault(); navigate(ROUTES.GENERATORS) }} style={{ color: 'var(--color-primary)', textDecoration: 'none' }}>Generators</a> › {generator.name}
+                <a href="#" onClick={e => { e.preventDefault(); navigate(ROUTES.GENERATORS) }} style={{ color: 'var(--color-primary)', textDecoration: 'none' }}>
+                  Generators
+                </a> › {generator.name}
               </p>
             </div>
           </div>
@@ -196,148 +517,173 @@ export default function GeneratorDetail() {
             <button
               className="gd-action-btn"
               onClick={() => navigate(ROUTES.GENERATOR_EDIT.replace(':id', generator.id))}
-              style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 18px', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--color-primary)', background: 'var(--color-surface)', color: 'var(--color-primary)', fontWeight: 600, fontSize: 14, cursor: 'pointer', transition: 'all 0.2s', whiteSpace: 'nowrap', fontFamily: 'inherit' }}
+              style={{
+                border: '1.5px solid var(--color-primary)',
+                background: 'var(--color-surface)',
+                color: 'var(--color-primary)',
+              }}
             >
               <Icon.Edit /> Edit Generator
             </button>
             <button
               className="gd-action-btn"
               onClick={() => setShowDelete(true)}
-              style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 18px', borderRadius: 'var(--radius-md)', border: 'none', background: 'linear-gradient(135deg, var(--color-danger), #dc2626)', color: '#fff', fontWeight: 600, fontSize: 14, cursor: 'pointer', boxShadow: '0 4px 12px rgba(239,68,68,0.3)', transition: 'all 0.2s', whiteSpace: 'nowrap', fontFamily: 'inherit' }}
+              style={{
+                border: 'none',
+                background: 'linear-gradient(135deg, var(--color-danger), #dc2626)',
+                color: '#fff',
+                boxShadow: '0 4px 12px rgba(239,68,68,0.3)',
+              }}
             >
               <Icon.Trash /> Delete
             </button>
           </div>
         </div>
 
-        {/* ── Main Grid ────────────────────────────────────────────── */}
-        <div className="gd-main-grid">
+        {/* ── Main Unified Details Card ────────────────────────────── */}
+        <div className="gd-card">
 
-          {/* LEFT: Image */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {/* Top Hero Section */}
+          <div className="gd-hero">
+
+            {/* Left: Compact Image */}
             <div
               className="gd-img-wrap"
               onClick={() => hasImage && setLightbox(true)}
-              style={{ background: 'var(--color-surface)', borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-sm)', overflow: 'hidden', aspectRatio: '1', position: 'relative', cursor: hasImage ? 'zoom-in' : 'default' }}
+              style={{ cursor: hasImage ? 'zoom-in' : 'default' }}
             >
               <img
                 src={imgSrc(generator.imageUrl)}
                 alt={generator.name}
+                className="gd-img"
                 onError={e => { e.target.onerror = null; e.target.src = DEFAULT_IMG }}
-                style={{ width: '100%', height: '100%', objectFit: 'cover', transition: 'transform 0.3s' }}
               />
               {hasImage && (
-                <button
-                  className="gd-zoom-btn"
-                  style={{ position: 'absolute', top: 14, right: 14, width: 38, height: 38, borderRadius: 'var(--radius-md)', background: 'rgba(255,255,255,0.9)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-text-muted)', opacity: 0, transition: 'opacity 0.2s', boxShadow: 'var(--shadow-md)' }}
-                >
+                <button className="gd-zoom-btn" title="View Full Size">
                   <Icon.ZoomIn />
                 </button>
               )}
             </div>
-          </div>
 
-          {/* RIGHT: Generator Info */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {/* Right: Primary Info */}
+            <div className="gd-info-pane">
 
-            {/* Info Card */}
-            <div style={{ background: 'var(--color-surface)', borderRadius: 'var(--radius-lg)', padding: 24, boxShadow: 'var(--shadow-sm)' }}>
-
-              {/* Badges */}
-              <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 10px', borderRadius: 20, fontSize: 12, fontWeight: 600, background: generator.isActive ? 'var(--color-success-light)' : 'var(--color-danger-light)', color: generator.isActive ? 'var(--color-success)' : 'var(--color-danger)' }}>
+              {/* Status Badges */}
+              <div className="gd-badges">
+                <span style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 5,
+                  padding: '4px 10px', borderRadius: 20, fontSize: 12, fontWeight: 600,
+                  background: generator.isActive ? 'var(--color-success-light)' : 'var(--color-danger-light)',
+                  color: generator.isActive ? 'var(--color-success)' : 'var(--color-danger)',
+                }}>
                   <span style={{ width: 6, height: 6, borderRadius: '50%', background: generator.isActive ? 'var(--color-success)' : 'var(--color-danger)' }} />
                   {generator.isActive ? 'Active' : 'Inactive'}
                 </span>
 
                 {generator.currentStatus && (
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 10px', borderRadius: 20, fontSize: 12, fontWeight: 600, background: sc.bg, color: sc.color }}>
+                  <span style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 5,
+                    padding: '4px 10px', borderRadius: 20, fontSize: 12, fontWeight: 600,
+                    background: sc.bg, color: sc.color,
+                  }}>
                     <span style={{ width: 6, height: 6, borderRadius: '50%', background: sc.color }} />
                     {STATUS_LABELS[generator.currentStatus] ?? generator.currentStatus}
                   </span>
                 )}
 
                 {isOutOfStock && (
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 10px', borderRadius: 20, fontSize: 12, fontWeight: 600, background: 'var(--color-danger-light)', color: 'var(--color-danger)' }}>
+                  <span style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 5,
+                    padding: '4px 10px', borderRadius: 20, fontSize: 12, fontWeight: 600,
+                    background: 'var(--color-danger-light)', color: 'var(--color-danger)',
+                  }}>
                     <Icon.Warning /> Out of Stock
                   </span>
                 )}
+
                 {isLowStock && (
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 10px', borderRadius: 20, fontSize: 12, fontWeight: 600, background: 'var(--color-warning-light)', color: 'var(--color-warning)' }}>
+                  <span style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 5,
+                    padding: '4px 10px', borderRadius: 20, fontSize: 12, fontWeight: 600,
+                    background: 'var(--color-warning-light)', color: 'var(--color-warning)',
+                  }}>
                     <Icon.Warning /> Low Stock
                   </span>
                 )}
-                {(generator.underServiceQuantity || 0) > 0 && (
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 10px', borderRadius: 20, fontSize: 12, fontWeight: 600, background: '#fef9c3', color: '#854d0e' }}>
-                    ⚠️ {generator.underServiceQuantity} Under Service
+
+                {underService > 0 && (
+                  <span style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 5,
+                    padding: '4px 10px', borderRadius: 20, fontSize: 12, fontWeight: 600,
+                    background: '#fef9c3', color: '#854d0e',
+                  }}>
+                    ⚠️ {underService} Under Service
                   </span>
                 )}
               </div>
 
-              <h2 style={{ fontSize: 24, fontWeight: 800, color: 'var(--color-text)', margin: '0 0 6px', letterSpacing: '-0.4px' }}>{generator.name}</h2>
+              {/* Title */}
+              <h2 className="gd-title">{generator.name}</h2>
 
-              <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 13, color: 'var(--color-text-muted)', marginBottom: generator.description ? 16 : 20 }}>
-                <span>Code: <strong style={{ fontFamily: 'monospace', color: 'var(--color-text-muted)' }}>{generator.generatorCode}</strong></span>
-                {generator.productBy && <span>Product By: <strong style={{ color: 'var(--color-text-muted)' }}>{generator.productBy}</strong></span>}
-              </div>
-
-              {generator.description && (
-                <p style={{ fontSize: 14, color: 'var(--color-text-muted)', lineHeight: 1.7, margin: '0 0 20px' }}>{generator.description}</p>
-              )}
-
-              {/* Pricing & Stock */}
-              <div className="gd-pricing">
-                {[
-                  { label: 'Purchase Price',        value: fmt(generator.purchasePrice),        color: 'var(--color-text)' },
-                  { label: 'Party Diesel Rent ₹',   value: fmt(generator.partyDieselRentPrice), color: 'var(--color-primary)' },
-                  { label: 'Diesel Price(with diesel)', value: fmt(generator.withDieselRentPrice), color: 'var(--color-primary)' },
-                  { label: 'Total Stock',           value: String(stock),                       color: 'var(--color-text)' },
-                  { label: 'Under Service',         value: String(generator.underServiceQuantity || 0), color: (generator.underServiceQuantity || 0) > 0 ? 'var(--color-danger)' : 'var(--color-text)' },
-                  { label: 'Bookable Stock',        value: String(generator.effectiveStock ?? (stock - (generator.underServiceQuantity || 0))), color: (generator.effectiveStock ?? (stock - (generator.underServiceQuantity || 0))) === 0 ? 'var(--color-danger)' : '#059669' },
-                ].map((item) => (
-                  <div key={item.label} className="gd-pricing-item">
-                    <div style={{ fontSize: 11, color: 'var(--color-text-subtle)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{item.label}</div>
-                    <div style={{ fontSize: 24, fontWeight: 800, color: item.color, letterSpacing: '-0.5px', marginTop: 4 }}>{item.value}</div>
-                  </div>
-                ))}
-              </div>
-
-              <div style={{ display: 'flex', gap: 12, marginTop: 16, fontSize: 12, color: 'var(--color-text-subtle)', flexWrap: 'wrap' }}>
-                {generator.createdAt && <span>Created: <strong style={{ color: 'var(--color-text-muted)' }}>{fmtDate(generator.createdAt)}</strong></span>}
-                {generator.createdAt && generator.updatedAt && <span>•</span>}
-                {generator.updatedAt && <span>Last updated: <strong style={{ color: 'var(--color-text-muted)' }}>{fmtDate(generator.updatedAt)}</strong></span>}
-              </div>
-            </div>
-
-            {/* Extra Details Card */}
-            <div style={{ background: 'var(--color-surface)', borderRadius: 'var(--radius-lg)', padding: 24, boxShadow: 'var(--shadow-sm)' }}>
-              <h3 style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-text)', margin: '0 0 4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Generator Details</h3>
-              <div style={{ marginTop: 4 }}>
-                <InfoRow label="Generator Code"  value={generator.generatorCode} />
-                <InfoRow label="Product By"      value={generator.productBy} />
+              {/* Specifications Pills */}
+              <div className="gd-specs-row">
                 {generator.fuelType && (
-                  <InfoRow label="Fuel Type" value={FUEL_LABELS[generator.fuelType] ?? generator.fuelType} />
-                )}
-                {generator.ratedPowerKva && (
-                  <InfoRow label="Rated Power" value={`${generator.ratedPowerKva} KVA`} />
-                )}
-                {generator.currentStatus && (
-                  <InfoRow label="Current Status" value={STATUS_LABELS[generator.currentStatus] ?? generator.currentStatus} />
-                )}
-                <InfoRow label="Total Stock" value={String(stock)} />
-                <InfoRow label="Under Service" value={String(generator.underServiceQuantity || 0)} />
-                <InfoRow label="Bookable Stock" value={String(generator.effectiveStock ?? (stock - (generator.underServiceQuantity || 0)))} />
-                <div style={{ display: 'flex', gap: 12, padding: '10px 0' }}>
-                  <span style={{ width: 140, flexShrink: 0, fontSize: 13, color: 'var(--color-text-subtle)', fontWeight: 500 }}>Active Status</span>
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 10px', borderRadius: 20, fontSize: 12, fontWeight: 600, background: generator.isActive ? 'var(--color-success-light)' : 'var(--color-danger-light)', color: generator.isActive ? 'var(--color-success)' : 'var(--color-danger)' }}>
-                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: generator.isActive ? 'var(--color-success)' : 'var(--color-danger)' }} />
-                    {generator.isActive ? 'Active' : 'Inactive'}
+                  <span className="gd-spec-pill">
+                    <Icon.Fuel />
+                    <span className="gd-spec-val">{FUEL_LABELS[generator.fuelType] ?? generator.fuelType}</span>
                   </span>
-                </div>
-              </div>
-            </div>
+                )}
 
+                {generator.ratedPowerKva && (
+                  <span className="gd-spec-pill">
+                    <Icon.Zap />
+                    <span className="gd-spec-val">{generator.ratedPowerKva} KVA</span>
+                  </span>
+                )}
+              </div>
+
+              {/* Description */}
+              {generator.description && (
+                <p className="gd-desc">{generator.description}</p>
+              )}
+            </div>
           </div>
+
+          <div className="gd-section-divider" />
+
+          {/* Operational Metrics & Pricing */}
+          <div className="gd-metrics-header">
+            <h3 className="gd-metrics-title">Operational & Pricing Metrics</h3>
+          </div>
+
+          <div className="gd-metrics-grid">
+            {metricCards.map((item) => (
+              <div key={item.label} className="gd-metric-card">
+                <span className="gd-metric-label">{item.label}</span>
+                <span className="gd-metric-value" style={{ color: item.color }}>
+                  {item.value}
+                </span>
+              </div>
+            ))}
+          </div>
+
+          {/* Timestamps */}
+          {(generator.createdAt || generator.updatedAt) && (
+            <div className="gd-timestamps">
+              {generator.createdAt && (
+                <span>
+                  Created: <strong style={{ color: 'var(--color-text-muted)' }}>{fmtDate(generator.createdAt)}</strong>
+                </span>
+              )}
+              {generator.createdAt && generator.updatedAt && <span>•</span>}
+              {generator.updatedAt && (
+                <span>
+                  Last updated: <strong style={{ color: 'var(--color-text-muted)' }}>{fmtDate(generator.updatedAt)}</strong>
+                </span>
+              )}
+            </div>
+          )}
+
         </div>
       </div>
 

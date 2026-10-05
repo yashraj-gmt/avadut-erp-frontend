@@ -13,7 +13,7 @@ export function useAuth() {
     try {
       await authService.logout()
     } catch {
-      // Server-side revocation failed (token already expired, etc.) — still clear client
+      // Server-side revocation failed (token already expired, etc.) - still clear client
     } finally {
       logout()
       navigate(ROUTES.LOGIN, { replace: true })

@@ -5,7 +5,6 @@ import {
   CalendarCheck,
   PlusCircle,
   ClipboardList,
-  Receipt,
   Wallet,
   Users,
   ArrowRight,
@@ -17,16 +16,6 @@ import { usePermissions } from '@/hooks/usePermissions'
 
 // ── Quick Action Cards ───────────────────────────────────────────────────────
 const QUICK_LINKS = [
-  {
-    id: 'staff-management',
-    title: 'Staff Management',
-    desc: 'Manage staff accounts and order performance',
-    route: ROUTES.STAFF_MANAGEMENT,
-    icon: UserCog,
-    iconColor: 'text-purple-600',
-    iconBg: 'bg-purple-50 group-hover:bg-purple-600 group-hover:text-white',
-    borderHover: 'hover:border-purple-400',
-  },
   {
     id: 'add-new-order',
     title: 'Add New Order',
@@ -58,14 +47,14 @@ const QUICK_LINKS = [
     borderHover: 'hover:border-indigo-400',
   },
   {
-    id: 'billing-history',
-    title: 'Billing History',
-    desc: 'Review generator bills and invoice records',
-    route: ROUTES.GENERATOR_BILLING_HISTORY,
-    icon: Receipt,
-    iconColor: 'text-sky-600',
-    iconBg: 'bg-sky-50 group-hover:bg-sky-600 group-hover:text-white',
-    borderHover: 'hover:border-sky-400',
+    id: 'staff-management',
+    title: 'Staff Management',
+    desc: 'Manage staff accounts and order performance',
+    route: ROUTES.STAFF_MANAGEMENT,
+    icon: UserCog,
+    iconColor: 'text-purple-600',
+    iconBg: 'bg-purple-50 group-hover:bg-purple-600 group-hover:text-white',
+    borderHover: 'hover:border-purple-400',
   },
   {
     id: 'customer-management',
@@ -140,7 +129,7 @@ export default function AdminDashboard({
       </div>
 
       {/* ── Main Dashboard Content ──────────────────────────────────────── */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 sm:pt-8 space-y-8">
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 pt-5 sm:pt-8 space-y-6 sm:space-y-8">
         {/* Quick Portals Grid */}
         <section aria-label="Quick Actions">
           <div className="flex items-center justify-between mb-3.5">

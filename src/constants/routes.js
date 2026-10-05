@@ -11,7 +11,7 @@ export const ROUTES = {
   // ── Roles & Permissions ───────────────────────────────────────────────────
   ROLES:        '/roles',
  
-  // ── Inventory — Products ──────────────────────────────────────────────────
+  // ── Inventory - Products ──────────────────────────────────────────────────
   PRODUCTS:       '/inventory/products',
   PRODUCT_ADD:    '/inventory/products/add',
   PRODUCT_EDIT:   '/inventory/products/:id/edit',
@@ -46,4 +46,4 @@ export const ROUTES = {
   // ── Staff Management (Admin / Super Admin) ──────────────────────────────
   STAFF_MANAGEMENT:       '/super-admin/staff',
   STAFF_DETAIL:           '/super-admin/staff/:id',
-};
+};

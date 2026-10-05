@@ -2,16 +2,16 @@
 import { forwardRef } from 'react';
 
 /**
- * Button — versatile, accessible button component.
+ * Button - versatile, accessible button component.
  *
  * Variants:  primary | secondary | danger | ghost | outline
  * Sizes:     sm | md (default) | lg
  * Props:
- *   icon        — leading icon element
- *   iconRight   — trailing icon element
- *   loading     — shows spinner, disables interaction
- *   fullWidth   — stretches to 100 %
- *   disabled    — native disabled
+ *   icon        - leading icon element
+ *   iconRight   - trailing icon element
+ *   loading     - shows spinner, disables interaction
+ *   fullWidth   - stretches to 100 %
+ *   disabled    - native disabled
  *
  * Usage:
  *   <Button variant="primary" icon={<PlusIcon />}>Add Product</Button>

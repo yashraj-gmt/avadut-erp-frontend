@@ -1,14 +1,26 @@
-// src/components/layout/AppShell.jsx
 import { useEffect } from 'react'
 import { Outlet, useLocation } from 'react-router-dom'
 import Sidebar from './Sidebar'
 import Header  from './Header'
 import { useUIStore } from '@/store/uiStore'
+import { useAuth } from '@/hooks/useAuth'
+import { useAuthStore } from '@/store/authStore'
+import { doSilentRefresh } from '@/services/api'
 import { cn } from '@/utils/cn'
 
 export default function AppShell() {
   const { sidebarCollapsed, mobileSidebarOpen, setMobileSidebarOpen } = useUIStore()
+  const { refreshProfile } = useAuth()
+  const { startRefreshTimer } = useAuthStore()
   const location = useLocation()
+
+  // Background sync user profile on mount
+  useEffect(() => {
+    refreshProfile()
+    // Start proactive token refresh timer so we never hit a mid-session 401.
+    // Covers the case where the user was already logged in (state from localStorage).
+    startRefreshTimer(doSilentRefresh)
+  }, [])
 
   // Auto-close mobile sidebar on navigation
   useEffect(() => {

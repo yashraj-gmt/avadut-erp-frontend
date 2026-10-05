@@ -18,7 +18,7 @@ const UPLOADS_BASE = (import.meta.env.VITE_UPLOADS_BASE_URL || '').replace(/\/$/
 export const getImageUrl = (path) => {
   if (!path) return null
 
-  // Already a full URL — return as-is
+  // Already a full URL - return as-is
   if (path.startsWith('http://') || path.startsWith('https://')) {
     return path
   }
@@ -36,4 +36,4 @@ export const getImageUrl = (path) => {
   return `${UPLOADS_BASE}/${normalised}`
 }
 
-export default getImageUrl
+export default getImageUrl

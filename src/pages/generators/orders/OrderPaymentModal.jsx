@@ -2,22 +2,27 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  X, History, CreditCard, CheckCircle2, IndianRupee, Wallet, AlertCircle, Loader2
+  X, History, CreditCard, CheckCircle2, IndianRupee, Wallet, AlertCircle, Loader2, Calendar
 } from 'lucide-react';
 import { generatorOrderService } from '@/services/generatorOrderService';
 import { ROUTES } from '@/constants/routes';
 import Badge from '@/components/shared/Badge';
 import Button from '@/components/shared/Button';
+import { useToast } from '@/components/shared/toast/ToastProvider';
 
-const inr = (v) => v != null ? `₹${Number(v).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—';
-const fmt = (d) => d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
+import { formatToDMY } from '@/utils/helpers';
+
+const inr = (v) => v != null ? `₹${Number(v).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-';
+const fmt = (d) => formatToDMY(d);
 
 export default function OrderPaymentModal({ order, onClose, onSuccess }) {
   const navigate = useNavigate();
+  const toast = useToast();
   const [activeTab, setActiveTab]         = useState('record');
+  const today = new Date().toISOString().split('T')[0];
   const [amount, setAmount]               = useState('');
   const [paymentMode, setPaymentMode]     = useState('CASH');
-  const [paymentDate, setPaymentDate]     = useState(() => new Date().toISOString().split('T')[0]);
+  const [paymentDate, setPaymentDate]     = useState(() => today);
   const [reference, setReference]         = useState('');
   const [notes, setNotes]                 = useState('');
   const [loading, setLoading]             = useState(false);
@@ -75,6 +80,10 @@ export default function OrderPaymentModal({ order, onClose, onSuccess }) {
       setError(`Payment amount cannot exceed the pending balance (${inr(currentPending)}).`);
       return;
     }
+    if (paymentDate > today) {
+      setError('Payment date cannot be in the future. Please select today or a previous date.');
+      return;
+    }
 
     setLoading(true);
     setError('');
@@ -104,6 +113,11 @@ export default function OrderPaymentModal({ order, onClose, onSuccess }) {
       await loadPayments();
 
       setSuccessMsg(`Recorded payment of ${inr(enteredAmt)} successfully!`);
+      toast({
+        type: 'success',
+        title: 'Payment Recorded!',
+        message: `Payment of ${inr(enteredAmt)} recorded successfully for Order ${order?.orderNumber || `#${order?.id}`}.`,
+      });
       setAmount('');
       setReference('');
       setNotes('');
@@ -123,7 +137,13 @@ export default function OrderPaymentModal({ order, onClose, onSuccess }) {
       }, 700);
 
     } catch (err) {
-      setError(err?.data?.message ?? err?.message ?? 'Failed to record payment. Please try again.');
+      const errMsg = err?.data?.message ?? err?.message ?? 'Failed to record payment. Please try again.';
+      setError(errMsg);
+      toast({
+        type: 'error',
+        title: 'Payment Failed',
+        message: errMsg,
+      });
     } finally {
       setLoading(false);
     }
@@ -315,7 +335,7 @@ export default function OrderPaymentModal({ order, onClose, onSuccess }) {
                     >
                       <option value="CASH">Cash</option>
                       <option value="UPI">UPI / GPay / PhonePe</option>
-                      <option value="BANK_TRANSFER">Bank Transfer (NEFT/IMPS)</option>
+                      <option value="BANK_TRANSFER">Bank Transfer (RTGS/NEFT/IMPS)</option>
                       <option value="CHEQUE">Cheque</option>
                       <option value="CARD">Debit / Credit Card</option>
                     </select>
@@ -328,6 +348,7 @@ export default function OrderPaymentModal({ order, onClose, onSuccess }) {
                     <input
                       type="date"
                       required
+                      max={today}
                       value={paymentDate}
                       onChange={e => setPaymentDate(e.target.value)}
                       className="w-full px-3 py-2 text-sm rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
@@ -342,7 +363,7 @@ export default function OrderPaymentModal({ order, onClose, onSuccess }) {
                   </label>
                   <input
                     type="text"
-                    placeholder="e.g. UPI Ref #, Cheque #, NEFT UTR"
+                    placeholder="e.g. UPI Ref #, Cheque #, RTGS/NEFT UTR"
                     value={reference}
                     onChange={e => setReference(e.target.value)}
                     className="w-full px-3 py-2 text-sm rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
@@ -408,34 +429,43 @@ export default function OrderPaymentModal({ order, onClose, onSuccess }) {
                 {historyList.map((p, idx) => (
                   <div
                     key={p.id || idx}
-                    className="p-3.5 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs hover:border-[var(--color-primary-300,#93c5fd)] transition"
+                    className="p-3.5 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] flex items-center justify-between gap-3 shadow-xs hover:border-[var(--color-primary-300,#93c5fd)] transition"
                   >
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-bold text-sm text-emerald-600 dark:text-emerald-400">
-                          +{inr(p.amount)}
+                    {/* Left Column: Amount + Payment Mode + Transaction Ref */}
+                    <div className="space-y-1 min-w-0 flex-1">
+                      <div className="flex items-center gap-2.5 flex-wrap">
+                        <span className="font-bold text-base text-emerald-600 dark:text-emerald-400 font-mono tracking-tight">
+                          + {inr(p.amount)}
                         </span>
                         <Badge variant="info" size="sm">{p.paymentMode}</Badge>
-                        <span className="text-xs text-[var(--color-text-muted)] font-medium">
-                          on {fmt(p.paymentDate)}
-                        </span>
                       </div>
                       {p.transactionReference && (
-                        <p className="text-xs text-[var(--color-text-subtle)]">
-                          Ref: <span className="font-mono text-[var(--color-text)] font-semibold">{p.transactionReference}</span>
-                        </p>
-                      )}
-                      {p.notes && (
-                        <p className="text-xs text-[var(--color-text-muted)] italic">
-                          "{p.notes}"
+                        <p className="text-xs text-slate-600 dark:text-slate-400 font-medium">
+                          Ref: <span className="font-mono font-bold text-slate-900 dark:text-slate-100">{p.transactionReference}</span>
                         </p>
                       )}
                     </div>
-                    <div className="text-left sm:text-right border-t sm:border-t-0 pt-2 sm:pt-0 border-[var(--color-border)]">
-                      <p className="text-[10px] uppercase font-semibold text-[var(--color-text-subtle)]">Balance After</p>
-                      <p className={`text-xs font-bold ${Number(p.pendingAfterPayment) === 0 ? 'text-emerald-600' : 'text-amber-600'}`}>
-                        {inr(p.pendingAfterPayment)}
-                      </p>
+
+                    {/* Right Column: Date + Notes */}
+                    <div className="shrink-0 text-right space-y-1">
+                      <div
+                        className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-md"
+                        style={{
+                          background: '#F1F5F9',
+                          color: '#0F172A',
+                          border: '1px solid #CBD5E1',
+                        }}
+                      >
+                        <Calendar size={13} style={{ color: '#2563EB' }} />
+                        <span style={{ color: '#0F172A', fontWeight: 700 }}>
+                          {fmt(p.paymentDate)}
+                        </span>
+                      </div>
+                      {p.notes && (
+                        <p className="text-xs text-slate-600 dark:text-slate-400 italic font-medium truncate max-w-[180px] sm:max-w-[220px]">
+                          "{p.notes}"
+                        </p>
+                      )}
                     </div>
                   </div>
                 ))}

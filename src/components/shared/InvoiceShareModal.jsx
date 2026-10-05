@@ -8,7 +8,7 @@
 //   order             : order object from API
 //   billNo            : string (bill number, for billing type)
 //   netTotal          : number (net total amount)
-//   onPrintPdf        : () => void  — triggers the print/PDF window
+//   onPrintPdf        : () => void  - triggers the print/PDF window
 //
 // The WhatsApp & Email message content differs per type.
 // A "Download / Print PDF" button is also provided.
@@ -99,8 +99,8 @@ export default function InvoiceShareModal({ isOpen, onClose, type, order, billNo
         `Your generator rental invoice has been generated.\n\n` +
         `📋 *Invoice Details:*\n` +
         `• Order No: *${order.orderNumber || order.id}*\n` +
-        `• Bill No: *${billNo || '—'}*\n` +
-        `• Function Date: ${formatRangeToDMY(order.functionDate) || '—'}\n` +
+        `• Bill No: *${billNo || '-'}*\n` +
+        `• Function Date: ${formatRangeToDMY(order.functionDate) || '-'}\n` +
         `• Net Payable: *${fmtCur(netTotal)}*\n\n` +
         `Please find the attached invoice PDF for your records.\n\n` +
         `Thank you for choosing *Avadhut Lights & Decoration*! 🙏`
@@ -111,8 +111,8 @@ export default function InvoiceShareModal({ isOpen, onClose, type, order, billNo
         `Your generator order has been confirmed.\n\n` +
         `📋 *Order Details:*\n` +
         `• Order No: *${order.orderNumber || order.id}*\n` +
-        `• Function Date: ${formatRangeToDMY(order.functionDate) || '—'}\n` +
-        `• Site: ${order.siteAddress || '—'}\n` +
+        `• Function Date: ${formatRangeToDMY(order.functionDate) || '-'}\n` +
+        `• Site: ${order.siteAddress || '-'}\n` +
         `• Generators: ${order.generators?.length || 0}\n\n` +
         `The order sheet PDF is attached for your reference.\n\n` +
         `Thank you for choosing *Avadhut Lights & Decoration*! 🙏`
@@ -131,9 +131,9 @@ export default function InvoiceShareModal({ isOpen, onClose, type, order, billNo
       body =
         `Dear ${order.clientName || 'Client'},\n\n` +
         `Please find below the billing details for your generator rental:\n\n` +
-        `Invoice No    : ${billNo || '—'}\n` +
+        `Invoice No    : ${billNo || '-'}\n` +
         `Order No      : ${order.orderNumber || order.id}\n` +
-        `Function Date : ${formatRangeToDMY(order.functionDate) || '—'}\n` +
+        `Function Date : ${formatRangeToDMY(order.functionDate) || '-'}\n` +
         `Net Amount    : ${fmtCur(netTotal)}\n\n` +
         `The invoice PDF is attached for your records.\n\n` +
         `Thank you for choosing Avadhut Lights & Decoration!\n\n` +
@@ -144,8 +144,8 @@ export default function InvoiceShareModal({ isOpen, onClose, type, order, billNo
         `Dear ${order.clientName || 'Client'},\n\n` +
         `Please find the details for your generator order:\n\n` +
         `Order No      : ${order.orderNumber || order.id}\n` +
-        `Function Date : ${formatRangeToDMY(order.functionDate) || '—'}\n` +
-        `Site Address  : ${order.siteAddress || '—'}\n` +
+        `Function Date : ${formatRangeToDMY(order.functionDate) || '-'}\n` +
+        `Site Address  : ${order.siteAddress || '-'}\n` +
         `Generators    : ${order.generators?.length || 0}\n\n` +
         `The order sheet PDF is attached for your reference.\n\n` +
         `Thank you for choosing Avadhut Lights & Decoration!\n\n` +
@@ -179,7 +179,7 @@ export default function InvoiceShareModal({ isOpen, onClose, type, order, billNo
               <p className="ism-subtitle">
                 {isOrderSheet
                   ? `Order: ${order.orderNumber || order.id} • ${order.clientName || ''}`
-                  : `Bill: ${billNo || '—'} • ${order.clientName || ''} • ${fmtCur(netTotal)}`}
+                  : `Bill: ${billNo || '-'} • ${order.clientName || ''} • ${fmtCur(netTotal)}`}
               </p>
             </div>
             <button className="ism-close" onClick={onClose} aria-label="Close">

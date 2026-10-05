@@ -2,18 +2,18 @@
 import { AlertTriangle, Trash2, Info, X, Loader2 } from 'lucide-react'
 
 /**
- * ConfirmModal — A reusable confirmation dialog.
+ * ConfirmModal - A reusable confirmation dialog.
  *
  * Props:
- *   isOpen       boolean             — controls visibility
- *   onClose      () => void          — called when cancelled / backdrop clicked
- *   onConfirm    () => void          — called when confirm button clicked
- *   title        string              — modal heading
- *   message      string | ReactNode  — body text / JSX
- *   confirmLabel string              — confirm button text  (default: "Confirm")
- *   cancelLabel  string              — cancel button text   (default: "Cancel")
+ *   isOpen       boolean             - controls visibility
+ *   onClose      () => void          - called when cancelled / backdrop clicked
+ *   onConfirm    () => void          - called when confirm button clicked
+ *   title        string              - modal heading
+ *   message      string | ReactNode  - body text / JSX
+ *   confirmLabel string              - confirm button text  (default: "Confirm")
+ *   cancelLabel  string              - cancel button text   (default: "Cancel")
  *   variant      'danger'|'warning'|'info'  (default: 'danger')
- *   loading      boolean             — disables buttons + shows spinner
+ *   loading      boolean             - disables buttons + shows spinner
  *
  * Usage:
  *   <ConfirmModal

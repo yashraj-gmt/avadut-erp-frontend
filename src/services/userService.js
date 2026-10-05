@@ -95,4 +95,19 @@ export const userService = {
    */
   getStaffStats: () =>
     api.get('/admin/users/staff/stats').then((r) => r.data),
+
+  /**
+   * POST /api/admin/users/upload-profile-pic
+   * Body: FormData with 'file'
+   * Returns: { path: "staff/profiles/..." }
+   */
+  uploadProfilePic: (file) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    return api
+      .post('/admin/users/upload-profile-pic', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+      .then((r) => r.data)
+  },
 }

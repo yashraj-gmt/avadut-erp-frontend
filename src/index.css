@@ -2,7 +2,7 @@
   @import "tailwindcss";
 
   /* ─────────────────────────────────────────────────────────────────────────────
-    ERP THEME — All brand colors live here.
+    ERP THEME - All brand colors live here.
     To rebrand: change only these variables. No component changes needed.
   ───────────────────────────────────────────────────────────────────────────── */
   :root {
@@ -74,7 +74,7 @@
 
   /* ═══════════════════════════════════════════════════════════════════════════
     SIDEBAR HELPER CLASSES
-    Hover states for sidebar elements — must live in CSS so vars work correctly.
+    Hover states for sidebar elements - must live in CSS so vars work correctly.
   ═══════════════════════════════════════════════════════════════════════════ */
   
   /* ── Sidebar nav link ───────────────────────────────────────────────────── */
